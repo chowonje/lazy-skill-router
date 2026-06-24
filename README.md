@@ -138,9 +138,23 @@ Example output:
   "score": 0.8,
   "confidenceLabel": "normal",
   "matchedSignals": ["\\bci\\b", "ci.*실패"],
+  "candidates": [
+    {
+      "route": "github-ci",
+      "primary": "github:gh-fix-ci",
+      "supporting": ["github:github"],
+      "verification": "verification-gate",
+      "confidence": 0.8,
+      "score": 0.8,
+      "confidenceLabel": "normal",
+      "matchedSignals": ["\\bci\\b", "ci.*실패"]
+    }
+  ],
   "answerOnly": false
 }
 ```
+
+Dry-run output includes the selected route and up to three ranked route candidates so route tuning can show why a route won.
 
 Weak recommendations are still injected by default when they pass `minConfidence`, but they are labeled as weak so the agent can treat them cautiously.
 

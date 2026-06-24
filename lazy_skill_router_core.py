@@ -12,6 +12,7 @@ from lazy_skill_router_scoring import (
     RouteMatch,
     choose_route,
     confidence_label,
+    ranked_route_matches,
     route_number,
     text_matches,
     tuple_of_strings,
@@ -155,6 +156,10 @@ def route_match(prompt: str, config: dict[str, Any]) -> RouteMatch | None:
     return choose_route(prompt, parse_routes(config), config)
 
 
+def route_matches(prompt: str, config: dict[str, Any]) -> tuple[RouteMatch, ...]:
+    return ranked_route_matches(prompt, parse_routes(config), config)
+
+
 def route_prompt(prompt: str, config: dict[str, Any]) -> str | None:
     match = route_match(prompt, config)
     if match is None:
@@ -164,8 +169,22 @@ def route_prompt(prompt: str, config: dict[str, Any]) -> str | None:
     return format_context(match, answer_only, config_source)
 
 
+def dry_run_candidate(match: RouteMatch) -> dict[str, Any]:
+    return {
+        "route": match.route.name,
+        "primary": match.route.primary,
+        "supporting": list(match.route.supporting),
+        "verification": match.route.verification or None,
+        "confidence": round(match.confidence, 2),
+        "score": round(match.score, 2),
+        "confidenceLabel": confidence_label(match.confidence),
+        "matchedSignals": list(match.matched_signals),
+    }
+
+
 def dry_run_output(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
-    match = route_match(prompt, config)
+    matches = route_matches(prompt, config)
+    match = matches[0] if matches else None
     answer_only = text_matches(prompt, answer_only_patterns(config))
     log_decision(prompt, match, config)
     if match is None:
@@ -175,6 +194,7 @@ def dry_run_output(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
             "confidence": 0.0,
             "score": 0.0,
             "matchedSignals": [],
+            "candidates": [],
             "answerOnly": answer_only,
         }
     return {
@@ -188,5 +208,6 @@ def dry_run_output(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
         "score": round(match.score, 2),
         "confidenceLabel": confidence_label(match.confidence),
         "matchedSignals": list(match.matched_signals),
+        "candidates": [dry_run_candidate(candidate) for candidate in matches[:3]],
         "answerOnly": answer_only,
     }

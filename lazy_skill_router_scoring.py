@@ -144,16 +144,18 @@ def route_rank(match: RouteMatch, index: int) -> tuple[int, float, float, int]:
     return (0 if match.route.fallback else 1, match.score, match.confidence, -index)
 
 
-def choose_route(prompt: str, routes: list[Route], config: dict[str, Any]) -> RouteMatch | None:
-    best_match: RouteMatch | None = None
-    best_rank: tuple[int, float, float, int] | None = None
+def ranked_route_matches(prompt: str, routes: list[Route], config: dict[str, Any]) -> tuple[RouteMatch, ...]:
+    ranked: list[tuple[tuple[int, float, float, int], RouteMatch]] = []
     lowered = prompt.lower()
     for index, route in enumerate(routes):
         match = candidate_match(lowered, route, config)
         if match is None:
             continue
         rank = route_rank(match, index)
-        if best_rank is None or rank > best_rank:
-            best_match = match
-            best_rank = rank
-    return best_match
+        ranked.append((rank, match))
+    return tuple(match for _, match in sorted(ranked, key=lambda item: item[0], reverse=True))
+
+
+def choose_route(prompt: str, routes: list[Route], config: dict[str, Any]) -> RouteMatch | None:
+    matches = ranked_route_matches(prompt, routes, config)
+    return matches[0] if matches else None

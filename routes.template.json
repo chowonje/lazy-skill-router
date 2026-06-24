@@ -180,6 +180,7 @@
       "verificationCandidates": [
         "verification-gate"
       ],
+      "priority": 2,
       "reason": "Skill, plugin, or MCP creation and installation language was detected.",
       "patterns": [
         "create.*skill",
@@ -213,7 +214,6 @@
         "pull request",
         "\\bissue\\b",
         "리뷰\\s*댓글",
-        "이슈",
         "깃허브"
       ]
     },
@@ -326,6 +326,27 @@
         "리팩토",
         "단순화",
         "구조\\s*개선"
+      ]
+    },
+    {
+      "name": "code-docs",
+      "primaryCandidates": [
+        "omo:programming",
+        "ponytail-lite"
+      ],
+      "supportingCandidates": [
+        "writing-polish",
+        "docs-sync",
+        "ponytail-lite",
+        "omo:lsp"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "weight": 0.2,
+      "reason": "Implementation and documentation work were both detected.",
+      "patterns": [
+        "(?=.*(python|\\bcode\\b|\\bbug\\b|fix|implement|patch|function|class|코드|구현|수정|고치|추가|패치|함수|버그))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그|문장))"
       ]
     },
     {
@@ -450,6 +471,9 @@
         "inbox",
         "메일",
         "받은편지함"
+      ],
+      "excludePatterns": [
+        "우편"
       ]
     },
     {
@@ -459,6 +483,7 @@
       ],
       "supportingCandidates": [],
       "verificationCandidates": [],
+      "priority": 2,
       "reason": "OpenAI API, Codex, or ChatGPT product documentation language was detected.",
       "patterns": [
         "openai",

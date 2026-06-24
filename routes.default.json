@@ -123,6 +123,7 @@
       "primary": "skill-creator",
       "supporting": ["plugin-creator", "personal-skill-router"],
       "verification": "verification-gate",
+      "priority": 2,
       "reason": "Skill, plugin, or MCP creation and installation language was detected.",
       "patterns": ["create.*skill", "update.*skill", "install.*skill", "create.*plugin", "스킬.*(만들|생성|수정|설치)", "플러그인.*(만들|생성|수정|설치)", "mcp.*(만들|생성|추가|설치)", "엠씨피.*(만들|생성|추가|설치)"]
     },
@@ -132,7 +133,7 @@
       "supporting": ["github:gh-address-comments", "github:yeet"],
       "verification": "verification-gate",
       "reason": "GitHub, PR, issue, or repository workflow language was detected.",
-      "patterns": ["\\bgithub\\b", "\\bpr\\b", "pull request", "\\bissue\\b", "리뷰\\s*댓글", "이슈", "깃허브"]
+      "patterns": ["\\bgithub\\b", "\\bpr\\b", "pull request", "\\bissue\\b", "리뷰\\s*댓글", "깃허브"]
     },
     {
       "name": "frontend",
@@ -165,6 +166,17 @@
       "verification": "verification-gate",
       "reason": "Refactor, simplify, or code cleanup language was detected.",
       "patterns": ["refactor", "cleanup", "simplif", "코드.*정리", "리팩터", "리팩토", "단순화", "구조\\s*개선"]
+    },
+    {
+      "name": "code-docs",
+      "primary": "omo:programming",
+      "supporting": ["writing-polish", "docs-sync", "ponytail-lite", "omo:lsp"],
+      "verification": "verification-gate",
+      "weight": 0.2,
+      "reason": "Implementation and documentation work were both detected.",
+      "patterns": [
+        "(?=.*(python|\\bcode\\b|\\bbug\\b|fix|implement|patch|function|class|코드|구현|수정|고치|추가|패치|함수|버그))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그|문장))"
+      ]
     },
     {
       "name": "code",
@@ -205,13 +217,15 @@
       "supporting": ["gmail:gmail-inbox-triage"],
       "verification": "",
       "reason": "Gmail or email language was detected.",
-      "patterns": ["gmail", "\\bemail\\b", "mailbox", "inbox", "메일", "받은편지함"]
+      "patterns": ["gmail", "\\bemail\\b", "mailbox", "inbox", "메일", "받은편지함"],
+      "excludePatterns": ["우편"]
     },
     {
       "name": "openai-docs",
       "primary": "openai-docs",
       "supporting": [],
       "verification": "",
+      "priority": 2,
       "reason": "OpenAI API, Codex, or ChatGPT product documentation language was detected.",
       "patterns": ["openai", "chatgpt", "codex api", "responses api", "assistants api", "오픈ai", "코덱스.*api"]
     },

@@ -235,6 +235,12 @@ class LazySkillRouterTest(unittest.TestCase):
         result = router.dry_run_output("README 업데이트해줘", config)
         self.assertEqual(result["route"], "docs")
 
+    def test_dry_run_reports_ranked_candidate_trace(self) -> None:
+        result = router.dry_run_output("Python 코드 고치고 README 문서도 같이 업데이트해줘", self.config)
+
+        self.assertEqual(result["route"], "code-docs")
+        self.assertEqual([candidate["route"] for candidate in result["candidates"][:3]], ["code-docs", "docs", "code"])
+
     def test_dry_run_reports_answer_only_mode(self) -> None:
         result = router.dry_run_output("PDF는 어떻게 만드는지 설명만 해줘", self.config)
         self.assertTrue(result["answerOnly"])

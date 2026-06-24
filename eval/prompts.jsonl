@@ -1,9 +1,104 @@
 {"id":"github-ci-ko","category":"external-state","prompt":"GitHub PR에서 CI 실패 원인 확인하고 고쳐줘","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","verification":"verification-gate","confidenceLabel":"normal","answerOnly":false}}
+{"id":"github-ci-en-actions","category":"external-state","prompt":"GitHub Actions failed on main, find the cause","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","answerOnly":false}}
+{"id":"github-ci-build-ko","category":"external-state","prompt":"빌드 실패 로그 확인하고 수정해줘","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","answerOnly":false}}
+{"id":"github-ci-check-ko","category":"external-state","prompt":"체크 실패한 PR을 고쳐줘","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","answerOnly":false}}
+{"id":"github-ci-uppercase","category":"external-state","prompt":"CI is red after the latest push","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","answerOnly":false}}
 {"id":"google-docs-specific","category":"external-state","prompt":"구글 문서 만들어줘","expect":{"shouldInject":true,"route":"google-docs","primary":"google-drive:google-docs","answerOnly":false}}
-{"id":"answer-only-pdf","category":"answer-only","prompt":"PDF는 어떻게 만드는지 설명만 해줘","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":true}}
-{"id":"config-install-hook","category":"install-config","prompt":"hooks.json에 lazy skill router 설치 설정 점검해줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","verification":"verification-gate","answerOnly":false}}
-{"id":"security-scan","category":"security","prompt":"이 저장소 보안 스캔하고 위험한 경로 찾아줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
-{"id":"composite-code-docs","category":"composite","prompt":"Python 코드 고치고 README 문서도 같이 업데이트해줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
-{"id":"pure-code-fallback","category":"fallback","prompt":"Python 함수 추가해줘","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":false}}
+{"id":"google-docs-en","category":"external-state","prompt":"Create a Google Docs draft for this outline","expect":{"shouldInject":true,"route":"google-docs","primary":"google-drive:google-docs","answerOnly":false}}
+{"id":"google-sheets-ko","category":"external-state","prompt":"구글 시트에 표 만들어줘","expect":{"shouldInject":true,"route":"google-sheets","primary":"google-drive:google-sheets","answerOnly":false}}
+{"id":"google-sheets-spreadsheet","category":"external-state","prompt":"스프레드시트 데이터를 정리해줘","expect":{"shouldInject":true,"route":"google-sheets","primary":"google-drive:google-sheets","answerOnly":false}}
+{"id":"google-sheets-en","category":"external-state","prompt":"Update the Google Sheets budget tracker","expect":{"shouldInject":true,"route":"google-sheets","primary":"google-drive:google-sheets","answerOnly":false}}
+{"id":"google-slides-ko","category":"external-state","prompt":"구글 슬라이드 발표 자료 만들어줘","expect":{"shouldInject":true,"route":"google-slides","primary":"google-drive:google-slides","answerOnly":false}}
+{"id":"google-slides-en","category":"external-state","prompt":"Turn these notes into Google Slides","expect":{"shouldInject":true,"route":"google-slides","primary":"google-drive:google-slides","answerOnly":false}}
+{"id":"google-drive-ko","category":"external-state","prompt":"구글 드라이브 파일 찾아줘","expect":{"shouldInject":true,"route":"google-drive","primary":"google-drive:google-drive","answerOnly":false}}
+{"id":"google-drive-en","category":"external-state","prompt":"Find the file in Google Drive","expect":{"shouldInject":true,"route":"google-drive","primary":"google-drive:google-drive","answerOnly":false}}
+{"id":"calendar-ko","category":"external-state","prompt":"내일 일정 확인해줘","expect":{"shouldInject":true,"route":"calendar","primary":"google-calendar:google-calendar","answerOnly":false}}
+{"id":"calendar-meeting-ko","category":"external-state","prompt":"다음 회의 준비할 내용 정리해줘","expect":{"shouldInject":true,"route":"calendar","primary":"google-calendar:google-calendar","answerOnly":false}}
+{"id":"calendar-en","category":"external-state","prompt":"Check my calendar for meetings tomorrow","expect":{"shouldInject":true,"route":"calendar","primary":"google-calendar:google-calendar","answerOnly":false}}
+{"id":"gmail-ko","category":"external-state","prompt":"받은편지함에서 급한 메일 찾아줘","expect":{"shouldInject":true,"route":"gmail","primary":"gmail:gmail","answerOnly":false}}
+{"id":"gmail-en","category":"external-state","prompt":"Summarize my Gmail inbox","expect":{"shouldInject":true,"route":"gmail","primary":"gmail:gmail","answerOnly":false}}
+{"id":"github-generic-ko","category":"external-state","prompt":"깃허브 이슈 상태 확인해줘","expect":{"shouldInject":true,"route":"github","primary":"github:github","answerOnly":false}}
+{"id":"github-pr-en","category":"external-state","prompt":"Review the open PR comments","expect":{"shouldInject":true,"route":"github","primary":"github:github","answerOnly":false}}
+{"id":"github-issue-en","category":"external-state","prompt":"Create an issue for this bug report","expect":{"shouldInject":true,"route":"github","primary":"github:github","answerOnly":false}}
+{"id":"pdf-answer-only","category":"answer-only","prompt":"PDF는 어떻게 만드는지 설명만 해줘","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":true}}
+{"id":"pdf-create-ko","category":"documents","prompt":"이 문서를 PDF로 만들어줘","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":false}}
+{"id":"pdf-korean-particle","category":"documents","prompt":"PDF는 레이아웃이 중요하니까 확인해줘","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":false}}
+{"id":"pdf-pidef","category":"documents","prompt":"피디에프 파일 내용을 검토해줘","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":false}}
+{"id":"codex-config-hooks","category":"install-config","prompt":"hooks.json에 lazy skill router 설치 설정 점검해줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","verification":"verification-gate","answerOnly":false}}
+{"id":"codex-config-agents","category":"install-config","prompt":"AGENTS.md 전역 설정이 맞는지 확인해줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","answerOnly":false}}
+{"id":"codex-config-mcp","category":"install-config","prompt":"MCP 서버 설정 점검해줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","answerOnly":false}}
+{"id":"codex-config-hook-ko","category":"install-config","prompt":"현재 훅 설정이 전역에 잡혔는지 봐줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","answerOnly":false}}
+{"id":"codex-config-current-work","category":"install-config","prompt":"현재 작업 평가가 이상한 것 같은데 설정 문제인지 봐줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","answerOnly":false}}
+{"id":"skill-routing-ko","category":"install-config","prompt":"이 작업에는 어떤 스킬을 쓰면 돼?","expect":{"shouldInject":true,"route":"skill-routing","primary":"personal-skill-router","answerOnly":false}}
+{"id":"skill-routing-recommend","category":"install-config","prompt":"스킬 추천 로직이 잘 잡히는지 확인해줘","expect":{"shouldInject":true,"route":"skill-routing","primary":"personal-skill-router","answerOnly":false}}
+{"id":"skill-routing-en","category":"install-config","prompt":"Which skill should handle this task?","expect":{"shouldInject":true,"route":"skill-routing","primary":"personal-skill-router","answerOnly":false}}
 {"id":"skill-creation","category":"install-config","prompt":"스킬 만들어줘","expect":{"shouldInject":true,"route":"skill-plugin","primary":"skill-creator","verification":"verification-gate","answerOnly":false}}
-{"id":"no-route-smalltalk","category":"none","prompt":"오늘 점심 메뉴 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"skill-update","category":"install-config","prompt":"기존 스킬 수정하고 설치 방법도 정리해줘","expect":{"shouldInject":true,"route":"skill-plugin","primary":"skill-creator","answerOnly":false}}
+{"id":"plugin-create","category":"install-config","prompt":"플러그인 생성해줘","expect":{"shouldInject":true,"route":"skill-plugin","primary":"skill-creator","answerOnly":false}}
+{"id":"mcp-create","category":"install-config","prompt":"새 MCP 서버 추가하는 스킬을 만들어줘","expect":{"shouldInject":true,"route":"skill-plugin","primary":"skill-creator","answerOnly":false}}
+{"id":"frontend-ui","category":"frontend","prompt":"UI 버튼 간격을 모바일에서 맞춰줘","expect":{"shouldInject":true,"route":"frontend","primary":"omo:frontend","answerOnly":false}}
+{"id":"frontend-layout-en","category":"frontend","prompt":"Fix the responsive frontend layout","expect":{"shouldInject":true,"route":"frontend","primary":"omo:frontend","answerOnly":false}}
+{"id":"frontend-design-ko","category":"frontend","prompt":"화면 디자인과 스타일을 정리해줘","expect":{"shouldInject":true,"route":"frontend","primary":"omo:frontend","answerOnly":false}}
+{"id":"browser-click","category":"browser","prompt":"브라우저에서 페이지 열고 버튼 클릭해줘","expect":{"shouldInject":true,"route":"browser","primary":"playwright","answerOnly":false}}
+{"id":"browser-screenshot","category":"browser","prompt":"Chrome에서 스크린샷으로 확인해줘","expect":{"shouldInject":true,"route":"browser","primary":"playwright","answerOnly":false}}
+{"id":"browser-playwright","category":"browser","prompt":"Use Playwright to verify the local page","expect":{"shouldInject":true,"route":"browser","primary":"playwright","answerOnly":false}}
+{"id":"debugging-ko","category":"debugging","prompt":"버그 재현하고 원인 찾아줘","expect":{"shouldInject":true,"route":"debugging","primary":"omo:debugging","answerOnly":false}}
+{"id":"debugging-error-en","category":"debugging","prompt":"This error happens after login","expect":{"shouldInject":true,"route":"debugging","primary":"omo:debugging","answerOnly":false}}
+{"id":"debugging-crash","category":"debugging","prompt":"앱이 크래시 나는데 확인해줘","expect":{"shouldInject":true,"route":"debugging","primary":"omo:debugging","answerOnly":false}}
+{"id":"debugging-not-working","category":"debugging","prompt":"The command is not working","expect":{"shouldInject":true,"route":"debugging","primary":"omo:debugging","answerOnly":false}}
+{"id":"refactor-en","category":"code-quality","prompt":"Refactor this module and simplify the flow","expect":{"shouldInject":true,"route":"refactor","primary":"omo:refactor","answerOnly":false}}
+{"id":"refactor-ko","category":"code-quality","prompt":"코드 정리하고 구조 개선해줘","expect":{"shouldInject":true,"route":"refactor","primary":"omo:refactor","answerOnly":false}}
+{"id":"refactor-simplify","category":"code-quality","prompt":"복잡한 함수를 단순화해줘","expect":{"shouldInject":true,"route":"refactor","primary":"omo:refactor","answerOnly":false}}
+{"id":"code-fallback-python","category":"fallback","prompt":"Python 함수 추가해줘","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":false}}
+{"id":"code-fallback-implement","category":"fallback","prompt":"Implement a small helper class","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":false}}
+{"id":"code-fallback-patch","category":"fallback","prompt":"이 파일에 패치 적용해줘","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":false}}
+{"id":"code-fallback-edit","category":"fallback","prompt":"Edit the function to handle empty input","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":false}}
+{"id":"docs-readme","category":"docs","prompt":"README 문서 다듬어줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
+{"id":"docs-changelog","category":"docs","prompt":"릴리스 노트와 체인지로그 작성해줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
+{"id":"docs-sentence","category":"docs","prompt":"이 문장 어색한 부분 고쳐줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
+{"id":"docs-en","category":"docs","prompt":"Polish the documentation wording","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
+{"id":"security-scan","category":"security","prompt":"이 저장소 보안 스캔하고 위험한 경로 찾아줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
+{"id":"security-secret","category":"security","prompt":"secret token이 노출됐는지 확인해줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
+{"id":"security-privacy","category":"security","prompt":"공개 전에 개인정보가 있는지 검사해줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
+{"id":"security-threat","category":"security","prompt":"위협 모델 관점에서 취약점을 찾아줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
+{"id":"openai-docs-api","category":"docs-external","prompt":"Responses API 사용법 확인해줘","expect":{"shouldInject":true,"route":"openai-docs","primary":"openai-docs","answerOnly":false}}
+{"id":"openai-docs-chatgpt","category":"docs-external","prompt":"ChatGPT product docs 기준으로 설명해줘","expect":{"shouldInject":true,"route":"openai-docs","primary":"openai-docs","answerOnly":false}}
+{"id":"openai-docs-codex-api","category":"docs-external","prompt":"Codex API 문서를 보고 최신 사용법 알려줘","expect":{"shouldInject":true,"route":"openai-docs","primary":"openai-docs","answerOnly":false}}
+{"id":"planning-ko","category":"planning","prompt":"이 기능 구현 방향을 비교해줘","expect":{"shouldInject":true,"route":"planning","primary":"superpowers","answerOnly":false}}
+{"id":"planning-en","category":"planning","prompt":"Brainstorm the best approach before coding","expect":{"shouldInject":true,"route":"planning","primary":"superpowers","answerOnly":false}}
+{"id":"planning-tradeoff","category":"planning","prompt":"설계 tradeoff를 정리해줘","expect":{"shouldInject":true,"route":"planning","primary":"superpowers","answerOnly":false}}
+{"id":"planning-plan","category":"planning","prompt":"작업 계획 세워줘","expect":{"shouldInject":true,"route":"planning","primary":"superpowers","answerOnly":false}}
+{"id":"composite-code-docs-ko","category":"composite","prompt":"Python 코드 고치고 README 문서도 같이 업데이트해줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","supporting":["writing-polish","docs-sync","ponytail-lite","omo:lsp"],"answerOnly":false}}
+{"id":"composite-code-docs-en","category":"composite","prompt":"Fix the code and update the documentation","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
+{"id":"composite-code-changelog","category":"composite","prompt":"버그 수정하고 changelog도 추가해줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
+{"id":"composite-function-readme","category":"composite","prompt":"새 function을 추가하고 README 예시도 고쳐줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
+{"id":"composite-patch-release-notes","category":"composite","prompt":"patch 적용 후 release notes를 업데이트해줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
+{"id":"answer-only-docs","category":"answer-only","prompt":"README 작성법은 설명만 해줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":true}}
+{"id":"answer-only-code","category":"answer-only","prompt":"함수형 프로그래밍 개념 설명만 해줘","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":true}}
+{"id":"answer-only-security","category":"answer-only","prompt":"보안 threat model이 뭔지 설명만 해줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":true}}
+{"id":"answer-only-openai","category":"answer-only","prompt":"Responses API가 뭔지 설명만 해줘","expect":{"shouldInject":true,"route":"openai-docs","primary":"openai-docs","answerOnly":true}}
+{"id":"none-lunch","category":"none","prompt":"오늘 점심 메뉴 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-weather-smalltalk","category":"none","prompt":"날씨가 좋으면 산책할까?","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-music","category":"none","prompt":"요즘 들을 만한 음악 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-movie","category":"none","prompt":"주말에 볼 영화 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-faker","category":"none","prompt":"페이커가 왜 유명한지 궁금해","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-misutgaru","category":"none","prompt":"미숫가루 맛있게 타는 비율 알려줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-travel","category":"none","prompt":"부산 여행 코스 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-language","category":"none","prompt":"영어 회화 연습 주제를 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"none-book","category":"none","prompt":"읽을 만한 소설 골라줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"ambiguous-action-movie","category":"none","prompt":"액션 영화 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"ambiguous-drive-car","category":"none","prompt":"주말에 드라이브 갈 만한 곳 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"ambiguous-issue-life","category":"none","prompt":"요즘 내 가장 큰 이슈는 잠을 못 자는 거야","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"ambiguous-token-game","category":"none","prompt":"보드게임 토큰 정리함 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"ambiguous-mail-post","category":"none","prompt":"우편 메일 문구 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}
+{"id":"ambiguous-plan-trip","category":"planning","prompt":"여행 계획 비교해줘","expect":{"shouldInject":true,"route":"planning","primary":"superpowers","answerOnly":false}}
+{"id":"ambiguous-document-life","category":"docs","prompt":"이 글쓰기 문장을 조금 자연스럽게 바꿔줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
+{"id":"ambiguous-meeting-social","category":"external-state","prompt":"회의 일정이 언제인지 캘린더에서 확인해줘","expect":{"shouldInject":true,"route":"calendar","primary":"google-calendar:google-calendar","answerOnly":false}}
+{"id":"ambiguous-email-copy","category":"external-state","prompt":"이메일 답장 초안 작성해줘","expect":{"shouldInject":true,"route":"gmail","primary":"gmail:gmail","answerOnly":false}}
+{"id":"ambiguous-token-security","category":"security","prompt":"GitHub token secret이 노출됐는지 봐줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
+{"id":"ambiguous-action-ci","category":"external-state","prompt":"action fail 로그를 확인해줘","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","answerOnly":false}}
+{"id":"ambiguous-drive-google","category":"external-state","prompt":"Google Drive 문서를 찾아줘","expect":{"shouldInject":true,"route":"google-drive","primary":"google-drive:google-drive","answerOnly":false}}
+{"id":"ambiguous-issue-github","category":"external-state","prompt":"GitHub issue를 정리해줘","expect":{"shouldInject":true,"route":"github","primary":"github:github","answerOnly":false}}
+{"id":"ambiguous-review-comments","category":"external-state","prompt":"PR 리뷰 댓글에 답변해줘","expect":{"shouldInject":true,"route":"github","primary":"github:github","answerOnly":false}}
+{"id":"ambiguous-codex-general","category":"docs-external","prompt":"Codex API 최신 문서를 확인해줘","expect":{"shouldInject":true,"route":"openai-docs","primary":"openai-docs","answerOnly":false}}
+{"id":"ambiguous-config-settings","category":"install-config","prompt":"설정 점검하고 문제 있으면 알려줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","answerOnly":false}}

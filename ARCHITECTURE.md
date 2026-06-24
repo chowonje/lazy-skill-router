@@ -32,6 +32,8 @@ Fallback routes are only selected when no non-fallback route matches. Use them f
 
 Codex hook adapter and dry-run CLI. It owns stdin parsing, CLI flags, hook JSON output, and conversion from a prompt string to either diagnostics or Codex `hookSpecificOutput`.
 
+Dry-run diagnostics include the selected route and up to three ranked candidates. The hook output remains smaller and only injects the selected recommendation block.
+
 ### `routes.default.json`
 
 Bundled route policy data. It defines the skill allowlist, confidence threshold, answer-only patterns, and route metadata.
@@ -87,7 +89,6 @@ When route behavior changes, update the golden prompt fixture in the same change
 The scoring engine is still intentionally small. The next routing improvements should be made behind regression fixtures:
 
 - expand route categories for security, install, external-state, and multi-intent prompts
-- expose candidate runner-up diagnostics in dry-run mode when debugging route drift
 - tune priority and weight values only with golden prompt coverage
 
 Any roadmap work must preserve recommendation-only semantics, fail-open behavior, and no raw prompt logging.
