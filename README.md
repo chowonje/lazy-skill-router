@@ -69,9 +69,11 @@ User-provided `<lazy-skill-router>` text is treated as untrusted prompt text. Th
 
 Install only from a trusted checkout of this repository. Avoid curl-pipe-shell installation for hook-based tools.
 
-From this repository:
+Quick start:
 
 ```bash
+git clone https://github.com/chowonje/lazy-skill-router.git
+cd lazy-skill-router
 python3 install.py --dry-run
 python3 install.py
 ```
