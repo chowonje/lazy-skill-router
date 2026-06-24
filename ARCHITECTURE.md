@@ -26,13 +26,15 @@ The core should remain independent from Codex hook I/O so dry-run, tests, and ev
 
 Candidate matching and ranking. It owns route dataclasses, confidence calculation, optional `priority` and `weight` scoring, allowlist filtering, and `fallback` handling.
 
+Route patterns may be raw regex strings or labeled pattern objects. Matching uses the regex; recommendation context uses the label when one is provided.
+
 Fallback routes are only selected when no non-fallback route matches. Use them for broad categories such as generic implementation work.
 
 ### `lazy_skill_router.py`
 
 Codex hook adapter and dry-run CLI. It owns stdin parsing, CLI flags, hook JSON output, and conversion from a prompt string to either diagnostics or Codex `hookSpecificOutput`.
 
-Dry-run diagnostics include the selected route and up to three ranked candidates. The hook output remains smaller and only injects the selected recommendation block.
+Dry-run diagnostics include the selected route, up to three ranked candidates, human-readable `matchedSignals`, and regex-level `matchedPatterns`. The hook output remains smaller and only injects the selected recommendation block.
 
 ### `routes.default.json`
 

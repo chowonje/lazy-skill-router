@@ -240,6 +240,15 @@ class LazySkillRouterTest(unittest.TestCase):
 
         self.assertEqual(result["route"], "code-docs")
         self.assertEqual([candidate["route"] for candidate in result["candidates"][:3]], ["code-docs", "docs", "code"])
+        self.assertEqual(result["matchedSignals"], ["Code and documentation work"])
+        self.assertEqual(len(result["matchedPatterns"]), 1)
+
+    def test_route_prompt_uses_signal_labels_in_context(self) -> None:
+        context = router.route_prompt("Python 코드 고치고 README 문서도 같이 업데이트해줘", self.config)
+
+        self.assertIsNotNone(context)
+        self.assertIn("Matched signals: Code and documentation work", context)
+        self.assertNotIn("(?=.*(python", context)
 
     def test_dry_run_reports_answer_only_mode(self) -> None:
         result = router.dry_run_output("PDF는 어떻게 만드는지 설명만 해줘", self.config)
@@ -256,6 +265,13 @@ class LazySkillRouterTest(unittest.TestCase):
         self.assertTrue(
             any(finding.severity == "ERROR" and "invalid patterns regex" in finding.message for finding in findings)
         )
+
+    def test_validator_rejects_invalid_pattern_object(self) -> None:
+        config = dict(self.config)
+        config["routes"] = [{"name": "bad", "primary": "pdf", "patterns": [{"label": "Missing regex"}]}]
+        findings = validator.validate_config(config)
+
+        self.assertTrue(any("pattern object missing string regex" in finding.message for finding in findings))
 
     def test_validator_rejects_invalid_scoring_fields(self) -> None:
         config = dict(self.config)

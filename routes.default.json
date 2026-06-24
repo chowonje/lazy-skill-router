@@ -60,7 +60,14 @@
       "supporting": ["github:github"],
       "verification": "verification-gate",
       "reason": "GitHub Actions or CI failure language was detected.",
-      "patterns": ["\\bci\\b", "github actions?", "\\baction(s)?\\b.*fail", "체크.*실패", "ci.*실패", "빌드.*실패"]
+      "patterns": [
+        {"regex": "\\bci\\b", "label": "CI keyword"},
+        {"regex": "github actions?", "label": "GitHub Actions"},
+        {"regex": "\\baction(s)?\\b.*fail", "label": "GitHub Actions failure"},
+        {"regex": "체크.*실패", "label": "Korean check failure"},
+        {"regex": "ci.*실패", "label": "Korean CI failure"},
+        {"regex": "빌드.*실패", "label": "Korean build failure"}
+      ]
     },
     {
       "name": "google-docs",
@@ -175,7 +182,10 @@
       "weight": 0.2,
       "reason": "Implementation and documentation work were both detected.",
       "patterns": [
-        "(?=.*(python|\\bcode\\b|\\bbug\\b|fix|implement|patch|function|class|코드|구현|수정|고치|추가|패치|함수|버그))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그|문장))"
+        {
+          "regex": "(?=.*(python|\\bcode\\b|\\bbug\\b|fix|implement|patch|function|class|코드|구현|수정|고치|추가|패치|함수|버그))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그|문장))",
+          "label": "Code and documentation work"
+        }
       ]
     },
     {

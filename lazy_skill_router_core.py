@@ -15,6 +15,7 @@ from lazy_skill_router_scoring import (
     ranked_route_matches,
     route_number,
     text_matches,
+    tuple_of_patterns,
     tuple_of_strings,
 )
 
@@ -90,7 +91,7 @@ def parse_routes(config: dict[str, Any]) -> list[Route]:
         name = raw_route.get("name")
         primary = raw_route.get("primary")
         reason = raw_route.get("reason", "")
-        patterns = tuple_of_strings(raw_route.get("patterns"))
+        patterns = tuple_of_patterns(raw_route.get("patterns"))
         if not isinstance(name, str) or not isinstance(primary, str) or not patterns:
             debug(f"route #{index} is missing name, primary, or patterns")
             continue
@@ -179,6 +180,7 @@ def dry_run_candidate(match: RouteMatch) -> dict[str, Any]:
         "score": round(match.score, 2),
         "confidenceLabel": confidence_label(match.confidence),
         "matchedSignals": list(match.matched_signals),
+        "matchedPatterns": list(match.matched_patterns),
     }
 
 
@@ -194,6 +196,7 @@ def dry_run_output(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
             "confidence": 0.0,
             "score": 0.0,
             "matchedSignals": [],
+            "matchedPatterns": [],
             "candidates": [],
             "answerOnly": answer_only,
         }
@@ -208,6 +211,7 @@ def dry_run_output(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
         "score": round(match.score, 2),
         "confidenceLabel": confidence_label(match.confidence),
         "matchedSignals": list(match.matched_signals),
+        "matchedPatterns": list(match.matched_patterns),
         "candidates": [dry_run_candidate(candidate) for candidate in matches[:3]],
         "answerOnly": answer_only,
     }

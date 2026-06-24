@@ -50,10 +50,16 @@ def route_name(raw_route: dict[str, Any], index: int) -> str:
     return f"#{index}"
 
 
-def route_patterns(raw_route: dict[str, Any], name: str) -> tuple[str, ...]:
-    patterns = string_list(raw_route.get("patterns"))
+def route_patterns(raw_route: dict[str, Any], name: str) -> list[Any]:
+    value = raw_route.get("patterns")
+    if isinstance(value, list):
+        patterns = value
+    elif isinstance(value, dict):
+        patterns = [value]
+    else:
+        patterns = string_list(value)
     if not patterns:
-        raise TemplateError(f"template route {name} must define non-empty string patterns")
+        raise TemplateError(f"template route {name} must define non-empty patterns")
     return patterns
 
 
@@ -94,7 +100,7 @@ def generate_route(raw_route: dict[str, Any], installed: set[str], index: int) -
         generated["verification"] = verification if verification is not None else ""
 
     copy_route_metadata(raw_route, generated)
-    generated["patterns"] = list(route_patterns(raw_route, name))
+    generated["patterns"] = route_patterns(raw_route, name)
     return generated
 
 

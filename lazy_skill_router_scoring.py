@@ -15,13 +15,19 @@ PRIORITY_SCORE_STEP = 0.05
 
 
 @dataclass(frozen=True)
+class RoutePattern:
+    regex: str
+    label: str
+
+
+@dataclass(frozen=True)
 class Route:
     name: str
     primary: str
     supporting: tuple[str, ...]
     verification: str
     reason: str
-    patterns: tuple[str, ...]
+    patterns: tuple[RoutePattern, ...]
     exclude_patterns: tuple[str, ...]
     priority: float
     weight: float
@@ -34,6 +40,7 @@ class RouteMatch:
     confidence: float
     score: float
     matched_signals: tuple[str, ...]
+    matched_patterns: tuple[str, ...]
 
 
 def tuple_of_strings(value: Any) -> tuple[str, ...]:
@@ -43,6 +50,32 @@ def tuple_of_strings(value: Any) -> tuple[str, ...]:
         return (value,)
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         return tuple(value)
+    return ()
+
+
+def route_pattern(value: Any) -> RoutePattern | None:
+    if isinstance(value, str):
+        return RoutePattern(value, value)
+    if not isinstance(value, dict):
+        return None
+
+    regex = value.get("regex")
+    label = value.get("label", regex)
+    if not isinstance(regex, str) or not regex:
+        return None
+    if not isinstance(label, str) or not label:
+        return RoutePattern(regex, regex)
+    return RoutePattern(regex, label)
+
+
+def tuple_of_patterns(value: Any) -> tuple[RoutePattern, ...]:
+    if value is None:
+        return ()
+    pattern = route_pattern(value)
+    if pattern is not None:
+        return (pattern,)
+    if isinstance(value, list):
+        return tuple(pattern for item in value if (pattern := route_pattern(item)) is not None)
     return ()
 
 
@@ -62,6 +95,17 @@ def matched_patterns(text: str, patterns: Iterable[str]) -> tuple[str, ...]:
                 matches.append(pattern)
         except re.error as exc:
             debug(f"invalid regex {pattern!r}: {exc}")
+    return tuple(matches)
+
+
+def matched_route_patterns(text: str, patterns: Iterable[RoutePattern]) -> tuple[RoutePattern, ...]:
+    matches: list[RoutePattern] = []
+    for pattern in patterns:
+        try:
+            if re.search(pattern.regex, text, re.IGNORECASE):
+                matches.append(pattern)
+        except re.error as exc:
+            debug(f"invalid regex {pattern.regex!r}: {exc}")
     return tuple(matches)
 
 
@@ -130,14 +174,22 @@ def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
 def candidate_match(prompt: str, route: Route, config: dict[str, Any]) -> RouteMatch | None:
     if route.exclude_patterns and text_matches(prompt, route.exclude_patterns):
         return None
-    matches = matched_patterns(prompt, route.patterns)
-    confidence = confidence_for(matches)
+    matches = matched_route_patterns(prompt, route.patterns)
+    matched_signals = tuple(pattern.label for pattern in matches)
+    matched_regexes = tuple(pattern.regex for pattern in matches)
+    confidence = confidence_for(matched_regexes)
     if not matches or confidence < configured_float(config, "minConfidence", MIN_CONFIDENCE):
         return None
     filtered = filter_route(route, config)
     if filtered is None:
         return None
-    return RouteMatch(filtered, confidence, score_for(filtered, confidence), matches[:MAX_MATCHED_SIGNALS])
+    return RouteMatch(
+        filtered,
+        confidence,
+        score_for(filtered, confidence),
+        matched_signals[:MAX_MATCHED_SIGNALS],
+        matched_regexes[:MAX_MATCHED_SIGNALS],
+    )
 
 
 def route_rank(match: RouteMatch, index: int) -> tuple[int, float, float, int]:

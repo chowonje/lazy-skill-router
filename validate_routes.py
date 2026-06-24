@@ -22,6 +22,35 @@ def strings(value: Any) -> list[str]:
     return []
 
 
+def pattern_regex(value: Any, route_name: str, field: str) -> tuple[str | None, list[Finding]]:
+    if isinstance(value, str):
+        return value, []
+    if not isinstance(value, dict):
+        return None, [Finding("ERROR", f"route {route_name} {field} entries must be strings or pattern objects")]
+
+    regex = value.get("regex")
+    if not isinstance(regex, str) or not regex:
+        return None, [Finding("ERROR", f"route {route_name} {field} pattern object missing string regex")]
+    label = value.get("label")
+    if label is not None and (not isinstance(label, str) or not label):
+        return None, [Finding("ERROR", f"route {route_name} {field} pattern object label must be a non-empty string")]
+    return regex, []
+
+
+def pattern_regexes(value: Any, route_name: str, field: str) -> tuple[list[str], list[Finding]]:
+    if value is None:
+        return [], []
+    values = value if isinstance(value, list) else [value]
+    patterns: list[str] = []
+    findings: list[Finding] = []
+    for item in values:
+        regex, item_findings = pattern_regex(item, route_name, field)
+        findings.extend(item_findings)
+        if regex is not None:
+            patterns.append(regex)
+    return patterns, findings
+
+
 def load_config(path: Path) -> tuple[dict[str, Any] | None, list[Finding]]:
     try:
         with path.open("r", encoding="utf-8") as handle:
@@ -80,9 +109,10 @@ def validate_route(route: Any, index: int, allowed: set[str]) -> tuple[str | Non
     elif allowed and primary not in allowed:
         findings.append(Finding("ERROR", f"route {name} primary is not in allowedSkills: {primary}"))
 
-    patterns = strings(route.get("patterns"))
+    patterns, pattern_findings = pattern_regexes(route.get("patterns"), str(name), "patterns")
+    findings.extend(pattern_findings)
     if not patterns:
-        findings.append(Finding("ERROR", f"route {name} must define non-empty string patterns"))
+        findings.append(Finding("ERROR", f"route {name} must define non-empty patterns"))
     findings.extend(check_patterns(str(name), "patterns", patterns))
     findings.extend(check_patterns(str(name), "excludePatterns", strings(route.get("excludePatterns"))))
     findings.extend(check_scoring_fields(route, str(name)))

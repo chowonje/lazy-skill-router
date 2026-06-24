@@ -137,7 +137,8 @@ Example output:
   "confidence": 0.8,
   "score": 0.8,
   "confidenceLabel": "normal",
-  "matchedSignals": ["\\bci\\b", "ci.*실패"],
+  "matchedSignals": ["CI keyword", "Korean CI failure"],
+  "matchedPatterns": ["\\bci\\b", "ci.*실패"],
   "candidates": [
     {
       "route": "github-ci",
@@ -147,14 +148,15 @@ Example output:
       "confidence": 0.8,
       "score": 0.8,
       "confidenceLabel": "normal",
-      "matchedSignals": ["\\bci\\b", "ci.*실패"]
+      "matchedSignals": ["CI keyword", "Korean CI failure"],
+      "matchedPatterns": ["\\bci\\b", "ci.*실패"]
     }
   ],
   "answerOnly": false
 }
 ```
 
-Dry-run output includes the selected route and up to three ranked route candidates so route tuning can show why a route won.
+Dry-run output includes the selected route and up to three ranked route candidates so route tuning can show why a route won. `matchedSignals` contains human-readable labels when configured, while `matchedPatterns` preserves the regexes that matched for debugging.
 
 Weak recommendations are still injected by default when they pass `minConfidence`, but they are labeled as weak so the agent can treat them cautiously.
 
@@ -176,8 +178,19 @@ Important fields:
 - `routes[].priority`: optional numeric score boost in `0.05` increments
 - `routes[].weight`: optional direct numeric score adjustment
 - `routes[].fallback`: optional boolean; fallback routes only win when no non-fallback route matches
+- `routes[].patterns`: strings or `{ "regex": "...", "label": "..." }` objects
 
 If your Codex setup does not include skills like `omo:programming` or `github:github`, either remove those routes or change them to skills you have installed.
+
+Use pattern labels when a regex is too noisy for the injected recommendation block:
+
+```json
+{
+  "patterns": [
+    { "regex": "ci.*실패", "label": "Korean CI failure" }
+  ]
+}
+```
 
 ## Generate User-Specific Routes
 
