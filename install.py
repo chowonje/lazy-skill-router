@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import copy
+import difflib
 import json
 import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,29 +41,14 @@ def ensure_user_prompt_hook(data: dict[str, Any], hook_command: str) -> str:
     if not isinstance(groups, list):
         raise ValueError("hooks.UserPromptSubmit must be a list")
 
-    for group in groups:
-        if not isinstance(group, dict):
-            continue
-        hook_items = group.get("hooks")
-        if not isinstance(hook_items, list):
-            continue
-        for item in hook_items:
-            if isinstance(item, dict) and "lazy_skill_router.py" in str(item.get("command", "")):
-                if item.get("command") != hook_command:
-                    item["command"] = hook_command
-                    return "updated"
-                return "unchanged"
+    existing = lazy_router_hook_item(data)
+    if existing is not None:
+        if existing.get("command") != hook_command:
+            existing["command"] = hook_command
+            return "updated"
+        return "unchanged"
 
-    if not groups:
-        groups.append({"hooks": []})
-
-    target_group = next(
-        (group for group in groups if isinstance(group, dict) and isinstance(group.get("hooks"), list)), None
-    )
-    if target_group is None:
-        target_group = {"hooks": []}
-        groups.append(target_group)
-
+    target_group = first_hook_group(groups)
     target_group["hooks"].append(
         {
             "type": "command",
@@ -70,6 +58,60 @@ def ensure_user_prompt_hook(data: dict[str, Any], hook_command: str) -> str:
         }
     )
     return "added"
+
+
+def user_prompt_hook_items(data: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return
+    groups = hooks.get("UserPromptSubmit")
+    if not isinstance(groups, list):
+        return
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        hook_items = group.get("hooks")
+        if not isinstance(hook_items, list):
+            continue
+        for item in hook_items:
+            if isinstance(item, dict):
+                yield item
+
+
+def lazy_router_hook_item(data: dict[str, Any]) -> dict[str, Any] | None:
+    for item in user_prompt_hook_items(data):
+        if "lazy_skill_router.py" in str(item.get("command", "")):
+            return item
+    return None
+
+
+def first_hook_group(groups: list[Any]) -> dict[str, Any]:
+    if not groups:
+        groups.append({"hooks": []})
+
+    target_group = next(
+        (group for group in groups if isinstance(group, dict) and isinstance(group.get("hooks"), list)), None
+    )
+    if target_group is None:
+        target_group = {"hooks": []}
+        groups.append(target_group)
+    return target_group
+
+
+def install_hook_command(hook_path: Path, routes_path: Path) -> str:
+    return f"python3 {shlex.quote(str(hook_path))} --config {shlex.quote(str(routes_path))}"
+
+
+def planned_hooks_update(data: dict[str, Any], hook_command: str) -> tuple[dict[str, Any], str]:
+    planned: dict[str, Any] = copy.deepcopy(data)
+    state = ensure_user_prompt_hook(planned, hook_command)
+    return planned, state
+
+
+def hooks_json_diff(current: dict[str, Any], planned: dict[str, Any], path: Path) -> tuple[str, ...]:
+    before = json.dumps(current, indent=2, ensure_ascii=False).splitlines()
+    after = json.dumps(planned, indent=2, ensure_ascii=False).splitlines()
+    return tuple(difflib.unified_diff(before, after, fromfile=str(path), tofile=f"{path} (planned)", lineterm=""))
 
 
 def copy_file(source: Path, destination: Path, *, dry_run: bool) -> None:
@@ -159,8 +201,9 @@ def main() -> int:
     routes_destination = codex_root / "lazy-skill-router" / "routes.json"
     skill_destination = codex_root / "skills" / "personal-skill-router"
 
-    hook_command = f"python3 {shlex.quote(str(hook_destination))} --config {shlex.quote(str(routes_destination))}"
+    hook_command = install_hook_command(hook_destination, routes_destination)
     actions: list[str] = []
+    planned_diff: tuple[str, ...] = ()
 
     try:
         copy_file(HOOK_SOURCE, hook_destination, dry_run=args.dry_run)
@@ -189,7 +232,14 @@ def main() -> int:
 
         if args.dry_run:
             actions.append(f"would smoke test hook {hook_destination}")
-            actions.append(f"would register hook entry in {hooks_json}")
+            current_hooks = load_hooks(hooks_json)
+            planned_hooks, hook_state = planned_hooks_update(current_hooks, hook_command)
+            planned_diff = hooks_json_diff(current_hooks, planned_hooks, hooks_json)
+            if hook_state == "unchanged":
+                actions.append(f"would keep existing hook entry in {hooks_json}")
+            else:
+                verb = "add" if hook_state == "added" else "update"
+                actions.append(f"would {verb} hook entry in {hooks_json}")
         else:
             smoke_hook(hook_destination, routes_destination, args.smoke_prompt)
             actions.append(f"smoke test hook {hook_destination}")
@@ -210,6 +260,14 @@ def main() -> int:
     print("lazy-skill-router install summary:")
     for action in actions:
         print(f"- {action}")
+    if args.dry_run:
+        print()
+        print("Planned hooks.json diff:")
+        if planned_diff:
+            for line in planned_diff:
+                print(line)
+        else:
+            print("(no changes)")
     return 0
 
 

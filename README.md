@@ -76,9 +76,10 @@ git clone https://github.com/chowonje/lazy-skill-router.git
 cd lazy-skill-router
 python3 install.py --dry-run
 python3 install.py
+python3 doctor.py
 ```
 
-Run `--dry-run` first. The installer modifies `~/.codex/hooks.json`, copies hook code into `~/.codex/hooks/`, and creates a backup before editing the hook config.
+Run `--dry-run` first. It prints the planned `hooks.json` diff without writing files. The installer modifies `~/.codex/hooks.json`, copies hook code into `~/.codex/hooks/`, and creates a backup before editing the hook config.
 
 The installer:
 
@@ -91,10 +92,19 @@ The installer:
 
 Hook registration is the final install step. If route generation, validation, or the smoke test fails, the installer exits without writing a new hook entry.
 
+After install, run the read-only doctor:
+
+```bash
+python3 doctor.py
+```
+
+The doctor checks that hook files exist, `routes.json` validates, `UserPromptSubmit` is registered, the installed hook passes a dry-run smoke test, and configured route skills are installed.
+
 Use a custom Codex home when needed:
 
 ```bash
 python3 install.py --codex-home /path/to/.codex
+python3 doctor.py --codex-home /path/to/.codex
 ```
 
 Existing `routes.json` files are preserved by default. To regenerate routes during install:
@@ -264,6 +274,7 @@ The log stores a hash of the prompt, not the prompt text:
 
 - This hook fails open: malformed input or invalid config results in no injection.
 - The installer modifies `~/.codex/hooks.json`; run `python3 install.py --dry-run` before installing.
+- `doctor.py` is read-only and exits non-zero when the installed hook, routes, or configured skills are unhealthy.
 - The installer backs up `hooks.json` before editing it.
 - Install only from a trusted checkout of this repository.
 - It does not read secrets or authentication files.
@@ -296,13 +307,17 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py tests/test_install.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py tests/test_install.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json
 python3 eval_routes.py eval/prompts.jsonl
 python3 generate_routes.py --dry-run
 python3 sync_skills.py --routes routes.default.json --strict
+tmp="$(mktemp -d)"
+python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run
+python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
+python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
 ruff check .
 ```
 

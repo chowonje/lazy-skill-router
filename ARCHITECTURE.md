@@ -60,9 +60,13 @@ Schema and regex validator for route config. It should catch broken route files 
 
 Report-only drift detector. It compares installed `SKILL.md` metadata with `allowedSkills`, route primaries, supporting skills, and verification skills. It may exit non-zero in `--strict` mode, but it must not install, remove, or edit skills.
 
+### `doctor.py`
+
+Read-only install health checker. It verifies installed hook files, route validation, `UserPromptSubmit` registration, hook dry-run smoke behavior, and skill drift. It may exit non-zero when the installation is unhealthy, but it must not edit `hooks.json`, route files, skills, or hook code.
+
 ### `install.py` And `uninstall.py`
 
-Codex home mutation surfaces. These scripts copy hook files and the bundled skill, generate user-specific route config, or remove installed hook entries. The installer validates routes and runs a hook dry-run smoke test before editing `hooks.json`; hook registration must remain the final install step. They must preserve dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
+Codex home mutation surfaces. These scripts copy hook files and the bundled skill, generate user-specific route config, or remove installed hook entries. The installer validates routes and runs a hook dry-run smoke test before editing `hooks.json`; hook registration must remain the final install step. They must preserve dry-run mode, show a planned `hooks.json` diff in dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
 
 ### `eval_routes.py`
 

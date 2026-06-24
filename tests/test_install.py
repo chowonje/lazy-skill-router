@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALL_PATH = ROOT / "install.py"
+DOCTOR_PATH = ROOT / "doctor.py"
 
 
 class InstallTest(unittest.TestCase):
@@ -87,6 +88,99 @@ class InstallTest(unittest.TestCase):
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("generated 0 routes", completed.stderr)
             self.assertFalse((codex_home / "hooks.json").exists())
+
+    def test_installer_dry_run_prints_planned_hooks_diff_without_writing_hooks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALL_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--dry-run",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("Planned hooks.json diff:", completed.stdout)
+            self.assertIn('+    "UserPromptSubmit": [', completed.stdout)
+            self.assertIn("lazy_skill_router.py", completed.stdout)
+            self.assertFalse((codex_home / "hooks.json").exists())
+
+    def test_doctor_reports_installed_hook_health(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+
+            install = subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALL_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr)
+
+            doctor = subprocess.run(
+                [
+                    sys.executable,
+                    str(DOCTOR_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(doctor.returncode, 0, doctor.stderr)
+            self.assertIn("[OK] Codex home found", doctor.stdout)
+            self.assertIn("[OK] routes.json validates", doctor.stdout)
+            self.assertIn("[OK] UserPromptSubmit hook registered", doctor.stdout)
+            self.assertIn("[OK] hook dry-run smoke test passed", doctor.stdout)
+            self.assertIn("[OK] skill sync checked", doctor.stdout)
+
+    def test_doctor_fails_when_hook_is_not_installed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+
+            doctor = subprocess.run(
+                [
+                    sys.executable,
+                    str(DOCTOR_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(doctor.returncode, 1)
+            self.assertIn("[FAIL] Codex home found", doctor.stdout)
+            self.assertIn("[FAIL] UserPromptSubmit hook registered", doctor.stdout)
 
 
 if __name__ == "__main__":

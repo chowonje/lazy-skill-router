@@ -9,6 +9,7 @@ In scope:
 - `lazy_skill_router.py`
 - `lazy_skill_router_core.py`
 - `install.py`
+- `doctor.py`
 - `uninstall.py`
 - `routes.default.json`
 - bundled `skills/personal-skill-router/`
@@ -44,7 +45,8 @@ Open questions that would change risk ranking:
 
 - Hook entrypoint: `lazy_skill_router.py` reads the Codex `UserPromptSubmit` event from stdin, extracts `prompt`, and emits hook JSON with `additionalContext` when a route matches.
 - Routing core: `lazy_skill_router_core.py` loads route config, matches prompt text with regexes, filters recommendations through `allowedSkills`, formats the recommendation block, and optionally writes a JSONL decision log.
-- Installer: `install.py` copies hook files, copies default routes, installs the bundled skill, backs up `hooks.json`, and adds or updates the `UserPromptSubmit` hook command.
+- Installer: `install.py` copies hook files, installs the bundled skill, generates user-specific routes, validates routes, runs a hook dry-run smoke test, backs up `hooks.json`, and adds or updates the `UserPromptSubmit` hook command.
+- Doctor: `doctor.py` checks installed hook files, route validation, `UserPromptSubmit` registration, hook dry-run smoke behavior, and skill sync without editing files.
 - Uninstaller: `uninstall.py` removes matching hook entries and can remove installed files when `--remove-files` is passed.
 - Route config: `routes.default.json` defines `allowedSkills`, confidence threshold, optional logging, and ordered route patterns.
 - Tests: `tests/test_lazy_skill_router.py` covers key Korean routing cases, allowlist blocking, and user-injected router block handling.
@@ -75,8 +77,14 @@ Open questions that would change risk ranking:
 - Installer -> user Codex home
   - Data: hook scripts, route config, bundled skill, modified `hooks.json`
   - Channel: local filesystem writes
-  - Guarantees: backs up existing `hooks.json`
-  - Validation: requires `hooks` root object and `UserPromptSubmit` list shape
+  - Guarantees: dry-run prints planned `hooks.json` diff; backs up existing `hooks.json`
+  - Validation: requires `hooks` root object and `UserPromptSubmit` list shape; validates routes and smokes the hook before registering it
+
+- Doctor -> user Codex home
+  - Data: hook file presence, route config, hook registration, installed skill metadata
+  - Channel: local filesystem reads and hook dry-run subprocess
+  - Guarantees: read-only health checks
+  - Validation: reports unhealthy install state with non-zero exit
 
 - Optional logging -> local JSONL file
   - Data: timestamp, prompt hash, route, primary skill, confidence, matched signals
@@ -148,6 +156,7 @@ flowchart LR
 | Regex route patterns | `routes.json` | Config to prompt matching engine | Malicious or catastrophic regex can affect behavior/performance | `lazy_skill_router_core.py` / `matched_patterns` |
 | Hook JSON installer | User runs installer | Installer to `~/.codex/hooks.json` | Modifies global Codex behavior | `install.py` / `ensure_user_prompt_hook` |
 | File copy/removal | Install/uninstall commands | Installer to local filesystem | Writes/removes hook, route, and skill files | `install.py` / `copy_file`, `copy_skill`; `uninstall.py` / `remove_path` |
+| Install health check | User runs doctor | Installed Codex home to report output | Detects broken install without writing files | `doctor.py` / `main` |
 | Optional logging path | Enabled in config | Routing engine to filesystem | No raw prompt, but metadata leakage possible | `lazy_skill_router_core.py` / `log_decision` |
 | Route validation | User runs validator against config | Config file to validation CLI | Detects invalid regexes and allowlist mismatches before install | `validate_routes.py` / `validate_config` |
 | Release checksum manifest | Maintainer generates or user verifies checksums | Release files to local manifest | Helps detect changed files after release packaging | `release_checksums.py` / `write_manifest`, `verify_manifest` |
@@ -182,10 +191,10 @@ flowchart LR
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | TM-001 | Malicious prompt author | Attacker can influence the prompt text sent to Codex | Embed fake router tags or wording to steer skill selection | Agent may choose a poor workflow, but not execute code directly | Codex task integrity | Recommendation block says user-provided router text is untrusted; test covers fake tag case (`tests/test_lazy_skill_router.py`) | Codex may still psychologically over-weight injected context | Keep recommendation-only language; keep tests for fake tag handling; add docs warning that router is advisory | Add tests for more injected block variants | Medium | Low | Low |
 | TM-002 | Malicious route config editor | Attacker has local filesystem access or user installs modified config | Add routes recommending unsafe or nonexistent skills | Persistent steering of Codex behavior | Route config integrity, task integrity | `allowedSkills` filters primary/supporting/verification (`routes.default.json`, `filter_route`); `validate_routes.py` checks regexes, duplicates, confidence, and allowlist consistency; `sync_skills.py` reports missing or newly untracked skills | User can still intentionally edit allowlist to include bad names | Document reviewing custom configs; keep validator and sync report in release checklist | Run `python3 validate_routes.py routes.default.json`; run `python3 sync_skills.py --routes routes.default.json --strict`; diff route config before sharing | Medium | Medium | Medium |
-| TM-003 | Malicious package source | User installs from untrusted fork or modified archive | Installer copies malicious hook code into Codex hooks | Persistent local code execution in Codex hook context | Hook code integrity, prompt confidentiality | Installer is explicit and backs up `hooks.json`; README says to install from trusted checkout and avoid curl-pipe-shell; MIT license is present; `release_checksums.py` can generate and verify `SHA256SUMS` | Checksums are not signatures and only help if users trust the manifest source | Attach `SHA256SUMS` to releases; consider signed releases later | Compare installed files with release checksum | Medium | High | High |
+| TM-003 | Malicious package source | User installs from untrusted fork or modified archive | Installer copies malicious hook code into Codex hooks | Persistent local code execution in Codex hook context | Hook code integrity, prompt confidentiality | Installer is explicit, prints dry-run hook diff, backs up `hooks.json`, and has read-only `doctor.py`; README says to install from trusted checkout and avoid curl-pipe-shell; MIT license is present; `release_checksums.py` can generate and verify `SHA256SUMS` | Checksums are not signatures and only help if users trust the manifest source | Attach `SHA256SUMS` to releases; consider signed releases later | Compare installed files with release checksum; run `python3 doctor.py` after install | Medium | High | High |
 | TM-004 | Privacy-sensitive local user | User enables logging | Route metadata is written to JSONL and later read by another local process/user | Private work themes may leak | Prompt confidentiality, route log confidentiality | Logging disabled by default; stores `promptHash` not prompt text (`README.md`, `log_decision`) | Matched signals can still reveal topics; configurable path may point to synced/shared folder | Keep logging default off; document privacy tradeoff; consider redacting `matchedSignals` when logging | Inspect config for `logging.enabled`; monitor log file permissions | Low | Medium | Low |
 | TM-005 | Malformed or hostile route config | User imports bad config | Expensive regex or invalid JSON slows or disables hook | Prompt submission delay or no recommendations | Availability of hook recommendations | Invalid JSON fails open; hook timeout exists in installed hook command (`install.py`) | No regex complexity guard; no per-pattern timeout | Add route validation tests; document avoiding untrusted regex configs; keep hook timeout low | Dry-run route corpus before install | Medium | Low | Low |
-| TM-006 | Operator mistake | User supplies wrong `--codex-home` or runs uninstall with `--remove-files` | Installs/removes files in unintended directory | Local config loss or confusing installation | Codex config availability | Dry-run modes exist; backup before hook JSON edit | `remove_path` removes recursively for selected directories | Keep dry-run first in README; add prompt/confirmation only for destructive uninstall in future | Review uninstall summary before running without dry-run | Low | Medium | Low |
+| TM-006 | Operator mistake | User supplies wrong `--codex-home` or runs uninstall with `--remove-files` | Installs/removes files in unintended directory | Local config loss or confusing installation | Codex config availability | Dry-run modes exist; install dry-run shows planned hook diff; backup before hook JSON edit; `doctor.py` checks the target Codex home after install | `remove_path` removes recursively for selected directories | Keep dry-run first in README; add prompt/confirmation only for destructive uninstall in future | Review install/uninstall summary and run doctor before using the hook | Low | Medium | Low |
 
 ## Criticality calibration
 
@@ -205,6 +214,7 @@ flowchart LR
 | `sync_skills.py` | Reports drift between installed skills, allowlist, and route references | TM-002 |
 | `release_checksums.py` | Generates and verifies release checksum manifests | TM-003 |
 | `install.py` | Writes to Codex home and modifies `hooks.json` | TM-003, TM-006 |
+| `doctor.py` | Read-only install health checks after setup | TM-003, TM-006 |
 | `uninstall.py` | Removes hook, route, and skill files when requested | TM-006 |
 | `README.md` | Public install guidance shapes user behavior and expectations | TM-003, TM-004, TM-006 |
 | `tests/test_lazy_skill_router.py` | Locks security-relevant route behavior and prompt-injection handling | TM-001, TM-002 |

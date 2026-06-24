@@ -25,6 +25,7 @@
 - `validate_routes.py`: route config schema and regex validation.
 - `sync_skills.py`: report-only drift detection between installed skills and route references.
 - `install.py`: Codex home installation surface.
+- `doctor.py`: read-only install health checker.
 - `uninstall.py`: Codex home removal surface.
 - `release_checksums.py`: release checksum manifest generation and verification.
 - `eval_routes.py`: golden prompt regression evaluator.
@@ -33,11 +34,12 @@
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
-- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_scoring.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
+- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
 - Validate JSON syntax: `python3 -m json.tool routes.default.json >/dev/null`
+- Smoke installer and doctor: `tmp="$(mktemp -d)" && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" && python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
 
 ## Route Changes
 - Keep route changes data-only unless engine behavior must change.
@@ -50,9 +52,11 @@
 
 ## Install And Uninstall Changes
 - Preserve dry-run behavior.
+- Keep dry-run output explicit about planned `hooks.json` changes.
 - Preserve backups before editing Codex home files.
 - Do not remove user files unless a flag explicitly asks for removal.
 - Keep install and uninstall actions visible in command output.
+- Keep doctor checks read-only.
 - Never weaken the fail-open behavior of the installed hook.
 
 ## Documentation
