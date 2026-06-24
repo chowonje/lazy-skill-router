@@ -154,6 +154,24 @@ Important fields:
 
 If your Codex setup does not include skills like `omo:programming` or `github:github`, either remove those routes or change them to skills you have installed.
 
+## Generate User-Specific Routes
+
+`routes.template.json` defines route candidates instead of one fixed skill name per route. Use `generate_routes.py` to scan installed `SKILL.md` files and write a route config that only references skills present on the current machine:
+
+```bash
+python3 generate_routes.py --dry-run
+python3 generate_routes.py
+```
+
+The generator:
+
+- selects the first installed `primaryCandidates` entry for each route
+- skips a route when none of its primary candidates are installed
+- keeps only installed supporting and verification candidates
+- writes `~/.codex/lazy-skill-router/routes.json` by default
+
+It does not edit `hooks.json`, install skills, or change the runtime hook.
+
 Validate route changes before installing them:
 
 ```bash
@@ -238,15 +256,17 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
 python3 -m json.tool routes.default.json >/dev/null
+python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json
 python3 eval_routes.py eval/prompts.jsonl
+python3 generate_routes.py --dry-run
 python3 sync_skills.py --routes routes.default.json --strict
 ruff check .
 ```
 
-GitHub Actions runs the same checks in `.github/workflows/ci.yml`. The workflow builds a temporary skill fixture before `sync_skills.py --strict` so route sync validation does not depend on the runner having local Codex skills installed.
+GitHub Actions also builds a temporary skill fixture, generates routes from `routes.template.json`, and then runs `sync_skills.py --strict` against the generated config so validation does not depend on the runner having local Codex skills installed.
 
 ## License
 

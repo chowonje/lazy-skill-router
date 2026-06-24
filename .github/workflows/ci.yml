@@ -37,6 +37,7 @@ jobs:
           lazy_skill_router_common.py
           lazy_skill_router_logging.py
           lazy_skill_router_scoring.py
+          generate_routes.py
           install.py
           uninstall.py
           validate_routes.py
@@ -44,11 +45,13 @@ jobs:
           sync_skills.py
           eval_routes.py
           tests/test_lazy_skill_router.py
+          tests/test_generate_routes.py
           tests/test_eval_routes.py
 
       - name: Validate route config and golden prompts
         run: |
           python3 -m json.tool routes.default.json >/dev/null
+          python3 -m json.tool routes.template.json >/dev/null
           python3 validate_routes.py routes.default.json
           python3 eval_routes.py eval/prompts.jsonl
 
@@ -88,12 +91,21 @@ jobs:
           Path(".ci/agents").mkdir(parents=True, exist_ok=True)
           PY
 
+      - name: Generate route config from template
+        run: |
+          python3 generate_routes.py \
+            --codex-home .ci/codex \
+            --agents-home .ci/agents \
+            --template routes.template.json \
+            --output .ci/generated-routes.json
+          python3 validate_routes.py .ci/generated-routes.json
+
       - name: Check route skill sync
         run: >
           python3 sync_skills.py
           --codex-home .ci/codex
           --agents-home .ci/agents
-          --routes routes.default.json
+          --routes .ci/generated-routes.json
           --strict
 
       - name: Check fail-open CLI behavior

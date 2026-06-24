@@ -38,6 +38,16 @@ Bundled route policy data. It defines the skill allowlist, confidence threshold,
 
 Routes may define optional `priority`, `weight`, and `fallback` fields. Candidate ranking prefers non-fallback routes, then higher score, then higher confidence, then earlier config order.
 
+### `routes.template.json`
+
+Candidate-based route policy data for user-specific config generation. It keeps the same routing metadata as `routes.default.json`, but skill references are expressed as `primaryCandidates`, `supportingCandidates`, and `verificationCandidates`.
+
+### `generate_routes.py`
+
+User-specific route generator. It scans installed `SKILL.md` files, selects the first installed primary candidate per route, drops routes with no installed primary, keeps only installed supporting and verification candidates, and writes a concrete `routes.json`.
+
+This module must not edit `hooks.json` or install skills. Its output should be validated with `validate_routes.py` before the hook uses it.
+
 ### `validate_routes.py`
 
 Schema and regex validator for route config. It should catch broken route files before install or release, but it must not mutate config.
@@ -58,7 +68,7 @@ Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each p
 
 - Prompt text enters only through hook stdin or dry-run CLI arguments.
 - Config data enters through JSON files and is parsed into route objects at the core boundary.
-- Installed skill metadata is read only by `sync_skills.py`.
+- Installed skill metadata is read by `sync_skills.py` for reports and by `generate_routes.py` for user-specific config generation.
 - Optional logging records prompt hashes and route metadata, not raw prompt text.
 - External services are never called by the hook or evaluator.
 
@@ -77,6 +87,7 @@ When route behavior changes, update the golden prompt fixture in the same change
 The scoring engine is still intentionally small. The next routing improvements should be made behind regression fixtures:
 
 - expand route categories for security, install, external-state, and multi-intent prompts
+- wire `install.py` to generate user-specific routes before registering the hook
 - expose candidate runner-up diagnostics in dry-run mode when debugging route drift
 - tune priority and weight values only with golden prompt coverage
 

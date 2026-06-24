@@ -1,0 +1,496 @@
+{
+  "version": 1,
+  "minConfidence": 0.55,
+  "logging": {
+    "enabled": false,
+    "path": ""
+  },
+  "answerOnlyPatterns": [
+    "그냥\\s*설명",
+    "설명만",
+    "don't change",
+    "do not change",
+    "no edit",
+    "수정하지\\s*마"
+  ],
+  "defaultVerificationCandidates": [
+    "verification-gate"
+  ],
+  "routes": [
+    {
+      "name": "github-ci",
+      "primaryCandidates": [
+        "github:gh-fix-ci",
+        "github:github"
+      ],
+      "supportingCandidates": [
+        "github:github"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "GitHub Actions or CI failure language was detected.",
+      "patterns": [
+        "\\bci\\b",
+        "github actions?",
+        "\\baction(s)?\\b.*fail",
+        "체크.*실패",
+        "ci.*실패",
+        "빌드.*실패"
+      ]
+    },
+    {
+      "name": "google-docs",
+      "primaryCandidates": [
+        "google-drive:google-docs",
+        "google-drive:google-drive"
+      ],
+      "supportingCandidates": [
+        "google-drive:google-drive",
+        "writing-polish"
+      ],
+      "verificationCandidates": [],
+      "reason": "Google Docs language was detected.",
+      "patterns": [
+        "google docs",
+        "구글\\s*문서"
+      ]
+    },
+    {
+      "name": "google-sheets",
+      "primaryCandidates": [
+        "google-drive:google-sheets",
+        "google-drive:google-drive"
+      ],
+      "supportingCandidates": [
+        "google-drive:google-drive"
+      ],
+      "verificationCandidates": [],
+      "reason": "Google Sheets language was detected.",
+      "patterns": [
+        "google sheets",
+        "구글\\s*시트",
+        "\\bsheets\\b",
+        "스프레드시트"
+      ]
+    },
+    {
+      "name": "google-slides",
+      "primaryCandidates": [
+        "google-drive:google-slides",
+        "google-drive:google-drive"
+      ],
+      "supportingCandidates": [
+        "google-drive:google-drive",
+        "writing-polish"
+      ],
+      "verificationCandidates": [],
+      "reason": "Google Slides language was detected.",
+      "patterns": [
+        "google slides",
+        "구글\\s*슬라이드",
+        "\\bslides\\b"
+      ]
+    },
+    {
+      "name": "google-drive",
+      "primaryCandidates": [
+        "google-drive:google-drive"
+      ],
+      "supportingCandidates": [],
+      "verificationCandidates": [],
+      "reason": "Google Drive file language was detected.",
+      "patterns": [
+        "google drive",
+        "구글\\s*드라이브",
+        "\\bdrive\\b"
+      ]
+    },
+    {
+      "name": "pdf",
+      "primaryCandidates": [
+        "pdf"
+      ],
+      "supportingCandidates": [
+        "writing-polish"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "PDF reading, generation, review, or layout language was detected.",
+      "patterns": [
+        "(?<![A-Za-z0-9_])pdf(?![A-Za-z0-9_])",
+        "피디에프"
+      ]
+    },
+    {
+      "name": "codex-config",
+      "primaryCandidates": [
+        "agent-config-audit",
+        "personal-skill-router"
+      ],
+      "supportingCandidates": [
+        "personal-skill-router"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Codex configuration, hooks, MCP settings, or current agent setup review language was detected.",
+      "patterns": [
+        "hooks?\\.json",
+        "\\bAGENTS\\.md\\b",
+        "agent\\s*config",
+        "codex.*config",
+        "mcp.*(설정|확인|점검|서버)",
+        "(hook|훅).*설정",
+        "현재\\s*작업.*평가",
+        "작업.*문제.*같",
+        "설정.*점검"
+      ]
+    },
+    {
+      "name": "skill-routing",
+      "primaryCandidates": [
+        "personal-skill-router"
+      ],
+      "supportingCandidates": [
+        "superpowers",
+        "ponytail-lite"
+      ],
+      "verificationCandidates": [],
+      "reason": "Skill selection, classification, deduplication, or usage-guide language was detected.",
+      "patterns": [
+        "skill router",
+        "skill routing",
+        "which skill",
+        "스킬.*(추천|분류|찾|사용|가이드|중복|정리)",
+        "어떤\\s*스킬"
+      ]
+    },
+    {
+      "name": "skill-plugin",
+      "primaryCandidates": [
+        "skill-creator",
+        "plugin-creator"
+      ],
+      "supportingCandidates": [
+        "plugin-creator",
+        "personal-skill-router"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Skill, plugin, or MCP creation and installation language was detected.",
+      "patterns": [
+        "create.*skill",
+        "update.*skill",
+        "install.*skill",
+        "create.*plugin",
+        "스킬.*(만들|생성|수정|설치)",
+        "플러그인.*(만들|생성|수정|설치)",
+        "mcp.*(만들|생성|추가|설치)",
+        "엠씨피.*(만들|생성|추가|설치)"
+      ]
+    },
+    {
+      "name": "github",
+      "primaryCandidates": [
+        "github:github",
+        "github:gh-address-comments",
+        "github:yeet"
+      ],
+      "supportingCandidates": [
+        "github:gh-address-comments",
+        "github:yeet"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "GitHub, PR, issue, or repository workflow language was detected.",
+      "patterns": [
+        "\\bgithub\\b",
+        "\\bpr\\b",
+        "pull request",
+        "\\bissue\\b",
+        "리뷰\\s*댓글",
+        "이슈",
+        "깃허브"
+      ]
+    },
+    {
+      "name": "frontend",
+      "primaryCandidates": [
+        "omo:frontend",
+        "playwright"
+      ],
+      "supportingCandidates": [
+        "omo:visual-qa",
+        "playwright"
+      ],
+      "verificationCandidates": [
+        "omo:visual-qa"
+      ],
+      "reason": "Frontend, UI, layout, or visual work language was detected.",
+      "patterns": [
+        "\\bui\\b",
+        "\\bux\\b",
+        "frontend",
+        "front-end",
+        "레이아웃",
+        "화면",
+        "디자인",
+        "스타일",
+        "버튼",
+        "모바일",
+        "반응형",
+        "간격"
+      ]
+    },
+    {
+      "name": "browser",
+      "primaryCandidates": [
+        "playwright",
+        "browser:control-in-app-browser",
+        "chrome:control-chrome"
+      ],
+      "supportingCandidates": [
+        "browser:control-in-app-browser",
+        "chrome:control-chrome"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Browser interaction, local page, click, form, or screenshot verification language was detected.",
+      "patterns": [
+        "browser",
+        "chrome",
+        "playwright",
+        "클릭",
+        "폼",
+        "스크린샷",
+        "새로고침",
+        "브라우저",
+        "페이지.*열"
+      ]
+    },
+    {
+      "name": "debugging",
+      "primaryCandidates": [
+        "omo:debugging",
+        "omo:programming",
+        "ponytail-lite"
+      ],
+      "supportingCandidates": [
+        "omo:programming"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Runtime failure, broken behavior, or error language was detected.",
+      "patterns": [
+        "\\berror\\b",
+        "\\bbug\\b",
+        "\\bcrash",
+        "stack trace",
+        "not working",
+        "broken",
+        "오류",
+        "에러",
+        "버그",
+        "크래시",
+        "안\\s*돼",
+        "고장",
+        "실패"
+      ]
+    },
+    {
+      "name": "refactor",
+      "primaryCandidates": [
+        "omo:refactor",
+        "ponytail-lite"
+      ],
+      "supportingCandidates": [
+        "ponytail-lite",
+        "omo:lsp"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Refactor, simplify, or code cleanup language was detected.",
+      "patterns": [
+        "refactor",
+        "cleanup",
+        "simplif",
+        "코드.*정리",
+        "리팩터",
+        "리팩토",
+        "단순화",
+        "구조\\s*개선"
+      ]
+    },
+    {
+      "name": "code",
+      "primaryCandidates": [
+        "omo:programming",
+        "ponytail-lite"
+      ],
+      "supportingCandidates": [
+        "ponytail-lite",
+        "omo:lsp"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Implementation or code-editing language was detected.",
+      "patterns": [
+        "implement",
+        "code",
+        "edit",
+        "patch",
+        "function",
+        "class",
+        "구현",
+        "코드",
+        "수정",
+        "추가",
+        "패치",
+        "함수"
+      ],
+      "fallback": true
+    },
+    {
+      "name": "docs",
+      "primaryCandidates": [
+        "writing-polish",
+        "docs-sync"
+      ],
+      "supportingCandidates": [
+        "docs-sync",
+        "release-notes"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Documentation, README, changelog, release note, or prose editing language was detected.",
+      "patterns": [
+        "readme",
+        "docs?",
+        "documentation",
+        "changelog",
+        "release notes?",
+        "문서",
+        "릴리스",
+        "체인지로그",
+        "글(쓰기|\\s*다듬|\\s*수정|\\s*정리)",
+        "문장"
+      ]
+    },
+    {
+      "name": "security",
+      "primaryCandidates": [
+        "codex-security:security-scan",
+        "security-best-practices"
+      ],
+      "supportingCandidates": [
+        "security-best-practices"
+      ],
+      "verificationCandidates": [
+        "verification-gate"
+      ],
+      "reason": "Security review, vulnerability, threat, privacy, or secret-handling language was detected.",
+      "patterns": [
+        "security",
+        "vulnerab",
+        "threat",
+        "secret",
+        "token",
+        "privacy",
+        "보안",
+        "취약",
+        "위협",
+        "시크릿",
+        "개인정보"
+      ]
+    },
+    {
+      "name": "calendar",
+      "primaryCandidates": [
+        "google-calendar:google-calendar"
+      ],
+      "supportingCandidates": [
+        "google-calendar:google-calendar-daily-brief",
+        "google-calendar:google-calendar-meeting-prep"
+      ],
+      "verificationCandidates": [],
+      "reason": "Calendar, schedule, or meeting language was detected.",
+      "patterns": [
+        "calendar",
+        "schedule",
+        "meeting",
+        "일정",
+        "캘린더",
+        "회의",
+        "미팅"
+      ]
+    },
+    {
+      "name": "gmail",
+      "primaryCandidates": [
+        "gmail:gmail"
+      ],
+      "supportingCandidates": [
+        "gmail:gmail-inbox-triage"
+      ],
+      "verificationCandidates": [],
+      "reason": "Gmail or email language was detected.",
+      "patterns": [
+        "gmail",
+        "\\bemail\\b",
+        "mailbox",
+        "inbox",
+        "메일",
+        "받은편지함"
+      ]
+    },
+    {
+      "name": "openai-docs",
+      "primaryCandidates": [
+        "openai-docs"
+      ],
+      "supportingCandidates": [],
+      "verificationCandidates": [],
+      "reason": "OpenAI API, Codex, or ChatGPT product documentation language was detected.",
+      "patterns": [
+        "openai",
+        "chatgpt",
+        "codex api",
+        "responses api",
+        "assistants api",
+        "오픈ai",
+        "코덱스.*api"
+      ]
+    },
+    {
+      "name": "planning",
+      "primaryCandidates": [
+        "superpowers"
+      ],
+      "supportingCandidates": [
+        "task-brief-normalizer",
+        "ponytail-lite"
+      ],
+      "verificationCandidates": [],
+      "reason": "Planning, brainstorming, options, or tradeoff language was detected.",
+      "patterns": [
+        "plan",
+        "brainstorm",
+        "tradeoff",
+        "approach",
+        "설계",
+        "계획",
+        "방향",
+        "비교"
+      ]
+    }
+  ]
+}
