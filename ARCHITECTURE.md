@@ -58,7 +58,7 @@ Report-only drift detector. It compares installed `SKILL.md` metadata with `allo
 
 ### `install.py` And `uninstall.py`
 
-Codex home mutation surfaces. These scripts copy hook files, route config, and the bundled skill, or remove installed hook entries. They must preserve dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
+Codex home mutation surfaces. These scripts copy hook files and the bundled skill, generate user-specific route config, or remove installed hook entries. The installer validates routes and runs a hook dry-run smoke test before editing `hooks.json`; hook registration must remain the final install step. They must preserve dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
 
 ### `eval_routes.py`
 
@@ -87,7 +87,6 @@ When route behavior changes, update the golden prompt fixture in the same change
 The scoring engine is still intentionally small. The next routing improvements should be made behind regression fixtures:
 
 - expand route categories for security, install, external-state, and multi-intent prompts
-- wire `install.py` to generate user-specific routes before registering the hook
 - expose candidate runner-up diagnostics in dry-run mode when debugging route drift
 - tune priority and weight values only with golden prompt coverage
 

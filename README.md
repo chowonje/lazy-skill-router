@@ -81,15 +81,24 @@ Run `--dry-run` first. The installer modifies `~/.codex/hooks.json`, copies hook
 The installer:
 
 - copies `lazy_skill_router.py`, `lazy_skill_router_core.py`, `lazy_skill_router_common.py`, `lazy_skill_router_logging.py`, and `lazy_skill_router_scoring.py` into `~/.codex/hooks/`
-- copies `routes.default.json` into `~/.codex/lazy-skill-router/routes.json`
 - installs the bundled `personal-skill-router` skill into `~/.codex/skills/`
+- scans installed skills and generates `~/.codex/lazy-skill-router/routes.json` from `routes.template.json`
+- validates the route config and runs a hook dry-run smoke test
 - backs up `~/.codex/hooks.json` before editing it
 - adds or updates one `UserPromptSubmit` hook entry
+
+Hook registration is the final install step. If route generation, validation, or the smoke test fails, the installer exits without writing a new hook entry.
 
 Use a custom Codex home when needed:
 
 ```bash
 python3 install.py --codex-home /path/to/.codex
+```
+
+Existing `routes.json` files are preserved by default. To regenerate routes during install:
+
+```bash
+python3 install.py --overwrite-routes
 ```
 
 ## Uninstall
@@ -171,6 +180,8 @@ The generator:
 - writes `~/.codex/lazy-skill-router/routes.json` by default
 
 It does not edit `hooks.json`, install skills, or change the runtime hook.
+
+The installer runs the same generation flow automatically when `routes.json` is missing, or when `--overwrite-routes` is passed.
 
 Validate route changes before installing them:
 
@@ -256,7 +267,7 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py tests/test_install.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json

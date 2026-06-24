@@ -46,6 +46,7 @@ jobs:
           eval_routes.py
           tests/test_lazy_skill_router.py
           tests/test_generate_routes.py
+          tests/test_install.py
           tests/test_eval_routes.py
 
       - name: Validate route config and golden prompts
