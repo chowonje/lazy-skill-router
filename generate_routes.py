@@ -14,13 +14,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 TEMPLATE_SOURCE = PROJECT_ROOT / "routes.template.json"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GenerationResult:
     config: dict[str, Any]
     skipped_routes: tuple[str, ...]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class TemplateError(Exception):
     message: str
 
