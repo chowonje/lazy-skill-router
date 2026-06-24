@@ -1,0 +1,9 @@
+{"id":"github-ci-ko","category":"external-state","prompt":"GitHub PR에서 CI 실패 원인 확인하고 고쳐줘","expect":{"shouldInject":true,"route":"github-ci","primary":"github:gh-fix-ci","verification":"verification-gate","confidenceLabel":"normal","answerOnly":false}}
+{"id":"google-docs-specific","category":"external-state","prompt":"구글 문서 만들어줘","expect":{"shouldInject":true,"route":"google-docs","primary":"google-drive:google-docs","answerOnly":false}}
+{"id":"answer-only-pdf","category":"answer-only","prompt":"PDF는 어떻게 만드는지 설명만 해줘","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":true}}
+{"id":"config-install-hook","category":"install-config","prompt":"hooks.json에 lazy skill router 설치 설정 점검해줘","expect":{"shouldInject":true,"route":"codex-config","primary":"agent-config-audit","verification":"verification-gate","answerOnly":false}}
+{"id":"security-scan","category":"security","prompt":"이 저장소 보안 스캔하고 위험한 경로 찾아줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":false}}
+{"id":"composite-code-docs","category":"composite","prompt":"Python 코드 고치고 README 문서도 같이 업데이트해줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":false}}
+{"id":"pure-code-fallback","category":"fallback","prompt":"Python 함수 추가해줘","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":false}}
+{"id":"skill-creation","category":"install-config","prompt":"스킬 만들어줘","expect":{"shouldInject":true,"route":"skill-plugin","primary":"skill-creator","verification":"verification-gate","answerOnly":false}}
+{"id":"no-route-smalltalk","category":"none","prompt":"오늘 점심 메뉴 추천해줘","expect":{"shouldInject":false,"answerOnly":false}}

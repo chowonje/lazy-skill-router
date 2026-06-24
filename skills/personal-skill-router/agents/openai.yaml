@@ -1,0 +1,4 @@
+interface:
+  display_name: "Personal Skill Router"
+  short_description: "Pick the right local Codex skills for the current task"
+  default_prompt: "Route this task to the right Codex skills before starting."
