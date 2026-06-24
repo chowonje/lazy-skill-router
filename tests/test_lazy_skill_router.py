@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "lazy_skill_router_core.py"
 VALIDATOR_PATH = ROOT / "validate_routes.py"
 CHECKSUMS_PATH = ROOT / "release_checksums.py"
 SYNC_PATH = ROOT / "sync_skills.py"
+COMMON_PATH = ROOT / "lazy_skill_router_common.py"
 CONFIG_PATH = ROOT / "routes.default.json"
 
 
@@ -27,6 +31,19 @@ def load_router_module():
 
 
 router = load_router_module()
+
+
+def load_common_module():
+    spec = importlib.util.spec_from_file_location("lazy_skill_router_common", COMMON_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("failed to load lazy_skill_router_common module")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["lazy_skill_router_common"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+common = load_common_module()
 
 
 def load_validator_module():
@@ -115,6 +132,46 @@ class LazySkillRouterTest(unittest.TestCase):
         result = router.dry_run_output("PDF 생성해줘", config)
         self.assertFalse(result["shouldInject"])
 
+    def test_debug_mode_invalid_regex_fails_open(self) -> None:
+        config = {"routes": [{"name": "bad", "primary": "pdf", "patterns": ["["]}]}
+        stderr = io.StringIO()
+
+        with mock.patch.dict(os.environ, {"LAZY_SKILL_ROUTER_DEBUG": "1"}):
+            with contextlib.redirect_stderr(stderr):
+                result = router.dry_run_output("PDF 만들어줘", config)
+
+        self.assertFalse(result["shouldInject"])
+        self.assertIn("invalid regex '['", stderr.getvalue())
+
+    def test_common_codex_home_uses_env_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            configured = Path(temp_dir) / "custom-codex"
+
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(configured)}):
+                self.assertEqual(common.codex_home(), configured)
+
+    def test_common_load_hooks_initializes_and_validates_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.assertEqual(common.load_hooks(root / "missing.json"), {"hooks": {}})
+
+            bad_hooks = root / "hooks.json"
+            bad_hooks.write_text('{"hooks": []}', encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                common.load_hooks(bad_hooks)
+
+    def test_common_backup_file_uses_optional_label(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            hooks_json = Path(temp_dir) / "hooks.json"
+            hooks_json.write_text("{}\n", encoding="utf-8")
+
+            backup = common.backup_file(hooks_json, "uninstall")
+
+            self.assertIsNotNone(backup)
+            self.assertTrue(backup.is_file())
+            self.assertIn(".bak-lazy-skill-router-uninstall-", backup.name)
+
     def test_priority_can_select_later_specific_route(self) -> None:
         config = {
             "allowedSkills": ["personal-skill-router", "skill-creator", "verification-gate"],
@@ -190,7 +247,9 @@ class LazySkillRouterTest(unittest.TestCase):
         config = dict(self.config)
         config["routes"] = [{"name": "bad", "primary": "pdf", "patterns": ["["]}]
         findings = validator.validate_config(config)
-        self.assertTrue(any(finding.severity == "ERROR" and "invalid patterns regex" in finding.message for finding in findings))
+        self.assertTrue(
+            any(finding.severity == "ERROR" and "invalid patterns regex" in finding.message for finding in findings)
+        )
 
     def test_validator_rejects_invalid_scoring_fields(self) -> None:
         config = dict(self.config)
@@ -219,8 +278,30 @@ class LazySkillRouterTest(unittest.TestCase):
             codex_home = root / "codex"
             agents_home = root / "agents"
             write_skill(codex_home / "skills" / "pdf" / "SKILL.md", "pdf")
-            write_skill(codex_home / "plugins" / "cache" / "openai-curated-remote" / "github" / "0.1.5" / "skills" / "github" / "SKILL.md", "github")
-            write_skill(codex_home / "plugins" / "cache" / "sisyphuslabs" / "omo" / "4.13.0" / "skills" / "programming" / "SKILL.md", "programming")
+            write_skill(
+                codex_home
+                / "plugins"
+                / "cache"
+                / "openai-curated-remote"
+                / "github"
+                / "0.1.5"
+                / "skills"
+                / "github"
+                / "SKILL.md",
+                "github",
+            )
+            write_skill(
+                codex_home
+                / "plugins"
+                / "cache"
+                / "sisyphuslabs"
+                / "omo"
+                / "4.13.0"
+                / "skills"
+                / "programming"
+                / "SKILL.md",
+                "programming",
+            )
 
             config = {
                 "allowedSkills": ["github:github", "missing-skill", "pdf"],

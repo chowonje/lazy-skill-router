@@ -8,7 +8,6 @@ from typing import Any
 
 from lazy_skill_router_core import answer_only_patterns, dry_run_output, text_matches
 
-
 ALLOWED_EXPECTATIONS = {
     "answerOnly",
     "confidenceLabel",
@@ -104,7 +103,9 @@ def compare_case(case: EvaluationCase, config: dict[str, Any]) -> tuple[Evaluati
     for key, expected in case.expect.items():
         observed = actual.get(key)
         if observed != expected:
-            failures.append(EvaluationFailure(case.case_id, case.category, f"{key} expected {expected!r}, got {observed!r}"))
+            failures.append(
+                EvaluationFailure(case.case_id, case.category, f"{key} expected {expected!r}, got {observed!r}")
+            )
     return tuple(failures)
 
 
@@ -141,8 +142,7 @@ def json_report(cases: tuple[EvaluationCase, ...], failures: tuple[EvaluationFai
         "passed": len(cases) - len({failure.case_id for failure in failures}),
         "categories": category_counts(cases),
         "failures": [
-            {"id": failure.case_id, "category": failure.category, "message": failure.message}
-            for failure in failures
+            {"id": failure.case_id, "category": failure.category, "message": failure.message} for failure in failures
         ],
     }
 

@@ -111,7 +111,9 @@ def validate_config(config: dict[str, Any]) -> list[Finding]:
     if "allowedSkills" in config and not allowed:
         findings.append(Finding("ERROR", "allowedSkills must be a non-empty list of strings when present"))
 
-    findings.extend(check_patterns("answerOnlyPatterns", "answerOnlyPatterns", strings(config.get("answerOnlyPatterns"))))
+    findings.extend(
+        check_patterns("answerOnlyPatterns", "answerOnlyPatterns", strings(config.get("answerOnlyPatterns")))
+    )
 
     logging_config = config.get("logging", {})
     if logging_config and not isinstance(logging_config, dict):

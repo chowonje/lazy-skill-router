@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dev tools
+        run: python -m pip install ruff
+
+      - name: Lint and format check
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Run tests
+        run: python3 -m unittest discover -s tests -p "test*.py"
+
+      - name: Compile Python files
+        run: >
+          python3 -m py_compile
+          lazy_skill_router.py
+          lazy_skill_router_core.py
+          lazy_skill_router_common.py
+          lazy_skill_router_logging.py
+          lazy_skill_router_scoring.py
+          install.py
+          uninstall.py
+          validate_routes.py
+          release_checksums.py
+          sync_skills.py
+          eval_routes.py
+          tests/test_lazy_skill_router.py
+          tests/test_eval_routes.py
+
+      - name: Validate route config and golden prompts
+        run: |
+          python3 -m json.tool routes.default.json >/dev/null
+          python3 validate_routes.py routes.default.json
+          python3 eval_routes.py eval/prompts.jsonl
+
+      - name: Build skill sync fixture
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          config = json.loads(Path("routes.default.json").read_text(encoding="utf-8"))
+          skills = set(config.get("allowedSkills", []))
+          default_verification = config.get("defaultVerification")
+          if isinstance(default_verification, str) and default_verification:
+              skills.add(default_verification)
+
+          for route in config.get("routes", []):
+              if not isinstance(route, dict):
+                  continue
+              for key in ("primary", "verification"):
+                  value = route.get(key)
+                  if isinstance(value, str) and value:
+                      skills.add(value)
+              supporting = route.get("supporting", [])
+              if isinstance(supporting, str):
+                  skills.add(supporting)
+              elif isinstance(supporting, list):
+                  skills.update(item for item in supporting if isinstance(item, str) and item)
+
+          root = Path(".ci/codex/skills")
+          for index, skill in enumerate(sorted(skills)):
+              safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", skill) or f"skill_{index}"
+              skill_dir = root / safe_name
+              skill_dir.mkdir(parents=True, exist_ok=True)
+              (skill_dir / "SKILL.md").write_text(f"---\nname: {skill}\n---\n# {skill}\n", encoding="utf-8")
+
+          Path(".ci/agents").mkdir(parents=True, exist_ok=True)
+          PY
+
+      - name: Check route skill sync
+        run: >
+          python3 sync_skills.py
+          --codex-home .ci/codex
+          --agents-home .ci/agents
+          --routes routes.default.json
+          --strict
+
+      - name: Check fail-open CLI behavior
+        run: |
+          output="$(
+            PYTHONDONTWRITEBYTECODE=1 LAZY_SKILL_ROUTER_DEBUG=1 \
+              python3 lazy_skill_router.py --dry-run --config /dev/stdin --prompt "PDF 만들어줘" <<'JSON'
+          {"routes":[{"name":"bad","primary":"pdf","patterns":["["]}]}
+          JSON
+          )"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | python3 -c 'import json, sys; assert json.load(sys.stdin)["shouldInject"] is False'

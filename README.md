@@ -80,7 +80,7 @@ Run `--dry-run` first. The installer modifies `~/.codex/hooks.json`, copies hook
 
 The installer:
 
-- copies `lazy_skill_router.py`, `lazy_skill_router_core.py`, and `lazy_skill_router_scoring.py` into `~/.codex/hooks/`
+- copies `lazy_skill_router.py`, `lazy_skill_router_core.py`, `lazy_skill_router_common.py`, `lazy_skill_router_logging.py`, and `lazy_skill_router_scoring.py` into `~/.codex/hooks/`
 - copies `routes.default.json` into `~/.codex/lazy-skill-router/routes.json`
 - installs the bundled `personal-skill-router` skill into `~/.codex/skills/`
 - backs up `~/.codex/hooks.json` before editing it
@@ -238,12 +238,15 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_scoring.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py install.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 validate_routes.py routes.default.json
 python3 eval_routes.py eval/prompts.jsonl
 python3 sync_skills.py --routes routes.default.json --strict
+ruff check .
 ```
+
+GitHub Actions runs the same checks in `.github/workflows/ci.yml`. The workflow builds a temporary skill fixture before `sync_skills.py --strict` so route sync validation does not depend on the runner having local Codex skills installed.
 
 ## License
 

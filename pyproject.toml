@@ -1,0 +1,23 @@
+[project]
+name = "lazy-skill-router"
+version = "0.1.0"
+description = "Codex UserPromptSubmit hook that recommends local skills for the current prompt."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

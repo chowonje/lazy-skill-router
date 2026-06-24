@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EVAL_MODULE_PATH = ROOT / "eval_routes.py"
 EVAL_FIXTURES_PATH = ROOT / "eval" / "prompts.jsonl"

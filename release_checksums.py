@@ -5,7 +5,6 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
-
 EXCLUDED_DIRS = {".git", "__pycache__", ".pytest_cache", ".ruff_cache", ".venv"}
 EXCLUDED_FILES = {"SHA256SUMS"}
 

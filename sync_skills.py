@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from lazy_skill_router_common import codex_home, load_json_object
 
 PLUGIN_PROVIDER_SEGMENTS = {
-    "cache", "openai-bundled", "openai-curated", "openai-curated-remote",
-    "openai-primary-runtime", "plugins", "sisyphuslabs", "won-local",
+    "cache",
+    "openai-bundled",
+    "openai-curated",
+    "openai-curated-remote",
+    "openai-primary-runtime",
+    "plugins",
+    "sisyphuslabs",
+    "won-local",
 }
 
 
@@ -39,22 +45,9 @@ class SkillSyncReport:
     installed_not_allowlisted: tuple[str, ...]
 
 
-def codex_home() -> Path:
-    configured = os.environ.get("CODEX_HOME")
-    return Path(configured).expanduser() if configured else Path.home() / ".codex"
-
-
 def default_routes_path(home: Path, script_path: Path) -> Path:
     installed = home / "lazy-skill-router" / "routes.json"
     return installed if installed.is_file() else script_path.with_name("routes.default.json")
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        loaded = json.load(handle)
-    if not isinstance(loaded, dict):
-        raise ValueError(f"config root must be an object: {path}")
-    return loaded
 
 
 def string_list(value: Any) -> tuple[str, ...]:
@@ -214,7 +207,9 @@ def report_json(report: SkillSyncReport) -> dict[str, Any]:
         "installed": [{"name": record.name, "path": str(record.path)} for record in report.installed],
         "allowedSkills": list(report.allowed_skills),
         "routeReferences": [reference.__dict__ for reference in report.route_references],
-        "duplicateInstalled": [{"name": name, "paths": [str(path) for path in paths]} for name, paths in report.duplicate_installed],
+        "duplicateInstalled": [
+            {"name": name, "paths": [str(path) for path in paths]} for name, paths in report.duplicate_installed
+        ],
         "allowedMissing": list(report.allowed_missing),
         "routeReferencesMissing": [reference.__dict__ for reference in report.route_references_missing],
         "installedNotAllowlisted": list(report.installed_not_allowlisted),
@@ -223,9 +218,15 @@ def report_json(report: SkillSyncReport) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compare installed Codex skills with lazy-skill-router routes.")
-    parser.add_argument("--codex-home", default=str(codex_home()), help="Codex home directory. Defaults to CODEX_HOME or ~/.codex.")
-    parser.add_argument("--agents-home", default=str(Path.home() / ".agents"), help="Agents home directory. Defaults to ~/.agents.")
-    parser.add_argument("--routes", help="Routes JSON. Defaults to installed routes.json or bundled routes.default.json.")
+    parser.add_argument(
+        "--codex-home", default=str(codex_home()), help="Codex home directory. Defaults to CODEX_HOME or ~/.codex."
+    )
+    parser.add_argument(
+        "--agents-home", default=str(Path.home() / ".agents"), help="Agents home directory. Defaults to ~/.agents."
+    )
+    parser.add_argument(
+        "--routes", help="Routes JSON. Defaults to installed routes.json or bundled routes.default.json."
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     parser.add_argument("--strict", action="store_true", help="Exit non-zero when configured skills are missing.")
     args = parser.parse_args()
@@ -233,7 +234,7 @@ def main() -> int:
     codex_root = Path(args.codex_home).expanduser()
     agents_root = Path(args.agents_home).expanduser()
     route_path = Path(args.routes).expanduser() if args.routes else default_routes_path(codex_root, Path(__file__))
-    report = build_report(load_json(route_path), scan_installed_skills(codex_root, agents_root))
+    report = build_report(load_json_object(route_path, "config root"), scan_installed_skills(codex_root, agents_root))
 
     if args.json:
         print(json.dumps(report_json(report), ensure_ascii=False, indent=2))

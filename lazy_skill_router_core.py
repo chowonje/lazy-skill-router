@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import datetime as dt
-import hashlib
 import json
 import os
 from pathlib import Path
 from typing import Any
 
+from lazy_skill_router_common import codex_home, debug
+from lazy_skill_router_logging import log_decision
 from lazy_skill_router_scoring import (
     Route,
     RouteMatch,
@@ -17,20 +17,14 @@ from lazy_skill_router_scoring import (
     tuple_of_strings,
 )
 
-
-DEFAULT_ANSWER_ONLY_PATTERNS: tuple[str, ...] = (r"그냥\s*설명", r"설명만", r"don't change", r"do not change", r"no edit", r"수정하지\s*마")
-
-
-def debug(message: str) -> None:
-    if os.environ.get("LAZY_SKILL_ROUTER_DEBUG"):
-        print(f"lazy-skill-router: {message}", file=sys.stderr)
-
-
-def codex_home() -> Path:
-    value = os.environ.get("CODEX_HOME")
-    if value:
-        return Path(value).expanduser()
-    return Path.home() / ".codex"
+DEFAULT_ANSWER_ONLY_PATTERNS: tuple[str, ...] = (
+    r"그냥\s*설명",
+    r"설명만",
+    r"don't change",
+    r"do not change",
+    r"no edit",
+    r"수정하지\s*마",
+)
 
 
 def candidate_config_paths(script_path: Path, explicit_path: str | None) -> list[Path]:
@@ -168,39 +162,6 @@ def route_prompt(prompt: str, config: dict[str, Any]) -> str | None:
     answer_only = text_matches(prompt, answer_only_patterns(config))
     config_source = config.get("_loaded_from") if isinstance(config.get("_loaded_from"), str) else None
     return format_context(match, answer_only, config_source)
-
-
-def prompt_hash(prompt: str) -> str:
-    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
-
-
-def log_decision(prompt: str, match: RouteMatch | None, config: dict[str, Any]) -> None:
-    logging_config = config.get("logging")
-    if not isinstance(logging_config, dict) or logging_config.get("enabled") is not True:
-        return
-
-    configured_path = logging_config.get("path")
-    log_path = (
-        Path(configured_path).expanduser()
-        if isinstance(configured_path, str) and configured_path
-        else codex_home() / "logs" / "lazy_skill_router.jsonl"
-    )
-    record = {
-        "time": dt.datetime.now(dt.UTC).isoformat(),
-        "promptHash": prompt_hash(prompt),
-        "shouldInject": match is not None,
-        "route": match.route.name if match else None,
-        "primary": match.route.primary if match else None,
-        "confidence": match.confidence if match else 0.0,
-        "score": match.score if match else 0.0,
-        "matchedSignals": list(match.matched_signals) if match else [],
-    }
-    try:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        debug(f"failed to write log: {exc}")
 
 
 def dry_run_output(prompt: str, config: dict[str, Any]) -> dict[str, Any]:

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
 import re
-import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
+from lazy_skill_router_common import debug
 
 MIN_CONFIDENCE = 0.55
 NORMAL_CONFIDENCE = 0.75
@@ -34,11 +34,6 @@ class RouteMatch:
     confidence: float
     score: float
     matched_signals: tuple[str, ...]
-
-
-def debug(message: str) -> None:
-    if os.environ.get("LAZY_SKILL_ROUTER_DEBUG"):
-        print(f"lazy-skill-router: {message}", file=sys.stderr)
 
 
 def tuple_of_strings(value: Any) -> tuple[str, ...]:
