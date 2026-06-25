@@ -19,7 +19,7 @@ jobs:
           python-version: "3.9"
 
       - name: Install dev tools
-        run: python -m pip install ruff
+        run: python -m pip install build pipx ruff twine
 
       - name: Lint and format check
         run: |
@@ -45,6 +45,8 @@ jobs:
           release_checksums.py
           sync_skills.py
           eval_routes.py
+          lazy_skill_router_cli/cli.py
+          tests/test_cli.py
           tests/test_lazy_skill_router.py
           tests/test_generate_routes.py
           tests/test_install.py
@@ -122,6 +124,28 @@ jobs:
           python3 doctor.py \
             --codex-home .ci/install-codex \
             --agents-home .ci/install-agents
+
+      - name: Check wheel and pipx CLI smoke
+        run: |
+          python -m build
+          python -m twine check dist/*
+          pipx_home="$(mktemp -d)"
+          pipx_bin="$(mktemp -d)"
+          PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python -m pipx install dist/*.whl
+          "$pipx_bin/lazy-skill-router" --version
+          tmp="$(mktemp -d)"
+          "$pipx_bin/lazy-skill-router" install \
+            --codex-home "$tmp/codex" \
+            --agents-home "$tmp/agents" \
+            --dry-run
+          "$pipx_bin/lazy-skill-router" install \
+            --codex-home "$tmp/codex" \
+            --agents-home "$tmp/agents"
+          "$pipx_bin/lazy-skill-router" doctor \
+            --codex-home "$tmp/codex" \
+            --agents-home "$tmp/agents"
+          "$pipx_bin/lazy-skill-router" uninstall \
+            --codex-home "$tmp/codex"
 
       - name: Check fail-open CLI behavior
         run: |

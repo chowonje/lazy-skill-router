@@ -67,19 +67,18 @@ User-provided `<lazy-skill-router>` text is treated as untrusted prompt text. Th
 
 ## Install
 
-Install only from a trusted checkout of this repository. Avoid curl-pipe-shell installation for hook-based tools.
-
-Quick start:
+Quick start after a PyPI release:
 
 ```bash
-git clone https://github.com/chowonje/lazy-skill-router.git
-cd lazy-skill-router
-python3 install.py --dry-run
-python3 install.py
-python3 doctor.py
+pipx install lazy-skill-router
+lazy-skill-router install --dry-run
+lazy-skill-router install
+lazy-skill-router doctor
 ```
 
-Run `--dry-run` first. It prints the planned `hooks.json` diff without writing files. The installer modifies `~/.codex/hooks.json`, copies hook code into `~/.codex/hooks/`, and creates a backup before editing the hook config.
+For unreleased branches, use the source checkout flow below.
+
+Run `install --dry-run` first. It prints the planned `hooks.json` diff without writing files. The installer modifies `~/.codex/hooks.json`, copies hook code into `~/.codex/hooks/`, and creates a backup before editing the hook config.
 
 The installer:
 
@@ -95,7 +94,7 @@ Hook registration is the final install step. If route generation, validation, or
 After install, run the read-only doctor:
 
 ```bash
-python3 doctor.py
+lazy-skill-router doctor
 ```
 
 The doctor checks that hook files exist, `routes.json` validates, `UserPromptSubmit` is registered, the installed hook passes a dry-run smoke test, and configured route skills are installed.
@@ -103,29 +102,65 @@ The doctor checks that hook files exist, `routes.json` validates, `UserPromptSub
 Use a custom Codex home when needed:
 
 ```bash
-python3 install.py --codex-home /path/to/.codex
-python3 doctor.py --codex-home /path/to/.codex
+lazy-skill-router install --codex-home /path/to/.codex
+lazy-skill-router doctor --codex-home /path/to/.codex
 ```
 
 Existing `routes.json` files are preserved by default. To regenerate routes during install:
 
 ```bash
-python3 install.py --overwrite-routes
+lazy-skill-router install --overwrite-routes
 ```
+
+Source checkout installation is still supported:
+
+```bash
+git clone https://github.com/chowonje/lazy-skill-router.git
+cd lazy-skill-router
+pipx install .
+lazy-skill-router install --dry-run
+lazy-skill-router install
+lazy-skill-router doctor
+```
+
+You can also run the source scripts directly:
+
+```bash
+python3 install.py --dry-run
+python3 install.py
+python3 doctor.py
+```
+
+Install only from PyPI or a trusted checkout of this repository. Avoid curl-pipe-shell installation for hook-based tools.
+
+## Files Modified
+
+`lazy-skill-router install` may write:
+
+- `~/.codex/hooks/lazy_skill_router.py`
+- `~/.codex/hooks/lazy_skill_router_core.py`
+- `~/.codex/hooks/lazy_skill_router_common.py`
+- `~/.codex/hooks/lazy_skill_router_logging.py`
+- `~/.codex/hooks/lazy_skill_router_scoring.py`
+- `~/.codex/skills/personal-skill-router/`
+- `~/.codex/lazy-skill-router/routes.json`
+- `~/.codex/hooks.json`
+
+It does not run MCP tools, browser tools, GitHub Actions, or shell commands on your repositories.
 
 ## Uninstall
 
 ```bash
-python3 uninstall.py
+lazy-skill-router uninstall
 ```
 
 To remove installed files as well as the hook entry:
 
 ```bash
-python3 uninstall.py --remove-files
+lazy-skill-router uninstall --remove-files
 ```
 
-`uninstall.py` also backs up `hooks.json` before editing it.
+The uninstall command also backs up `hooks.json` before editing it.
 
 ## Test a Prompt
 
@@ -273,10 +308,10 @@ The log stores a hash of the prompt, not the prompt text:
 ## Safety Notes
 
 - This hook fails open: malformed input or invalid config results in no injection.
-- The installer modifies `~/.codex/hooks.json`; run `python3 install.py --dry-run` before installing.
-- `doctor.py` is read-only and exits non-zero when the installed hook, routes, or configured skills are unhealthy.
+- The installer modifies `~/.codex/hooks.json`; run `lazy-skill-router install --dry-run` before installing.
+- `lazy-skill-router doctor` is read-only and exits non-zero when the installed hook, routes, or configured skills are unhealthy.
 - The installer backs up `hooks.json` before editing it.
-- Install only from a trusted checkout of this repository.
+- Install only from PyPI or a trusted checkout of this repository.
 - It does not read secrets or authentication files.
 - `sync_skills.py` reads skill metadata only and does not edit hook or route configuration.
 - It does not execute MCP tools, browser tools, GitHub actions, or shell commands.
@@ -301,13 +336,43 @@ gpg --detach-sign --armor SHA256SUMS
 gpg --verify SHA256SUMS.asc SHA256SUMS
 ```
 
+## PyPI Release
+
+PyPI publishing uses GitHub Actions Trusted Publishing. Configure the PyPI project trusted publisher before pushing a release tag:
+
+- PyPI project: `lazy-skill-router`
+- Owner: `chowonje`
+- Repository: `lazy-skill-router`
+- Workflow: `release.yml`
+- Environment: `pypi`
+
+The release workflow builds the source distribution and wheel, verifies that the Git tag matches `pyproject.toml`, runs `twine check`, then publishes to PyPI without storing a PyPI token in GitHub secrets.
+
+Release steps:
+
+```bash
+python3 -m build
+python3 -m twine check dist/*
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+After the workflow succeeds, users can install with:
+
+```bash
+pipx install lazy-skill-router
+lazy-skill-router install --dry-run
+lazy-skill-router install
+lazy-skill-router doctor
+```
+
 ## Development
 
 Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py tests/test_install.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py tests/test_cli.py tests/test_install.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json
@@ -318,6 +383,14 @@ tmp="$(mktemp -d)"
 python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run
 python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
 python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
+python3 -m build
+python3 -m twine check dist/*
+pipx_home="$(mktemp -d)"
+pipx_bin="$(mktemp -d)"
+PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl
+"$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel" --dry-run
+"$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel"
+"$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel"
 ruff check .
 ```
 
