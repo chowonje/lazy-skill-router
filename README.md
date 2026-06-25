@@ -336,6 +336,36 @@ gpg --detach-sign --armor SHA256SUMS
 gpg --verify SHA256SUMS.asc SHA256SUMS
 ```
 
+## PyPI Release
+
+PyPI publishing uses GitHub Actions Trusted Publishing. Configure the PyPI project trusted publisher before pushing a release tag:
+
+- PyPI project: `lazy-skill-router`
+- Owner: `chowonje`
+- Repository: `lazy-skill-router`
+- Workflow: `release.yml`
+- Environment: `pypi`
+
+The release workflow builds the source distribution and wheel, verifies that the Git tag matches `pyproject.toml`, runs `twine check`, then publishes to PyPI without storing a PyPI token in GitHub secrets.
+
+Release steps:
+
+```bash
+python3 -m build
+python3 -m twine check dist/*
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+After the workflow succeeds, users can install with:
+
+```bash
+pipx install lazy-skill-router
+lazy-skill-router install --dry-run
+lazy-skill-router install
+lazy-skill-router doctor
+```
+
 ## Development
 
 Run the tests:
@@ -354,6 +384,7 @@ python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-r
 python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
 python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
 python3 -m build
+python3 -m twine check dist/*
 pipx_home="$(mktemp -d)"
 pipx_bin="$(mktemp -d)"
 PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl

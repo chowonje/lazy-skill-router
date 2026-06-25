@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lazy_skill_router_cli.cli import source_version
+
 ROOT = Path(__file__).resolve().parents[1]
 CLI_MODULE = "lazy_skill_router_cli.cli"
 
@@ -26,6 +28,18 @@ class CliTest(unittest.TestCase):
         self.assertIn("uninstall", completed.stdout)
         self.assertNotIn("eval", completed.stdout)
         self.assertNotIn("generate-routes", completed.stdout)
+
+    def test_cli_version_matches_project_version(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, "-m", CLI_MODULE, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.strip(), f"lazy-skill-router {source_version()}")
 
     def test_cli_install_doctor_and_uninstall_flow(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

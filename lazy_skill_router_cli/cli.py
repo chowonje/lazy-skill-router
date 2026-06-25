@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Final
 
@@ -11,6 +12,8 @@ import uninstall
 
 COMMANDS: Final = ("install", "doctor", "uninstall")
 DATA_ROOT_NAME: Final = "lazy-skill-router"
+PACKAGE_NAME: Final = "lazy-skill-router"
+UNKNOWN_VERSION: Final = "0.0.0"
 
 
 def source_root() -> Path:
@@ -19,6 +22,32 @@ def source_root() -> Path:
 
 def installed_data_root() -> Path:
     return Path(sys.prefix) / "share" / DATA_ROOT_NAME
+
+
+def source_version() -> str:
+    project_file = source_root() / "pyproject.toml"
+    if not project_file.is_file():
+        return UNKNOWN_VERSION
+
+    in_project_section = False
+    for line in project_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped == "[project]":
+            in_project_section = True
+            continue
+        if stripped.startswith("["):
+            in_project_section = False
+            continue
+        if in_project_section and stripped.startswith("version = "):
+            return stripped.split("=", 1)[1].strip().strip('"')
+    return UNKNOWN_VERSION
+
+
+def package_version() -> str:
+    try:
+        return version(PACKAGE_NAME)
+    except PackageNotFoundError:
+        return source_version()
 
 
 def resource_root() -> Path:
@@ -47,7 +76,7 @@ def print_help() -> None:
 
 
 def print_version() -> None:
-    print("lazy-skill-router 0.2.0")
+    print(f"lazy-skill-router {package_version()}")
 
 
 def run_main(main_func: Callable[[], int], command: str, args: list[str]) -> int:

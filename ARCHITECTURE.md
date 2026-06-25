@@ -72,6 +72,10 @@ Codex home mutation surfaces. These scripts copy hook files and the bundled skil
 
 Small public console entrypoint for packaged installs. It exposes only `install`, `doctor`, and `uninstall`, then delegates to the existing modules. When installed from a wheel, the CLI copies hook files and route templates from package data under `share/lazy-skill-router`; the installed Codex hook remains a standalone copy under `~/.codex/hooks/` and does not depend on the pipx environment at runtime.
 
+### `.github/workflows/release.yml`
+
+Tag-triggered PyPI release automation. It verifies that the pushed `v*.*.*` tag matches `pyproject.toml`, builds the source distribution and wheel, runs `twine check`, and publishes through PyPI Trusted Publishing. This workflow must remain separate from hook runtime behavior and must not require PyPI tokens in repository secrets.
+
 ### `eval_routes.py`
 
 Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each prompt through the same core engine used by the hook, and reports expectation failures by fixture id and category.

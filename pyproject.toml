@@ -56,6 +56,7 @@ dev = [
     "build>=1.2",
     "pipx>=1.7",
     "ruff>=0.8",
+    "twine>=6.1",
 ]
 
 [tool.ruff]
