@@ -128,20 +128,22 @@ jobs:
       - name: Check wheel and pipx CLI smoke
         run: |
           python -m build
-          python -m pipx install dist/*.whl
-          "$HOME/.local/bin/lazy-skill-router" --version
+          pipx_home="$(mktemp -d)"
+          pipx_bin="$(mktemp -d)"
+          PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python -m pipx install dist/*.whl
+          "$pipx_bin/lazy-skill-router" --version
           tmp="$(mktemp -d)"
-          "$HOME/.local/bin/lazy-skill-router" install \
+          "$pipx_bin/lazy-skill-router" install \
             --codex-home "$tmp/codex" \
             --agents-home "$tmp/agents" \
             --dry-run
-          "$HOME/.local/bin/lazy-skill-router" install \
+          "$pipx_bin/lazy-skill-router" install \
             --codex-home "$tmp/codex" \
             --agents-home "$tmp/agents"
-          "$HOME/.local/bin/lazy-skill-router" doctor \
+          "$pipx_bin/lazy-skill-router" doctor \
             --codex-home "$tmp/codex" \
             --agents-home "$tmp/agents"
-          "$HOME/.local/bin/lazy-skill-router" uninstall \
+          "$pipx_bin/lazy-skill-router" uninstall \
             --codex-home "$tmp/codex"
 
       - name: Check fail-open CLI behavior
