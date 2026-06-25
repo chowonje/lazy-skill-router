@@ -68,6 +68,10 @@ Read-only install health checker. It verifies installed hook files, route valida
 
 Codex home mutation surfaces. These scripts copy hook files and the bundled skill, generate user-specific route config, or remove installed hook entries. The installer validates routes and runs a hook dry-run smoke test before editing `hooks.json`; hook registration must remain the final install step. They must preserve dry-run mode, show a planned `hooks.json` diff in dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
 
+### `lazy_skill_router_cli`
+
+Small public console entrypoint for packaged installs. It exposes only `install`, `doctor`, and `uninstall`, then delegates to the existing modules. When installed from a wheel, the CLI copies hook files and route templates from package data under `share/lazy-skill-router`; the installed Codex hook remains a standalone copy under `~/.codex/hooks/` and does not depend on the pipx environment at runtime.
+
 ### `eval_routes.py`
 
 Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each prompt through the same core engine used by the hook, and reports expectation failures by fixture id and category.

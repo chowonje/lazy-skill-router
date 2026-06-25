@@ -1,13 +1,60 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "lazy-skill-router"
-version = "0.1.0"
+version = "0.2.0"
 description = "Codex UserPromptSubmit hook that recommends local skills for the current prompt."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []
 
+[project.scripts]
+lazy-skill-router = "lazy_skill_router_cli.cli:main"
+
+[tool.setuptools]
+packages = ["lazy_skill_router_cli"]
+py-modules = [
+    "doctor",
+    "generate_routes",
+    "install",
+    "lazy_skill_router",
+    "lazy_skill_router_common",
+    "lazy_skill_router_core",
+    "lazy_skill_router_logging",
+    "lazy_skill_router_scoring",
+    "release_checksums",
+    "sync_skills",
+    "uninstall",
+    "validate_routes",
+]
+
+[tool.setuptools.data-files]
+"share/lazy-skill-router" = [
+    "lazy_skill_router.py",
+    "lazy_skill_router_core.py",
+    "lazy_skill_router_common.py",
+    "lazy_skill_router_logging.py",
+    "lazy_skill_router_scoring.py",
+    "routes.default.json",
+    "routes.template.json",
+]
+"share/lazy-skill-router/skills/personal-skill-router" = [
+    "skills/personal-skill-router/SKILL.md",
+]
+"share/lazy-skill-router/skills/personal-skill-router/agents" = [
+    "skills/personal-skill-router/agents/openai.yaml",
+]
+"share/lazy-skill-router/skills/personal-skill-router/references" = [
+    "skills/personal-skill-router/references/overlap-policy.md",
+    "skills/personal-skill-router/references/skill-map.md",
+]
+
 [dependency-groups]
 dev = [
+    "build>=1.2",
+    "pipx>=1.7",
     "ruff>=0.8",
 ]
 

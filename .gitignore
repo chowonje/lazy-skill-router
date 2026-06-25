@@ -5,4 +5,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 .ci/
+build/
+dist/
+*.egg-info/
 SHA256SUMS
