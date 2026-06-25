@@ -41,7 +41,7 @@
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
 - Validate JSON syntax: `python3 -m json.tool routes.default.json >/dev/null`
 - Smoke installer and doctor: `tmp="$(mktemp -d)" && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" && python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
-- Smoke packaged CLI: `python3 -m build && pipx install dist/*.whl && tmp="$(mktemp -d)" && lazy-skill-router install --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && lazy-skill-router install --codex-home "$tmp/codex" --agents-home "$tmp/agents" && lazy-skill-router doctor --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
+- Smoke packaged CLI: `python3 -m build && pipx_home="$(mktemp -d)" && pipx_bin="$(mktemp -d)" && PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl && tmp="$(mktemp -d)" && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" && "$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
 
 ## Route Changes
 - Keep route changes data-only unless engine behavior must change.

@@ -76,6 +76,8 @@ lazy-skill-router install
 lazy-skill-router doctor
 ```
 
+For unreleased branches, use the source checkout flow below.
+
 Run `install --dry-run` first. It prints the planned `hooks.json` diff without writing files. The installer modifies `~/.codex/hooks.json`, copies hook code into `~/.codex/hooks/`, and creates a backup before editing the hook config.
 
 The installer:
@@ -158,7 +160,7 @@ To remove installed files as well as the hook entry:
 lazy-skill-router uninstall --remove-files
 ```
 
-`uninstall.py` also backs up `hooks.json` before editing it.
+The uninstall command also backs up `hooks.json` before editing it.
 
 ## Test a Prompt
 
@@ -307,9 +309,9 @@ The log stores a hash of the prompt, not the prompt text:
 
 - This hook fails open: malformed input or invalid config results in no injection.
 - The installer modifies `~/.codex/hooks.json`; run `lazy-skill-router install --dry-run` before installing.
-- `doctor.py` is read-only and exits non-zero when the installed hook, routes, or configured skills are unhealthy.
+- `lazy-skill-router doctor` is read-only and exits non-zero when the installed hook, routes, or configured skills are unhealthy.
 - The installer backs up `hooks.json` before editing it.
-- Install only from a trusted checkout of this repository.
+- Install only from PyPI or a trusted checkout of this repository.
 - It does not read secrets or authentication files.
 - `sync_skills.py` reads skill metadata only and does not edit hook or route configuration.
 - It does not execute MCP tools, browser tools, GitHub actions, or shell commands.
@@ -352,10 +354,12 @@ python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-r
 python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
 python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"
 python3 -m build
-pipx install dist/*.whl
-lazy-skill-router install --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel" --dry-run
-lazy-skill-router install --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel"
-lazy-skill-router doctor --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel"
+pipx_home="$(mktemp -d)"
+pipx_bin="$(mktemp -d)"
+PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl
+"$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel" --dry-run
+"$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel"
+"$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex-wheel" --agents-home "$tmp/agents-wheel"
 ruff check .
 ```
 
