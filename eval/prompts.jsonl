@@ -73,6 +73,8 @@
 {"id":"composite-code-changelog","category":"composite","prompt":"버그 수정하고 changelog도 추가해줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
 {"id":"composite-function-readme","category":"composite","prompt":"새 function을 추가하고 README 예시도 고쳐줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
 {"id":"composite-patch-release-notes","category":"composite","prompt":"patch 적용 후 release notes를 업데이트해줘","expect":{"shouldInject":true,"route":"code-docs","primary":"omo:programming","answerOnly":false}}
+{"id":"realistic-pdf-layout-mobile-a4","category":"documents","prompt":"어제 만든 PDF 견적서가 모바일에서 열면 표가 깨지고, 회사 로고가 첫 페이지 오른쪽 밖으로 밀려나. 원본 데이터는 CSV고, 최종본은 인쇄용 A4로 맞춰야 해. 실제 파일을 만들기 전에 어떤 도구/검증 순서로 접근할지 정리해줘.","expect":{"shouldInject":true,"route":"pdf","primary":"pdf","answerOnly":false}}
+{"id":"realistic-pr-payment-regression","category":"external-state","prompt":"신규 결제 플로우를 배포했는데 GitHub Actions는 초록불인데 실제 앱에서는 쿠폰 적용 후 결제 금액이 0원으로 떨어져. PR diff 기준으로 어디를 먼저 봐야 할지 리뷰 관점에서 짚어줘.","expect":{"shouldInject":true,"route":"github","primary":"github:github","answerOnly":false}}
 {"id":"answer-only-docs","category":"answer-only","prompt":"README 작성법은 설명만 해줘","expect":{"shouldInject":true,"route":"docs","primary":"writing-polish","answerOnly":true}}
 {"id":"answer-only-code","category":"answer-only","prompt":"함수형 프로그래밍 개념 설명만 해줘","expect":{"shouldInject":true,"route":"code","primary":"omo:programming","answerOnly":true}}
 {"id":"answer-only-security","category":"answer-only","prompt":"보안 threat model이 뭔지 설명만 해줘","expect":{"shouldInject":true,"route":"security","primary":"codex-security:security-scan","answerOnly":true}}

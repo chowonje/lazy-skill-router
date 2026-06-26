@@ -74,7 +74,7 @@ Small public console entrypoint for packaged installs. It exposes only `install`
 
 ### `.github/workflows/release.yml`
 
-Tag-triggered PyPI release automation. It verifies that the pushed `v*.*.*` tag matches `pyproject.toml`, builds the source distribution and wheel, runs `twine check`, and publishes through PyPI Trusted Publishing. This workflow must remain separate from hook runtime behavior and must not require PyPI tokens in repository secrets.
+Tag-triggered release automation. It verifies that the pushed `v*.*.*` tag matches `pyproject.toml`, builds the source distribution and wheel, runs `twine check`, publishes through PyPI Trusted Publishing, then creates or updates the matching GitHub Release with `SHA256SUMS`. PyPI publishing and GitHub Release upload run in separate jobs so Trusted Publishing does not share a job with GitHub contents-write permission. This workflow must remain separate from hook runtime behavior and must not require PyPI tokens in repository secrets.
 
 ### `eval_routes.py`
 

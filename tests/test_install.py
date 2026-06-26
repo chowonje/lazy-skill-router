@@ -12,6 +12,11 @@ INSTALL_PATH = ROOT / "install.py"
 DOCTOR_PATH = ROOT / "doctor.py"
 
 
+def write_skill(path: Path, name: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"---\nname: {name}\n---\n", encoding="utf-8")
+
+
 class InstallTest(unittest.TestCase):
     def test_installer_generates_routes_smokes_hook_then_registers_hook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -157,6 +162,48 @@ class InstallTest(unittest.TestCase):
             self.assertIn("[OK] UserPromptSubmit hook registered", doctor.stdout)
             self.assertIn("[OK] hook dry-run smoke test passed", doctor.stdout)
             self.assertIn("[OK] skill sync checked", doctor.stdout)
+
+    def test_doctor_warns_duplicate_skill_names_with_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+
+            install = subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALL_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr)
+            write_skill(agents_home / "skills" / "personal-skill-router-copy" / "SKILL.md", "personal-skill-router")
+
+            doctor = subprocess.run(
+                [
+                    sys.executable,
+                    str(DOCTOR_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(doctor.returncode, 0, doctor.stderr)
+            self.assertIn("[WARN] skill sync checked: 1 duplicate skill name", doctor.stdout)
+            self.assertIn("not an install failure", doctor.stdout)
+            self.assertIn("examples: personal-skill-router (2 copies:", doctor.stdout)
+            self.assertIn("run sync_skills.py --json for full paths", doctor.stdout)
 
     def test_doctor_fails_when_hook_is_not_installed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

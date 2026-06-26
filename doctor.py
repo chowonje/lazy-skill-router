@@ -18,6 +18,8 @@ HOOK_FILES = (
     "lazy_skill_router_logging.py",
     "lazy_skill_router_scoring.py",
 )
+DUPLICATE_SKILL_PREVIEW_LIMIT = 3
+DUPLICATE_PATH_PREVIEW_LIMIT = 2
 
 
 class CheckStatus(str, Enum):
@@ -115,6 +117,29 @@ def check_smoke(hook_path: Path, route_path: Path, prompt: str) -> CheckResult:
     return ok("hook dry-run smoke test passed")
 
 
+def duplicate_skill_word(count: int) -> str:
+    return "skill name" if count == 1 else "skill names"
+
+
+def duplicate_path_preview(paths: tuple[Path, ...]) -> str:
+    preview = ", ".join(str(path) for path in paths[:DUPLICATE_PATH_PREVIEW_LIMIT])
+    remaining = len(paths) - DUPLICATE_PATH_PREVIEW_LIMIT
+    if remaining > 0:
+        return f"{preview}, +{remaining} more paths"
+    return preview
+
+
+def duplicate_skill_examples(duplicates: tuple[tuple[str, tuple[Path, ...]], ...]) -> str:
+    examples = [
+        f"{name} ({len(paths)} copies: {duplicate_path_preview(paths)})"
+        for name, paths in duplicates[:DUPLICATE_SKILL_PREVIEW_LIMIT]
+    ]
+    remaining = len(duplicates) - DUPLICATE_SKILL_PREVIEW_LIMIT
+    if remaining > 0:
+        examples.append(f"+{remaining} more duplicate {duplicate_skill_word(remaining)}")
+    return "; ".join(examples)
+
+
 def check_skill_sync(config: dict[str, Any] | None, codex_root: Path, agents_root: Path) -> CheckResult:
     if config is None:
         return fail("skill sync checked: routes unavailable")
@@ -123,7 +148,12 @@ def check_skill_sync(config: dict[str, Any] | None, codex_root: Path, agents_roo
     if missing:
         return fail(f"skill sync checked: {missing} configured skills missing")
     if report.duplicate_installed:
-        return warn(f"skill sync checked: {len(report.duplicate_installed)} duplicate skill names")
+        duplicate_count = len(report.duplicate_installed)
+        return warn(
+            f"skill sync checked: {duplicate_count} duplicate {duplicate_skill_word(duplicate_count)}; "
+            f"not an install failure; examples: {duplicate_skill_examples(report.duplicate_installed)}; "
+            "run sync_skills.py --json for full paths"
+        )
     return ok("skill sync checked")
 
 

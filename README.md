@@ -112,6 +112,26 @@ Existing `routes.json` files are preserved by default. To regenerate routes duri
 lazy-skill-router install --overwrite-routes
 ```
 
+## Upgrade
+
+Upgrade the pipx package, then run `install` again so the standalone hook files copied into `~/.codex/hooks/` are refreshed:
+
+```bash
+pipx upgrade lazy-skill-router
+lazy-skill-router install
+lazy-skill-router doctor
+```
+
+If `pipx` itself is installed as a Python module but not on your shell `PATH`, use:
+
+```bash
+python3 -m pipx upgrade lazy-skill-router
+```
+
+`lazy-skill-router install` preserves an existing `~/.codex/lazy-skill-router/routes.json` by default. Use
+`lazy-skill-router install --overwrite-routes` only when you want to regenerate local routes from the currently
+installed skills.
+
 Source checkout installation is still supported:
 
 ```bash
@@ -284,6 +304,9 @@ python3 sync_skills.py --routes ~/.codex/lazy-skill-router/routes.json
 - installed skills that are not yet included in the router
 - duplicate installed skill names
 
+Duplicate skill names are reported as a warning, not an install failure. They usually mean the same skill exists in more
+than one Codex skill root or plugin cache. Use `python3 sync_skills.py --json` when you need full paths for cleanup.
+
 Use `--strict` in CI or release checks when missing configured skills should fail the command.
 
 ## Optional Logging
@@ -346,15 +369,14 @@ PyPI publishing uses GitHub Actions Trusted Publishing. Configure the PyPI proje
 - Workflow: `release.yml`
 - Environment: `pypi`
 
-The release workflow builds the source distribution and wheel, verifies that the Git tag matches `pyproject.toml`, runs `twine check`, then publishes to PyPI without storing a PyPI token in GitHub secrets.
+The release workflow builds the source distribution and wheel, verifies that the Git tag matches `pyproject.toml`, runs `twine check`, publishes to PyPI, then creates or updates the matching GitHub Release with `SHA256SUMS`. PyPI publishing and GitHub Release upload run in separate jobs so PyPI Trusted Publishing does not run with GitHub contents-write permission. The workflow does not store a PyPI token in GitHub secrets.
 
 Release steps:
 
 ```bash
-python3 -m build
-python3 -m twine check dist/*
-git tag v0.2.0
-git push origin v0.2.0
+version="$(awk -F'"' '/^version = / {print $2; exit}' pyproject.toml)"
+git tag "v$version"
+git push origin "v$version"
 ```
 
 After the workflow succeeds, users can install with:
