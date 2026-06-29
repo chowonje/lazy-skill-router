@@ -133,6 +133,7 @@ jobs:
           pipx_bin="$(mktemp -d)"
           PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python -m pipx install dist/*.whl
           "$pipx_bin/lazy-skill-router" --version
+          "$pipx_bin/lazy-skill-router" route "GitHub PR에서 CI 실패 고쳐줘"
           tmp="$(mktemp -d)"
           "$pipx_bin/lazy-skill-router" install \
             --codex-home "$tmp/codex" \

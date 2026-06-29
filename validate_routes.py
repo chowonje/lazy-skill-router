@@ -94,6 +94,18 @@ def check_scoring_fields(route: dict[str, Any], name: str) -> list[Finding]:
     return findings
 
 
+def check_display_config(config: dict[str, Any]) -> list[Finding]:
+    display = config.get("display", {})
+    if not display:
+        return []
+    if not isinstance(display, dict):
+        return [Finding("ERROR", "display must be an object when present")]
+    show_notice = display.get("showRouterNotice")
+    if show_notice is not None and not isinstance(show_notice, bool):
+        return [Finding("ERROR", "display.showRouterNotice must be a boolean when set")]
+    return []
+
+
 def validate_route(route: Any, index: int, allowed: set[str]) -> tuple[str | None, list[Finding]]:
     findings: list[Finding] = []
     if not isinstance(route, dict):
@@ -148,6 +160,7 @@ def validate_config(config: dict[str, Any]) -> list[Finding]:
     logging_config = config.get("logging", {})
     if logging_config and not isinstance(logging_config, dict):
         findings.append(Finding("ERROR", "logging must be an object when present"))
+    findings.extend(check_display_config(config))
 
     routes = config.get("routes")
     if not isinstance(routes, list) or not routes:

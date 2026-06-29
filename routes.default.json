@@ -6,6 +6,9 @@
     "enabled": false,
     "path": ""
   },
+  "display": {
+    "showRouterNotice": false
+  },
   "allowedSkills": [
     "agent-config-audit",
     "browser:control-in-app-browser",

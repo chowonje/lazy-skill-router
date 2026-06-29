@@ -27,7 +27,7 @@
 - `install.py`: Codex home installation surface.
 - `doctor.py`: read-only install health checker.
 - `uninstall.py`: Codex home removal surface.
-- `lazy_skill_router_cli/`: public packaged CLI exposing `install`, `doctor`, and `uninstall`.
+- `lazy_skill_router_cli/`: public packaged CLI exposing `install`, `doctor`, `uninstall`, and `route`.
 - `release_checksums.py`: release checksum manifest generation and verification.
 - `eval_routes.py`: golden prompt regression evaluator.
 - `eval/prompts.jsonl`: prompt fixtures for route quality checks.
@@ -41,7 +41,7 @@
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
 - Validate JSON syntax: `python3 -m json.tool routes.default.json >/dev/null`
 - Smoke installer and doctor: `tmp="$(mktemp -d)" && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" && python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
-- Smoke packaged CLI: `python3 -m build && python3 -m twine check dist/* && pipx_home="$(mktemp -d)" && pipx_bin="$(mktemp -d)" && PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl && tmp="$(mktemp -d)" && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" && "$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
+- Smoke packaged CLI: `python3 -m build && python3 -m twine check dist/* && pipx_home="$(mktemp -d)" && pipx_bin="$(mktemp -d)" && PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl && "$pipx_bin/lazy-skill-router" route "GitHub PR에서 CI 실패 고쳐줘" && tmp="$(mktemp -d)" && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" && "$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
 - Release workflow: `.github/workflows/release.yml` publishes PyPI packages from `v*.*.*` tags with Trusted Publishing, then generates `SHA256SUMS` and creates or updates the matching GitHub Release in a separate contents-write job. The PyPI project must trust owner `chowonje`, repository `lazy-skill-router`, workflow `release.yml`, and environment `pypi`.
 
 ## Route Changes

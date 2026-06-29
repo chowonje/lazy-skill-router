@@ -161,6 +161,19 @@ def validate_routes_config(config: dict[str, Any], path: Path) -> None:
         raise InstallError(f"routes failed validation at {path}: " + "; ".join(errors))
 
 
+def apply_router_notice_setting(config: dict[str, Any], enabled: bool | None) -> bool:
+    if enabled is None:
+        return False
+    display = config.get("display")
+    if not isinstance(display, dict):
+        display = {}
+        config["display"] = display
+    if display.get("showRouterNotice") is enabled:
+        return False
+    display["showRouterNotice"] = enabled
+    return True
+
+
 def smoke_hook(hook_path: Path, route_path: Path, prompt: str) -> None:
     completed = subprocess.run(
         [sys.executable, str(hook_path), "--config", str(route_path), "--dry-run", prompt],
@@ -190,6 +203,17 @@ def main() -> int:
     parser.add_argument("--smoke-prompt", default=DEFAULT_SMOKE_PROMPT, help="Prompt used for the hook smoke test.")
     parser.add_argument("--force", action="store_true", help="Overwrite the bundled personal-skill-router skill.")
     parser.add_argument("--overwrite-routes", action="store_true", help="Overwrite an existing routes.json.")
+    notice_group = parser.add_mutually_exclusive_group()
+    notice_group.add_argument(
+        "--show-router-notice",
+        action="store_true",
+        help="Ask Codex to briefly show the selected route before task-specific work.",
+    )
+    notice_group.add_argument(
+        "--hide-router-notice",
+        action="store_true",
+        help="Keep route recommendations hidden from user-facing replies.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Show actions without writing files.")
     args = parser.parse_args()
 
@@ -204,6 +228,7 @@ def main() -> int:
     hook_command = install_hook_command(hook_destination, routes_destination)
     actions: list[str] = []
     planned_diff: tuple[str, ...] = ()
+    notice_setting = True if args.show_router_notice else False if args.hide_router_notice else None
 
     try:
         copy_file(HOOK_SOURCE, hook_destination, dry_run=args.dry_run)
@@ -220,15 +245,23 @@ def main() -> int:
         actions.append(f"{copy_skill(skill_destination, force=args.force, dry_run=args.dry_run)} {skill_destination}")
 
         if routes_destination.exists() and not args.overwrite_routes:
-            validate_routes_config(load_json_object(routes_destination, "routes root"), routes_destination)
+            route_config = load_json_object(routes_destination, "routes root")
+            notice_changed = apply_router_notice_setting(route_config, notice_setting)
+            validate_routes_config(route_config, routes_destination)
+            if notice_changed and not args.dry_run:
+                write_json(routes_destination, route_config)
             actions.append(f"keep existing routes {routes_destination}")
             actions.append(f"validate existing routes {routes_destination}")
         else:
             route_config = generated_routes(template_path, codex_root, agents_root)
+            notice_changed = apply_router_notice_setting(route_config, notice_setting)
             if not args.dry_run:
                 write_json(routes_destination, route_config)
             actions.append(f"generate routes {routes_destination}")
             actions.append(f"validate generated routes {routes_destination}")
+        if notice_changed:
+            verb = "enable" if notice_setting else "disable"
+            actions.append(f"{verb} visible router notice in {routes_destination}")
 
         if args.dry_run:
             actions.append(f"would smoke test hook {hook_destination}")

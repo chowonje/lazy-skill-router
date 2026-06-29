@@ -119,7 +119,12 @@ def answer_only_patterns(config: dict[str, Any]) -> tuple[str, ...]:
     return configured or DEFAULT_ANSWER_ONLY_PATTERNS
 
 
-def format_context(match: RouteMatch, answer_only: bool, config_source: str | None) -> str:
+def show_router_notice(config: dict[str, Any]) -> bool:
+    display = config.get("display", {})
+    return isinstance(display, dict) and display.get("showRouterNotice") is True
+
+
+def format_context(match: RouteMatch, answer_only: bool, config_source: str | None, show_notice: bool = False) -> str:
     route = match.route
     supporting = ", ".join(route.supporting) if route.supporting else "none"
     verification = route.verification or "none"
@@ -147,6 +152,8 @@ def format_context(match: RouteMatch, answer_only: bool, config_source: str | No
         "Inspect the actual task, repository state, and safety constraints before using any skill.",
         mode,
     ]
+    if show_notice:
+        lines.append("Visible notice requested: start with exactly `lazy-skill-router` before task-specific work.")
     if config_source and os.environ.get("LAZY_SKILL_ROUTER_DEBUG"):
         lines.append(f"Config: {config_source}")
     lines.append("</lazy-skill-router>")
@@ -167,7 +174,7 @@ def route_prompt(prompt: str, config: dict[str, Any]) -> str | None:
         return None
     answer_only = text_matches(prompt, answer_only_patterns(config))
     config_source = config.get("_loaded_from") if isinstance(config.get("_loaded_from"), str) else None
-    return format_context(match, answer_only, config_source)
+    return format_context(match, answer_only, config_source, show_router_notice(config))
 
 
 def dry_run_candidate(match: RouteMatch) -> dict[str, Any]:

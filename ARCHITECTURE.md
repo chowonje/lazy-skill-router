@@ -18,7 +18,7 @@ The hook is intentionally fail-open. Missing config, invalid JSON, invalid route
 
 ### `lazy_skill_router_core.py`
 
-Pure routing engine and local metadata logging. It owns route parsing, pattern matching, confidence labels, answer-only detection, recommendation formatting, and opt-in prompt-hash logging.
+Pure routing engine and local metadata logging. It owns route parsing, pattern matching, confidence labels, answer-only detection, recommendation formatting, opt-in visible route notices, and opt-in prompt-hash logging.
 
 The core should remain independent from Codex hook I/O so dry-run, tests, and evals can exercise routing behavior without installing the hook.
 
@@ -66,11 +66,11 @@ Read-only install health checker. It verifies installed hook files, route valida
 
 ### `install.py` And `uninstall.py`
 
-Codex home mutation surfaces. These scripts copy hook files and the bundled skill, generate user-specific route config, or remove installed hook entries. The installer validates routes and runs a hook dry-run smoke test before editing `hooks.json`; hook registration must remain the final install step. They must preserve dry-run mode, show a planned `hooks.json` diff in dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
+Codex home mutation surfaces. These scripts copy hook files and the bundled skill, generate user-specific route config, update the optional visible route notice setting, or remove installed hook entries. The installer validates routes and runs a hook dry-run smoke test before editing `hooks.json`; hook registration must remain the final install step. They must preserve dry-run mode, show a planned `hooks.json` diff in dry-run mode, make backups before editing `hooks.json`, and avoid broad deletion.
 
 ### `lazy_skill_router_cli`
 
-Small public console entrypoint for packaged installs. It exposes only `install`, `doctor`, and `uninstall`, then delegates to the existing modules. When installed from a wheel, the CLI copies hook files and route templates from package data under `share/lazy-skill-router`; the installed Codex hook remains a standalone copy under `~/.codex/hooks/` and does not depend on the pipx environment at runtime.
+Small public console entrypoint for packaged installs. It exposes `install`, `doctor`, `uninstall`, and `route`, then delegates to the existing modules. `route` reuses dry-run routing diagnostics to show which skill recommendation a prompt would receive without installing or running the hook. When installed from a wheel, the CLI copies hook files and route templates from package data under `share/lazy-skill-router`; the installed Codex hook remains a standalone copy under `~/.codex/hooks/` and does not depend on the pipx environment at runtime.
 
 ### `.github/workflows/release.yml`
 
@@ -86,6 +86,7 @@ Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each p
 - Config data enters through JSON files and is parsed into route objects at the core boundary.
 - Installed skill metadata is read by `sync_skills.py` for reports and by `generate_routes.py` for user-specific config generation.
 - Optional logging records prompt hashes and route metadata, not raw prompt text.
+- Optional visible route notices reveal only that the router ran, not the raw prompt, selected route, or selected skill.
 - External services are never called by the hook or evaluator.
 
 ## Evaluation Strategy

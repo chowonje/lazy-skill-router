@@ -5,6 +5,9 @@
     "enabled": false,
     "path": ""
   },
+  "display": {
+    "showRouterNotice": false
+  },
   "answerOnlyPatterns": [
     "그냥\\s*설명",
     "설명만",

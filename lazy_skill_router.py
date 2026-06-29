@@ -12,6 +12,7 @@ from lazy_skill_router_core import (
     load_config,
     log_decision,
     route_match,
+    show_router_notice,
     text_matches,
 )
 
@@ -62,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         match,
         text_matches(prompt, answer_only_patterns(config)),
         config.get("_loaded_from") if isinstance(config.get("_loaded_from"), str) else None,
+        show_router_notice(config),
     )
     output = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}
     print(json.dumps(output, ensure_ascii=False))

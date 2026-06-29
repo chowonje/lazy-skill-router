@@ -250,6 +250,22 @@ class LazySkillRouterTest(unittest.TestCase):
         self.assertIn("Matched signals: Code and documentation work", context)
         self.assertNotIn("(?=.*(python", context)
 
+    def test_route_prompt_is_quiet_by_default(self) -> None:
+        context = router.route_prompt("PDF 만들어줘", self.config)
+
+        self.assertIsNotNone(context)
+        self.assertNotIn("Visible notice", context)
+
+    def test_route_prompt_can_request_visible_router_notice(self) -> None:
+        config = dict(self.config)
+        config["display"] = {"showRouterNotice": True}
+        context = router.route_prompt("PDF 만들어줘", config)
+
+        self.assertIsNotNone(context)
+        self.assertIn("Visible notice requested", context)
+        self.assertIn("`lazy-skill-router`", context)
+        self.assertNotIn("lazy-skill-router: pdf", context)
+
     def test_dry_run_reports_answer_only_mode(self) -> None:
         result = router.dry_run_output("PDF는 어떻게 만드는지 설명만 해줘", self.config)
         self.assertTrue(result["answerOnly"])
@@ -285,6 +301,13 @@ class LazySkillRouterTest(unittest.TestCase):
         self.assertTrue(any("priority must be a number" in message for message in messages))
         self.assertTrue(any("weight must be a number" in message for message in messages))
         self.assertTrue(any("fallback must be a boolean" in message for message in messages))
+
+    def test_validator_rejects_invalid_display_config(self) -> None:
+        config = dict(self.config)
+        config["display"] = {"showRouterNotice": "yes"}
+        findings = validator.validate_config(config)
+
+        self.assertTrue(any("display.showRouterNotice must be a boolean" in finding.message for finding in findings))
 
     def test_checksum_manifest_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -71,6 +71,7 @@ Quick start after a PyPI release:
 
 ```bash
 pipx install lazy-skill-router
+lazy-skill-router route "GitHub PR에서 CI 실패 고쳐줘"
 lazy-skill-router install --dry-run
 lazy-skill-router install
 lazy-skill-router doctor
@@ -184,7 +185,32 @@ The uninstall command also backs up `hooks.json` before editing it.
 
 ## Test a Prompt
 
-Use dry-run mode before enabling or tuning routes:
+Use `route` to check what the packaged CLI would recommend for a prompt:
+
+```bash
+lazy-skill-router route "GitHub PR에서 CI 실패 고쳐줘"
+```
+
+Example output:
+
+```text
+Route: github-ci
+Primary skill: github:gh-fix-ci
+Supporting skills: github:github
+Verification skill: verification-gate
+Confidence: 0.80 (normal)
+Selection score: 0.80
+Matched signals: CI keyword, Korean CI failure
+Answer-only: false
+```
+
+Use `--json` when you want the full dry-run diagnostics:
+
+```bash
+lazy-skill-router route --json "GitHub PR에서 CI 실패 고쳐줘"
+```
+
+Source checkout dry-run mode is still available before enabling or tuning routes:
 
 ```bash
 python3 lazy_skill_router.py --dry-run "GitHub PR에서 CI 실패 고쳐줘"
@@ -239,6 +265,7 @@ Important fields:
 - `defaultVerification`: used when a route omits `verification`
 - `allowedSkills`: only these skills may be recommended
 - `logging.enabled`: off by default
+- `display.showRouterNotice`: off by default; asks Codex to briefly show that the router ran
 - `routes`: route table scored as candidates
 - `routes[].priority`: optional numeric score boost in `0.05` increments
 - `routes[].weight`: optional direct numeric score adjustment
@@ -255,6 +282,44 @@ Use pattern labels when a regex is too noisy for the injected recommendation blo
     { "regex": "ci.*실패", "label": "Korean CI failure" }
   ]
 }
+```
+
+## Show Router Usage In Replies
+
+By default the hook is quiet: it injects routing context for Codex, but it does not ask Codex to show that context to the user.
+
+To make active routing visible while testing, set:
+
+```json
+"display": {
+  "showRouterNotice": true
+}
+```
+
+in:
+
+```text
+~/.codex/lazy-skill-router/routes.json
+```
+
+Or run:
+
+```bash
+lazy-skill-router install --show-router-notice
+```
+
+When enabled, the injected context asks Codex to briefly mention a line such as:
+
+```text
+lazy-skill-router
+```
+
+before task-specific work. This is meant for testing and demos. Leave it off when you want the router to stay invisible. Use `lazy-skill-router route "..."` when you need the selected route, primary skill, and score.
+
+To turn the notice off again:
+
+```bash
+lazy-skill-router install --hide-router-notice
 ```
 
 ## Generate User-Specific Routes
@@ -383,6 +448,7 @@ After the workflow succeeds, users can install with:
 
 ```bash
 pipx install lazy-skill-router
+lazy-skill-router route "GitHub PR에서 CI 실패 고쳐줘"
 lazy-skill-router install --dry-run
 lazy-skill-router install
 lazy-skill-router doctor

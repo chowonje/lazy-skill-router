@@ -52,6 +52,51 @@ class InstallTest(unittest.TestCase):
             hook_command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
             self.assertIn("lazy_skill_router.py", hook_command)
 
+    def test_installer_can_enable_visible_router_notice(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALL_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--show-router-notice",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("enable visible router notice", completed.stdout)
+            routes = json.loads((codex_home / "lazy-skill-router" / "routes.json").read_text(encoding="utf-8"))
+            self.assertEqual(routes["display"], {"showRouterNotice": True})
+
+            hook = subprocess.run(
+                [
+                    sys.executable,
+                    str(codex_home / "hooks" / "lazy_skill_router.py"),
+                    "--config",
+                    str(codex_home / "lazy-skill-router" / "routes.json"),
+                    "--prompt",
+                    "스킬 추천해줘",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(hook.returncode, 0, hook.stderr)
+            self.assertIn("Visible notice requested", hook.stdout)
+            self.assertIn("`lazy-skill-router`", hook.stdout)
+            self.assertNotIn("lazy-skill-router:", hook.stdout)
+
     def test_installer_does_not_register_hook_when_template_generation_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

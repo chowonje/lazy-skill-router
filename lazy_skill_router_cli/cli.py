@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 import sys
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError, version
@@ -9,8 +11,9 @@ from typing import Final
 import doctor
 import install
 import uninstall
+from lazy_skill_router_core import dry_run_output, load_config
 
-COMMANDS: Final = ("install", "doctor", "uninstall")
+COMMANDS: Final = ("install", "doctor", "uninstall", "route")
 DATA_ROOT_NAME: Final = "lazy-skill-router"
 PACKAGE_NAME: Final = "lazy-skill-router"
 UNKNOWN_VERSION: Final = "0.0.0"
@@ -44,10 +47,13 @@ def source_version() -> str:
 
 
 def package_version() -> str:
+    source = source_version()
+    if source != UNKNOWN_VERSION:
+        return source
     try:
         return version(PACKAGE_NAME)
     except PackageNotFoundError:
-        return source_version()
+        return UNKNOWN_VERSION
 
 
 def resource_root() -> Path:
@@ -79,6 +85,45 @@ def print_version() -> None:
     print(f"lazy-skill-router {package_version()}")
 
 
+def route_prompt(args: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="lazy-skill-router route",
+        description="Show which skill route would be recommended for a prompt.",
+    )
+    parser.add_argument("--config", help="Path to a routes JSON file.")
+    parser.add_argument("--json", action="store_true", help="Print full route diagnostics as JSON.")
+    parser.add_argument("prompt", help="Prompt text to route.")
+    parsed = parser.parse_args(args)
+
+    config = load_config(resource_root() / "lazy_skill_router.py", parsed.config)
+    result = dry_run_output(parsed.prompt, config)
+    if parsed.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if not result["shouldInject"]:
+        print("No route")
+        print(f"Reason: {result['reason']}")
+        print(f"Answer-only: {str(result['answerOnly']).lower()}")
+        return 0
+
+    supporting = result["supporting"] if isinstance(result["supporting"], list) else []
+    supporting_text = ", ".join(str(skill) for skill in supporting) if supporting else "none"
+    verification = result["verification"] or "none"
+    signals = result["matchedSignals"] if isinstance(result["matchedSignals"], list) else []
+    signals_text = ", ".join(str(signal) for signal in signals) if signals else "none"
+
+    print(f"Route: {result['route']}")
+    print(f"Primary skill: {result['primary']}")
+    print(f"Supporting skills: {supporting_text}")
+    print(f"Verification skill: {verification}")
+    print(f"Confidence: {result['confidence']:.2f} ({result['confidenceLabel']})")
+    print(f"Selection score: {result['score']:.2f}")
+    print(f"Matched signals: {signals_text}")
+    print(f"Answer-only: {str(result['answerOnly']).lower()}")
+    return 0
+
+
 def run_main(main_func: Callable[[], int], command: str, args: list[str]) -> int:
     previous = sys.argv
     sys.argv = [f"lazy-skill-router {command}", *args]
@@ -96,6 +141,8 @@ def run_command(command: str, args: list[str]) -> int:
         return run_main(doctor.main, command, args)
     if command == "uninstall":
         return run_main(uninstall.main, command, args)
+    if command == "route":
+        return route_prompt(args)
     raise ValueError(f"unknown command: {command}")
 
 

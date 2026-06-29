@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,7 @@ class CliTest(unittest.TestCase):
         self.assertIn("install", completed.stdout)
         self.assertIn("doctor", completed.stdout)
         self.assertIn("uninstall", completed.stdout)
+        self.assertIn("route", completed.stdout)
         self.assertNotIn("eval", completed.stdout)
         self.assertNotIn("generate-routes", completed.stdout)
 
@@ -101,6 +103,53 @@ class CliTest(unittest.TestCase):
             )
             self.assertEqual(uninstall_result.returncode, 0, uninstall_result.stderr)
             self.assertIn("remove 1 hook entry", uninstall_result.stdout)
+
+    def test_cli_route_prints_selected_skill_summary(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                CLI_MODULE,
+                "route",
+                "--config",
+                "routes.default.json",
+                "GitHub PR에서 CI 실패 고쳐줘",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("Route: github-ci", completed.stdout)
+        self.assertIn("Primary skill: github:gh-fix-ci", completed.stdout)
+        self.assertIn("Confidence:", completed.stdout)
+
+    def test_cli_route_json_reuses_dry_run_diagnostics(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                CLI_MODULE,
+                "route",
+                "--json",
+                "--config",
+                "routes.default.json",
+                "PDF 만들어줘",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertTrue(result["shouldInject"])
+        self.assertEqual(result["route"], "pdf")
+        self.assertEqual(result["primary"], "pdf")
+        self.assertIn("candidates", result)
 
 
 if __name__ == "__main__":
