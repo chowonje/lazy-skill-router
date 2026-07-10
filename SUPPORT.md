@@ -10,7 +10,7 @@
 | WSL | unverified; out of scope for 0.4.0 support | no current package, path, symlink, or hook registration matrix |
 | Native Windows | unsupported | standalone command, quoting, filesystem, and hook behavior are not implemented or verified for Windows |
 
-`supported-with-constraints` means the documented default v1 behavior and opt-in unreleased contracts are covered by
+`supported-with-constraints` means the documented default v1 behavior and opt-in v0.4 contracts are covered by
 the current source evidence. It does not mean every Codex build, third-party skill, plugin, connector, or custom hook
 combination is supported.
 
@@ -24,7 +24,7 @@ until a dedicated package, path, symlink, hook-registration, and rollback matrix
 - standalone copied `UserPromptSubmit` hook using canonical `python3` argv
 - conditional copied `Stop` hook for measurement-enabled installations
 - route config v1 default behavior
-- opt-in schema v2 and versioned JSON diagnostics in the unreleased working tree
+- opt-in schema v2 and versioned JSON diagnostics in v0.4
 - generated inventory and install ownership manifests
 - read-only doctor checks and ownership-aware uninstall
 - local measurement event journal plus `outcome` and `report` CLI commands
@@ -45,10 +45,10 @@ needed and redacted.
 
 ## Compatibility
 
-The released v0.3 contract is recorded in [`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md). The current source
-targets `0.4.0`; its release notes are in [`CHANGELOG.md`](CHANGELOG.md). Unreleased strategy implementation and
-remaining gates are recorded in
+The released v0.4 contract is recorded in [`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md), and its release
+notes are in [`CHANGELOG.md`](CHANGELOG.md). The implementation rationale and remaining default-activation gates are
+recorded in
 [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md).
 
-Structured recommendation, Hook IR, schema v2 defaulting, and broader platform support must
-be announced through a versioned release and migration note before being treated as stable defaults.
+Any change that makes structured recommendation, Hook IR, or schema v2 a stable default, or that broadens platform
+support, must be announced through a versioned release and migration note.

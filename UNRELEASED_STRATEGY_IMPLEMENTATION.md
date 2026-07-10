@@ -1,10 +1,11 @@
-# Unreleased Strategy Implementation
+# Versioned Strategy Implementation
 
-Status: implemented for the `0.4.0` candidate, not released or enabled as the default hook wire contract.
+Status: released in `0.4.0` as opt-in functionality; not enabled as the default hook wire contract.
 
-This document separates the strategy implementation from the shipped v0.3 behavior in
+This document separates the opt-in strategy implementation from the v1-compatible default behavior in
 [`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md). The default hook still emits the legacy top-1 advisory prose
-block, and `route --json` still returns the existing v1 diagnostics.
+block, and `route --json` still returns the existing v1 diagnostics. The filename is retained to preserve links from
+pre-release reviews.
 
 ## Implemented Opt-In Contracts
 
@@ -133,7 +134,7 @@ Config discovery and config trust are separate. The loader derives advisory trus
 installed-personal, or bundled discovery and overwrites any `_config_trust` value claimed inside the JSON file. The
 structured contracts explicitly state that config trust and availability do not authorize work.
 
-## Remaining Release Gates
+## Remaining Default-Activation Gates
 
 - Keep structured recommendation and Hook IR opt-in while evaluation contracts mature; an isolated macOS Codex CLI
   0.144.0 shadow-hook canary now verifies actual `UserPromptSubmit` and `Stop` delivery.
@@ -144,9 +145,8 @@ structured contracts explicitly state that config trust and availability do not 
   Linux distributions and architectures remain experimental. WSL is unverified and native Windows is unsupported;
   neither blocks 0.4.0 because this release does not claim support for them. The local Python 3.9 v0.3/v0.4 upgrade and
   rollback matrix passes when measurement is disabled before downgrade.
-- The 0.4.0 candidate implementation was merged through PR #2. It has not been tagged or published to PyPI.
+- Version 0.4.0 was tagged at `f42c8384709893548dfd5bd8a0ef828627460046` and published to PyPI and GitHub Releases
+  through release run `29096430451`.
 
-The remaining 0.4.0 publication gate is operational: confirm a clean `main`, a passing aggregate `verify` check, the
-configured PyPI Trusted Publisher environment, and explicit approval for the irreversible `v0.4.0` tag and PyPI
-publication. Experiment manifests, objective evaluator automation, and trusted runtime eligibility remain future
-default-activation gates rather than blockers for this opt-in release.
+The 0.4.0 publication gate is complete. Experiment manifests, objective evaluator automation, and trusted runtime
+eligibility remain future default-activation gates rather than retroactive blockers for the opt-in release.

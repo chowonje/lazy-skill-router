@@ -57,8 +57,8 @@ On each user prompt, the hook:
 4. Injects a short `<lazy-skill-router>` recommendation in `inject` mode, or records the same decision in `shadow` mode.
 5. Fails open when no route is clear and can correlate a later `Stop` completion event when measurement is enabled.
 
-The default hook and `route --json` remain compatible with route config v1. The current unreleased working tree also
-contains opt-in route-result v2, structured recommendation v1, compact Hook IR, and schema v2 policy support. See
+The default hook and `route --json` remain compatible with route config v1. The v0.4 release also contains opt-in
+route-result v2, structured recommendation v1, compact Hook IR, and schema v2 policy support. See
 [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md) for the exact boundary.
 
 Operational boundaries are documented in [`SUPPORT.md`](SUPPORT.md) and [`SECURITY.md`](SECURITY.md).
@@ -89,7 +89,7 @@ lazy-skill-router install
 lazy-skill-router doctor
 ```
 
-For unreleased branches, use the source checkout flow below.
+For development branches, use the source checkout flow below.
 
 Run `install --dry-run` first. It prints the planned `hooks.json` diff without writing files. The installer modifies `~/.codex/hooks.json`, copies hook code into `~/.codex/hooks/`, and creates a backup before editing the hook config.
 
@@ -241,7 +241,7 @@ Use `--json` when you want the full dry-run diagnostics:
 lazy-skill-router route --json "GitHub PR에서 CI 실패 고쳐줘"
 ```
 
-The unreleased opt-in contract views are:
+The v0.4 opt-in contract views are:
 
 ```bash
 lazy-skill-router route --route-result-v2 "GitHub PR에서 CI 실패 고쳐줘"
