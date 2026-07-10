@@ -1,11 +1,11 @@
 # Current Public Contract
 
-This file records the observed public contract for `lazy-skill-router` v0.3.0 at commit
-`a6041e4fdccaac4e448cb0015cb5f2baf2a4cbcb`.
+This file records the public contract for `lazy-skill-router` v0.4.0 at commit
+`f42c8384709893548dfd5bd8a0ef828627460046`.
 
-It describes the released v0.3 default behavior. The current working tree also contains unreleased, opt-in strategy
-implementation documented in [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md). Those
-surfaces are source-tested but are not represented as released v0.3 behavior.
+The default hook and route diagnostics preserve the released v0.3 behavior. Version 0.4 adds opt-in strategy surfaces
+documented in [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md); those surfaces are
+released but do not replace the default v1-compatible wire contract.
 
 ## Scope
 
@@ -79,8 +79,8 @@ The packaged public CLI is `lazy-skill-router` with these commands:
 `lazy-skill-router route --json PROMPT` prints the same dry-run diagnostic object produced by
 `lazy_skill_router_core.dry_run_output`.
 
-The unreleased working tree additionally accepts `--route-result-v2`, `--recommendation-json`, and `--hook-ir-json`.
-They are opt-in shadow views and do not alter the default hook or `--json` contract described here.
+Version 0.4 additionally accepts `--route-result-v2`, `--recommendation-json`, and `--hook-ir-json`. They are opt-in
+shadow views and do not alter the default hook or `--json` contract described here.
 
 Routed JSON fields (exact): answerOnly, candidates, confidence, confidenceLabel, matchedPatterns, matchedSignals, primary, reason, route, score, shouldInject, supporting, verification
 
@@ -124,9 +124,9 @@ Route config v1 fields observed by the runtime include:
 `patterns` may be regex strings or objects with `regex` and `label`. Matching uses `regex`; the injected advisory text
 uses `label` when present.
 
-The unreleased schema v2 parser uses stable route and pattern IDs, intent, capability requirements, explicit skill
-bindings, weighted evidence, deterministic route-ID tie-breaking, and a post-selection fallback. It remains opt-in;
-unsupported schema versions fail open.
+The opt-in schema v2 parser uses stable route and pattern IDs, intent, capability requirements, explicit skill bindings,
+weighted evidence, deterministic route-ID tie-breaking, and a post-selection fallback. Unsupported schema versions
+fail open.
 
 ## Ranking
 
@@ -182,14 +182,14 @@ copy of the validated real config and requires that prompt to produce a routed e
 If staged smoke fails, install exits non-zero without creating new target artifacts; a pre-existing target routes file
 remains unchanged. After staged smoke succeeds, install copies the target runtime and skill, writes or preserves the
 target route config, writes path-redacted inventory and ownership manifests, and handles hook registration last. A
-`hooks.json` backup and write occur only when that final registration step adds or updates the hook entry. The current
-working tree snapshots mutation targets, writes a path-confined recovery journal, restores on process-visible errors,
-and recovers a matching interrupted transaction at the beginning of the next install.
+`hooks.json` backup and write occur only when that final registration step adds or updates the hook entry. Version 0.4
+snapshots mutation targets, writes a path-confined recovery journal, restores on process-visible errors, and recovers a
+matching interrupted transaction at the beginning of the next install.
 
-`doctor` is read-only for persistent install, config, and log state. The unreleased working tree also validates skill
-inventory revision, install ownership revision, and managed artifact digests. It checks the Codex home, copied hook
-files, routes file validation, `UserPromptSubmit` registration, hook smoke behavior, and skill sync without editing hook
-files, route config, installed skills, hook registration, or configured router logs.
+`doctor` is read-only for persistent install, config, and log state. Version 0.4 also validates skill inventory revision,
+install ownership revision, and managed artifact digests. It checks the Codex home, copied hook files, routes file
+validation, `UserPromptSubmit` registration, hook smoke behavior, and skill sync without editing hook files, route
+config, installed skills, hook registration, or configured router logs.
 
 For implicit hook smoke, `doctor` writes the same controlled internal probe to a temporary route file with logging
 disabled, runs a real stdin `UserPromptSubmit` envelope through the hook, and then lets the temporary file be removed.
@@ -197,21 +197,21 @@ With an explicit `--smoke-prompt`, it instead writes a logging-disabled temporar
 requires that prompt to route. Both modes keep doctor from appending the configured hash-only JSONL decision log even
 when the installed route config has logging enabled.
 
-`uninstall` removes hook entries. In the unreleased working tree, `--remove-files` removes only unchanged artifacts
-covered by a valid ownership manifest. It preserves modified files, symlinks, and user-preserved artifacts.
+`uninstall` removes hook entries. In version 0.4, `--remove-files` removes only unchanged artifacts covered by a valid
+ownership manifest. It preserves modified files, symlinks, and user-preserved artifacts.
 
 ## Logging And Privacy
 
 Logging is disabled by default. When enabled, the router writes JSONL records containing prompt hash, route metadata,
-confidence, score, and matched signal labels. It does not store raw prompt text. The unreleased working tree bounds
-retention with positive `logging.maxEntries` and `logging.retentionDays` values, defaulting to 1,000 entries and 30 days.
+confidence, score, and matched signal labels. It does not store raw prompt text. Version 0.4 bounds retention with
+positive `logging.maxEntries` and `logging.retentionDays` values, defaulting to 1,000 entries and 30 days.
 
 The hook does not call external services, execute MCP tools, execute browser actions, run GitHub Actions, run shell
 commands on repositories, commit, push, install plugins, or read secrets for routing.
 
 ## Compatibility Posture
 
-This is the v0.3 current-behavior contract. It is not a 1.0 stability guarantee.
+This is the v0.4 current-behavior contract. It is not a 1.0 stability guarantee.
 
 Current compatibility promises are limited to preserving observed v0.3 hook input/output, CLI command names, route
 diagnostic fields, route config semantics, recommendation-only trust posture, quiet fail-open behavior, and no raw prompt
