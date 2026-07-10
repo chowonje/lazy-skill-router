@@ -528,7 +528,8 @@ mixing is detected.
 - It does not execute MCP tools, browser tools, GitHub actions, or shell commands.
 - It only writes measurement events when logging is explicitly enabled; `outcome` writes only when explicitly invoked.
 - It never commits, pushes, installs plugins, or changes repositories.
-- Current validation is limited to macOS/POSIX. Linux, WSL, and Windows behavior is not yet verified.
+- Current validation covers local macOS/POSIX and hosted Ubuntu with Python 3.9. Broader Linux distributions and Python
+  versions remain experimental; WSL is unverified and native Windows is unsupported.
 
 ## Release Checksums
 

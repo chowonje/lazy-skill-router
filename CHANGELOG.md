@@ -58,10 +58,11 @@ Local measurement journals are user data and are intentionally preserved by unin
 - Experiment manifests, corpus versions, objective evaluator automation, random assignment, and confidence intervals
   are not implemented.
 - Runtime auth, MCP, dependency, and managed-policy eligibility remain unknown without a trusted runtime source.
-- Linux support remains experimental until this branch passes hosted CI. WSL is unverified.
+- Hosted Ubuntu/Python 3.9 CI passes; broader Linux distributions and versions remain experimental. WSL is unverified.
 
 ### Verification
 
 - 131 unit tests pass on the local default Python and Python 3.9.
 - Route evaluation passes 106 prompts across 15 categories.
 - Fresh wheel/sdist, isolated pipx, install, hook, report, doctor, and uninstall flows pass locally.
+- PR #2 hosted Ubuntu/Python 3.9 CI passes the full source and package workflow.

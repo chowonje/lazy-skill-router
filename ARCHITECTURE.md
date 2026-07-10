@@ -146,7 +146,9 @@ Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each p
 - Optional visible route notices reveal only that the router ran, not the raw prompt, selected route, or selected skill.
 - External services are never called by the hook or evaluator.
 
-Current validation is limited to macOS/POSIX behavior. Linux, WSL, Windows, and broader platform support remain unverified until explicit source and package checks cover them.
+Current validation covers local macOS/POSIX behavior and one hosted Ubuntu/Python 3.9 source-and-package matrix.
+Broader Linux distributions and Python versions remain experimental; WSL is unverified and native Windows is
+unsupported.
 
 ## Evaluation Strategy
 

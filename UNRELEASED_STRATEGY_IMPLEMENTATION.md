@@ -139,5 +139,6 @@ structured contracts explicitly state that config trust and availability do not 
 - Add trusted runtime probes before any inventory entry can become fully `eligible`.
 - Add an explicit phase policy before emitting `mutate` or `publish`; runtime permission remains authoritative.
 - Keep the optional low-margin LLM branch disabled until privacy, latency, labeled quality, and fail-open gates exist.
-- Re-run Linux, WSL, Windows, release, upgrade, and rollback package matrices before widening support claims.
+- Expand beyond the passing hosted Ubuntu/Python 3.9 matrix before widening Linux support; WSL, native Windows,
+  release-tag, upgrade, and rollback matrices remain gated.
 - Version and release these changes separately; this working tree has not committed, tagged, pushed, or published them.
