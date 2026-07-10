@@ -7,12 +7,15 @@
 | macOS with POSIX filesystem semantics, Python 3.9+ | supported-with-constraints | source and Python 3.9 tests, package/install/doctor/uninstall smoke, isolated Codex CLI 0.144.0 shadow-hook canary, and v0.3/v0.4 rollback canary |
 | Ubuntu 22.04 x64 / Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 or 3.14 | supported-with-constraints | PR #3 hosted CI passed the full source, package, install, measurement, doctor, and uninstall workflow on all three combinations |
 | Other Linux distributions or architectures | experimental | no equivalent hosted source-and-package matrix yet |
-| WSL | unverified | no current package, path, symlink, or hook registration matrix |
+| WSL | unverified; out of scope for 0.4.0 support | no current package, path, symlink, or hook registration matrix |
 | Native Windows | unsupported | standalone command, quoting, filesystem, and hook behavior are not implemented or verified for Windows |
 
 `supported-with-constraints` means the documented default v1 behavior and opt-in unreleased contracts are covered by
 the current source evidence. It does not mean every Codex build, third-party skill, plugin, connector, or custom hook
 combination is supported.
+
+WSL is not a 0.4.0 release blocker because this release does not claim WSL support. Treat it as unsupported in practice
+until a dedicated package, path, symlink, hook-registration, and rollback matrix passes.
 
 ## Supported Surface
 

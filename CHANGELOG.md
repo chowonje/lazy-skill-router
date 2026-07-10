@@ -65,7 +65,7 @@ Local measurement journals are user data and are intentionally preserved by unin
   are not implemented.
 - Runtime auth, MCP, dependency, and managed-policy eligibility remain unknown without a trusted runtime source.
 - Full hosted CI passes on Ubuntu 22.04 x64 / Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 and 3.14. Other Linux
-  distributions and architectures remain experimental; WSL is unverified.
+  distributions and architectures remain experimental. WSL is unverified and outside the 0.4.0 support claim.
 - The released v0.3.0 logger uses `datetime.UTC`; on Python 3.9, disable v0.4 measurement before downgrading as shown
   above so the restored v0.3 hook does not enter that incompatible opt-in logging path.
 

@@ -152,7 +152,7 @@ Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each p
 
 Current validation covers local macOS/POSIX behavior plus the full source-and-package workflow on Ubuntu 22.04 x64 /
 Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 and 3.14. Other Linux distributions and architectures remain
-experimental; WSL is unverified and native Windows is unsupported.
+experimental; WSL is unverified and outside the 0.4.0 support claim, and native Windows is unsupported.
 
 ## Evaluation Strategy
 

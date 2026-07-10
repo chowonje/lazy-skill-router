@@ -141,6 +141,12 @@ structured contracts explicitly state that config trust and availability do not 
 - Add an explicit phase policy before emitting `mutate` or `publish`; runtime permission remains authoritative.
 - Keep the optional low-margin LLM branch disabled until privacy, latency, labeled quality, and fail-open gates exist.
 - Ubuntu 22.04 x64 / Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 and 3.14 now pass the full hosted workflow. Other
-  Linux distributions and architectures, WSL, native Windows, and the release-tag path remain gated. The local Python
-  3.9 v0.3/v0.4 upgrade and rollback matrix passes when measurement is disabled before downgrade.
+  Linux distributions and architectures remain experimental. WSL is unverified and native Windows is unsupported;
+  neither blocks 0.4.0 because this release does not claim support for them. The local Python 3.9 v0.3/v0.4 upgrade and
+  rollback matrix passes when measurement is disabled before downgrade.
 - The 0.4.0 candidate implementation was merged through PR #2. It has not been tagged or published to PyPI.
+
+The remaining 0.4.0 publication gate is operational: confirm a clean `main`, a passing aggregate `verify` check, the
+configured PyPI Trusted Publisher environment, and explicit approval for the irreversible `v0.4.0` tag and PyPI
+publication. Experiment manifests, objective evaluator automation, and trusted runtime eligibility remain future
+default-activation gates rather than blockers for this opt-in release.
