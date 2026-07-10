@@ -1,9 +1,19 @@
 {
   "version": 1,
+  "policyVersion": "2026-07-10.1",
   "minConfidence": 0.55,
+  "selection": {
+    "maxRecommendations": 3,
+    "minScoreMargin": 0.05
+  },
+  "activation": {
+    "mode": "inject"
+  },
   "logging": {
     "enabled": false,
-    "path": ""
+    "path": "",
+    "maxEntries": 1000,
+    "retentionDays": 30
   },
   "display": {
     "showRouterNotice": false

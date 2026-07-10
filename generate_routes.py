@@ -71,7 +71,16 @@ def default_verification(template: dict[str, Any], installed: set[str]) -> str |
 
 
 def copy_top_level_fields(template: dict[str, Any], config: dict[str, Any]) -> None:
-    for key in ("version", "minConfidence", "logging", "display", "answerOnlyPatterns"):
+    for key in (
+        "version",
+        "policyVersion",
+        "selection",
+        "minConfidence",
+        "activation",
+        "logging",
+        "display",
+        "answerOnlyPatterns",
+    ):
         if key in template:
             config[key] = template[key]
 

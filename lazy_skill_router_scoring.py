@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -18,6 +19,15 @@ PRIORITY_SCORE_STEP = 0.05
 class RoutePattern:
     regex: str
     label: str
+    pattern_id: str
+    weight: float
+
+
+@dataclass(frozen=True)
+class CapabilityRequirements:
+    primary: tuple[str, ...]
+    supporting: tuple[str, ...]
+    verification: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -32,6 +42,8 @@ class Route:
     priority: float
     weight: float
     fallback: bool
+    intent: str
+    capability_requirements: CapabilityRequirements
 
 
 @dataclass(frozen=True)
@@ -41,6 +53,7 @@ class RouteMatch:
     score: float
     matched_signals: tuple[str, ...]
     matched_patterns: tuple[str, ...]
+    matched_pattern_ids: tuple[str, ...]
 
 
 def tuple_of_strings(value: Any) -> tuple[str, ...]:
@@ -53,29 +66,45 @@ def tuple_of_strings(value: Any) -> tuple[str, ...]:
     return ()
 
 
-def route_pattern(value: Any) -> RoutePattern | None:
+def stable_pattern_id(route_id: str, regex: str) -> str:
+    route_segment = re.sub(r"[^A-Za-z0-9._-]+", "-", route_id).strip("-") or "route"
+    digest = hashlib.sha256(f"{route_id}\0{regex}".encode()).hexdigest()[:12]
+    return f"{route_segment}.{digest}"
+
+
+def route_pattern(value: Any, route_id: str = "route") -> RoutePattern | None:
     if isinstance(value, str):
-        return RoutePattern(value, value)
+        return RoutePattern(value, value, stable_pattern_id(route_id, value), 1.0)
     if not isinstance(value, dict):
         return None
 
     regex = value.get("regex")
     label = value.get("label", regex)
+    configured_id = value.get("id", value.get("pattern_id"))
+    configured_weight = value.get("weight", 1.0)
     if not isinstance(regex, str) or not regex:
         return None
     if not isinstance(label, str) or not label:
-        return RoutePattern(regex, regex)
-    return RoutePattern(regex, label)
+        label = regex
+    pattern_id = (
+        configured_id if isinstance(configured_id, str) and configured_id else stable_pattern_id(route_id, regex)
+    )
+    weight = (
+        float(configured_weight)
+        if not isinstance(configured_weight, bool) and isinstance(configured_weight, (int, float))
+        else 1.0
+    )
+    return RoutePattern(regex, label, pattern_id, max(0.0, weight))
 
 
-def tuple_of_patterns(value: Any) -> tuple[RoutePattern, ...]:
+def tuple_of_patterns(value: Any, route_id: str = "route") -> tuple[RoutePattern, ...]:
     if value is None:
         return ()
-    pattern = route_pattern(value)
+    pattern = route_pattern(value, route_id)
     if pattern is not None:
         return (pattern,)
     if isinstance(value, list):
-        return tuple(pattern for item in value if (pattern := route_pattern(item)) is not None)
+        return tuple(pattern for item in value if (pattern := route_pattern(item, route_id)) is not None)
     return ()
 
 
@@ -122,8 +151,20 @@ def configured_float(config: dict[str, Any], key: str, default: float) -> float:
     return default
 
 
+def minimum_match_strength(config: dict[str, Any]) -> float:
+    if config.get("schemaVersion") == 2:
+        selection = config.get("selection")
+        if isinstance(selection, dict):
+            return configured_float(selection, "minMatchStrength", MIN_CONFIDENCE)
+    return configured_float(config, "minConfidence", MIN_CONFIDENCE)
+
+
 def confidence_for(matches: tuple[str, ...]) -> float:
     return min(0.95, 0.50 + (0.15 * len(matches)))
+
+
+def match_strength_for(matches: tuple[RoutePattern, ...]) -> float:
+    return min(0.95, 0.50 + (0.15 * sum(pattern.weight for pattern in matches)))
 
 
 def confidence_label(confidence: float) -> str:
@@ -168,6 +209,8 @@ def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
         route.priority,
         route.weight,
         route.fallback,
+        route.intent,
+        route.capability_requirements,
     )
 
 
@@ -177,8 +220,9 @@ def candidate_match(prompt: str, route: Route, config: dict[str, Any]) -> RouteM
     matches = matched_route_patterns(prompt, route.patterns)
     matched_signals = tuple(pattern.label for pattern in matches)
     matched_regexes = tuple(pattern.regex for pattern in matches)
-    confidence = confidence_for(matched_regexes)
-    if not matches or confidence < configured_float(config, "minConfidence", MIN_CONFIDENCE):
+    matched_ids = tuple(pattern.pattern_id for pattern in matches)
+    confidence = match_strength_for(matches)
+    if not matches or confidence < minimum_match_strength(config):
         return None
     filtered = filter_route(route, config)
     if filtered is None:
@@ -189,6 +233,7 @@ def candidate_match(prompt: str, route: Route, config: dict[str, Any]) -> RouteM
         score_for(filtered, confidence),
         matched_signals[:MAX_MATCHED_SIGNALS],
         matched_regexes[:MAX_MATCHED_SIGNALS],
+        matched_ids[:MAX_MATCHED_SIGNALS],
     )
 
 
@@ -211,3 +256,28 @@ def ranked_route_matches(prompt: str, routes: list[Route], config: dict[str, Any
 def choose_route(prompt: str, routes: list[Route], config: dict[str, Any]) -> RouteMatch | None:
     matches = ranked_route_matches(prompt, routes, config)
     return matches[0] if matches else None
+
+
+def ranked_route_matches_v2(prompt: str, routes: list[Route], config: dict[str, Any]) -> tuple[RouteMatch, ...]:
+    lowered = prompt.lower()
+    normal = tuple(
+        match
+        for route in routes
+        if not route.fallback and (match := candidate_match(lowered, route, config)) is not None
+    )
+    if normal:
+        selected = normal
+    else:
+        fallback_matches = []
+        for route in routes:
+            if not route.fallback:
+                continue
+            match = candidate_match(lowered, route, config)
+            if match is None and not route.patterns:
+                filtered = filter_route(route, config)
+                if filtered is not None:
+                    match = RouteMatch(filtered, 0.0, score_for(filtered, 0.0), (), (), ())
+            if match is not None:
+                fallback_matches.append(match)
+        selected = tuple(fallback_matches)
+    return tuple(sorted(selected, key=lambda match: (-match.score, -match.confidence, match.route.name)))

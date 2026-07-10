@@ -309,6 +309,15 @@ class LazySkillRouterTest(unittest.TestCase):
 
         self.assertTrue(any("display.showRouterNotice must be a boolean" in finding.message for finding in findings))
 
+    def test_validator_rejects_invalid_logging_retention(self) -> None:
+        config = dict(self.config)
+        config["logging"] = {"enabled": True, "maxEntries": 0, "retentionDays": "forever"}
+        findings = validator.validate_config(config)
+        messages = [finding.message for finding in findings if finding.severity == "ERROR"]
+
+        self.assertIn("logging.maxEntries must be a positive integer when set", messages)
+        self.assertIn("logging.retentionDays must be a positive integer when set", messages)
+
     def test_checksum_manifest_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

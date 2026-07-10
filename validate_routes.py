@@ -106,6 +106,39 @@ def check_display_config(config: dict[str, Any]) -> list[Finding]:
     return []
 
 
+def check_activation_config(config: dict[str, Any]) -> list[Finding]:
+    activation = config.get("activation")
+    if activation is None:
+        return []
+    if not isinstance(activation, dict):
+        return [Finding("ERROR", "activation must be an object when present")]
+    mode = activation.get("mode")
+    if mode not in {"inject", "off", "shadow"}:
+        return [Finding("ERROR", "activation.mode must be one of: inject, off, shadow")]
+    return []
+
+
+def check_logging_config(config: dict[str, Any]) -> list[Finding]:
+    logging_config = config.get("logging", {})
+    if not logging_config:
+        return []
+    if not isinstance(logging_config, dict):
+        return [Finding("ERROR", "logging must be an object when present")]
+
+    findings = []
+    enabled = logging_config.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        findings.append(Finding("ERROR", "logging.enabled must be a boolean when set"))
+    path = logging_config.get("path")
+    if path is not None and not isinstance(path, str):
+        findings.append(Finding("ERROR", "logging.path must be a string when set"))
+    for field in ("maxEntries", "retentionDays"):
+        value = logging_config.get(field)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value <= 0):
+            findings.append(Finding("ERROR", f"logging.{field} must be a positive integer when set"))
+    return findings
+
+
 def validate_route(route: Any, index: int, allowed: set[str]) -> tuple[str | None, list[Finding]]:
     findings: list[Finding] = []
     if not isinstance(route, dict):
@@ -143,7 +176,154 @@ def validate_route(route: Any, index: int, allowed: set[str]) -> tuple[str | Non
     return str(name) if isinstance(name, str) else None, findings
 
 
+def validate_v2_pattern(
+    value: Any,
+    route_id: str,
+    field: str,
+    seen_pattern_ids: set[str],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    if isinstance(value, str) and field == "none":
+        try:
+            re.compile(value)
+        except re.error as exc:
+            findings.append(Finding("ERROR", f"route {route_id} has invalid regex {value!r}: {exc}"))
+        return findings
+    if not isinstance(value, dict):
+        return [Finding("ERROR", f"route {route_id} match.{field} entries must be pattern objects")]
+
+    pattern_id = value.get("id")
+    regex = value.get("regex")
+    weight = value.get("weight", 1)
+    if not isinstance(pattern_id, str) or not pattern_id:
+        findings.append(Finding("ERROR", f"route {route_id} match.{field} pattern missing string id"))
+    elif pattern_id in seen_pattern_ids:
+        findings.append(Finding("ERROR", f"duplicate pattern id: {pattern_id}"))
+    else:
+        seen_pattern_ids.add(pattern_id)
+    if not isinstance(regex, str) or not regex:
+        findings.append(Finding("ERROR", f"route {route_id} match.{field} pattern missing string regex"))
+    else:
+        try:
+            re.compile(regex)
+        except re.error as exc:
+            findings.append(Finding("ERROR", f"route {route_id} has invalid regex {regex!r}: {exc}"))
+    if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight <= 0:
+        findings.append(Finding("ERROR", f"route {route_id} pattern weight must be a positive number"))
+    return findings
+
+
+def validate_v2_selection(config: dict[str, Any]) -> list[Finding]:
+    selection = config.get("selection")
+    if not isinstance(selection, dict):
+        return [Finding("ERROR", "schema v2 selection must be an object")]
+    findings = []
+    if selection.get("mode") != "ranked":
+        findings.append(Finding("ERROR", "schema v2 selection.mode must be ranked"))
+    max_recommendations = selection.get("maxRecommendations")
+    if (
+        isinstance(max_recommendations, bool)
+        or not isinstance(max_recommendations, int)
+        or not 1 <= max_recommendations <= 3
+    ):
+        findings.append(Finding("ERROR", "schema v2 selection.maxRecommendations must be an integer from 1 to 3"))
+    for field in ("minMatchStrength", "minScoreMargin"):
+        value = selection.get(field)
+        if not is_number(value) or not 0 <= float(value) <= 1:
+            findings.append(Finding("ERROR", f"schema v2 selection.{field} must be a number between 0 and 1"))
+    return findings
+
+
+def validate_config_v2(config: dict[str, Any]) -> list[Finding]:
+    findings = validate_v2_selection(config)
+    policy_version = config.get("policyVersion")
+    if not isinstance(policy_version, str) or not policy_version:
+        findings.append(Finding("ERROR", "schema v2 policyVersion must be a non-empty string"))
+
+    bindings = config.get("skillBindings")
+    if not isinstance(bindings, dict):
+        findings.append(Finding("ERROR", "schema v2 skillBindings must be an object"))
+        bindings = {}
+    else:
+        for capability, binding in bindings.items():
+            skill = binding.get("skill") if isinstance(binding, dict) else binding
+            if not isinstance(capability, str) or not capability or not isinstance(skill, str) or not skill:
+                findings.append(Finding("ERROR", "schema v2 skillBindings entries must map names to skill strings"))
+
+    routes = config.get("routes")
+    if not isinstance(routes, list) or not routes:
+        return [*findings, Finding("ERROR", "schema v2 routes must be a non-empty list")]
+
+    fallback_route_id = config.get("fallbackRouteId")
+    if fallback_route_id is not None and (not isinstance(fallback_route_id, str) or not fallback_route_id):
+        findings.append(Finding("ERROR", "schema v2 fallbackRouteId must be a non-empty string or null"))
+
+    seen_route_ids: set[str] = set()
+    seen_pattern_ids: set[str] = set()
+    for index, route in enumerate(routes):
+        if not isinstance(route, dict):
+            findings.append(Finding("ERROR", f"schema v2 route #{index} must be an object"))
+            continue
+        route_id = route.get("id")
+        if not isinstance(route_id, str) or not route_id:
+            findings.append(Finding("ERROR", f"schema v2 route #{index} missing string id"))
+            route_id = f"#{index}"
+        elif route_id in seen_route_ids:
+            findings.append(Finding("ERROR", f"duplicate route id: {route_id}"))
+        else:
+            seen_route_ids.add(route_id)
+        intent = route.get("intent")
+        if not isinstance(intent, str) or not intent:
+            findings.append(Finding("ERROR", f"route {route_id} missing string intent"))
+
+        requirements = route.get("capabilityRequirements")
+        if not isinstance(requirements, dict):
+            findings.append(Finding("ERROR", f"route {route_id} capabilityRequirements must be an object"))
+            requirements = {}
+        primary = strings(requirements.get("primary"))
+        if not primary:
+            findings.append(Finding("ERROR", f"route {route_id} must require at least one primary capability"))
+        for role in ("primary", "supporting", "verification"):
+            raw = requirements.get(role, [])
+            capabilities = strings(raw)
+            if raw and not capabilities:
+                findings.append(Finding("ERROR", f"route {route_id} capabilityRequirements.{role} must be strings"))
+            for capability in capabilities:
+                if capability not in bindings:
+                    findings.append(Finding("ERROR", f"route {route_id} missing skill binding for {capability}"))
+
+        match = route.get("match", {})
+        if not isinstance(match, dict):
+            findings.append(Finding("ERROR", f"route {route_id} match must be an object"))
+            match = {}
+        any_patterns = match.get("any", [])
+        none_patterns = match.get("none", [])
+        is_fallback = route_id == fallback_route_id or route.get("fallback") is True
+        if not isinstance(any_patterns, list):
+            findings.append(Finding("ERROR", f"route {route_id} match.any must be a list"))
+            any_patterns = []
+        if not any_patterns and not is_fallback:
+            findings.append(Finding("ERROR", f"route {route_id} match.any must not be empty"))
+        if not isinstance(none_patterns, list):
+            findings.append(Finding("ERROR", f"route {route_id} match.none must be a list"))
+            none_patterns = []
+        for pattern in any_patterns:
+            findings.extend(validate_v2_pattern(pattern, route_id, "any", seen_pattern_ids))
+        for pattern in none_patterns:
+            findings.extend(validate_v2_pattern(pattern, route_id, "none", seen_pattern_ids))
+
+    if isinstance(fallback_route_id, str) and fallback_route_id not in seen_route_ids:
+        findings.append(Finding("ERROR", f"schema v2 fallbackRouteId references missing route: {fallback_route_id}"))
+    return findings
+
+
 def validate_config(config: dict[str, Any]) -> list[Finding]:
+    schema_version = config.get("schemaVersion", 1)
+    if schema_version == 2:
+        return validate_config_v2(config)
+    if schema_version != 1 or isinstance(schema_version, bool):
+        return [Finding("ERROR", f"unsupported schemaVersion: {schema_version}")]
+
     findings: list[Finding] = []
     min_confidence = config.get("minConfidence", 0.55)
     if not isinstance(min_confidence, (int, float)) or not 0 <= float(min_confidence) <= 1:
@@ -157,9 +337,8 @@ def validate_config(config: dict[str, Any]) -> list[Finding]:
         check_patterns("answerOnlyPatterns", "answerOnlyPatterns", strings(config.get("answerOnlyPatterns")))
     )
 
-    logging_config = config.get("logging", {})
-    if logging_config and not isinstance(logging_config, dict):
-        findings.append(Finding("ERROR", "logging must be an object when present"))
+    findings.extend(check_activation_config(config))
+    findings.extend(check_logging_config(config))
     findings.extend(check_display_config(config))
 
     routes = config.get("routes")

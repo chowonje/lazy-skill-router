@@ -5,16 +5,24 @@ on:
     branches: ["main"]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.9"
 
@@ -33,10 +41,14 @@ jobs:
         run: >
           python3 -m py_compile
           lazy_skill_router.py
+          lazy_skill_router_contracts.py
           lazy_skill_router_core.py
           lazy_skill_router_common.py
+          lazy_skill_router_install_manifest.py
+          lazy_skill_router_inventory.py
           lazy_skill_router_logging.py
           lazy_skill_router_scoring.py
+          measurement.py
           generate_routes.py
           install.py
           doctor.py
@@ -47,10 +59,21 @@ jobs:
           eval_routes.py
           lazy_skill_router_cli/cli.py
           tests/test_cli.py
-          tests/test_lazy_skill_router.py
-          tests/test_generate_routes.py
-          tests/test_install.py
+          tests/test_config_trust.py
           tests/test_eval_routes.py
+          tests/test_fail_open_matrix.py
+          tests/test_generate_routes.py
+          tests/test_hook_contract.py
+          tests/test_install.py
+          tests/test_install_manifest.py
+          tests/test_install_transaction.py
+          tests/test_inventory.py
+          tests/test_lazy_skill_router.py
+          tests/test_logging.py
+          tests/test_measurement.py
+          tests/test_route_result_v2.py
+          tests/test_schema_v2.py
+          tests/test_surface_equivalence.py
 
       - name: Validate route config and golden prompts
         run: |
@@ -110,7 +133,38 @@ jobs:
           --codex-home .ci/codex
           --agents-home .ci/agents
           --routes .ci/generated-routes.json
+          --manifest-output .ci/skills.manifest.json
           --strict
+
+      - name: Check versioned routing contracts
+        run: |
+          python3 lazy_skill_router.py \
+            --config .ci/generated-routes.json \
+            --route-result-v2 \
+            "GitHub PR에서 CI 실패 고쳐줘" > .ci/route-result-v2.json
+          python3 lazy_skill_router.py \
+            --config .ci/generated-routes.json \
+            --inventory .ci/skills.manifest.json \
+            --recommendation-json \
+            "GitHub PR에서 CI 실패 고쳐줘" > .ci/recommendation-v1.json
+          python3 lazy_skill_router.py \
+            --config .ci/generated-routes.json \
+            --inventory .ci/skills.manifest.json \
+            --hook-ir-json \
+            "GitHub PR에서 CI 실패 고쳐줘" > .ci/hook-ir-v1.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          route_result = json.loads(Path(".ci/route-result-v2.json").read_text(encoding="utf-8"))
+          recommendation = json.loads(Path(".ci/recommendation-v1.json").read_text(encoding="utf-8"))
+          hook_ir = json.loads(Path(".ci/hook-ir-v1.json").read_text(encoding="utf-8"))
+          assert route_result["contract"] == "lazy-skill-router.route-result/v2"
+          assert recommendation["contract"]["name"] == "lazy-skill-router.skill-recommendation"
+          assert recommendation["producer"]["inventory_state"] == "available"
+          assert recommendation["semantics"]["authority"] == "none"
+          assert hook_ir["schema"] == "lazy-skill-router.hook-ir/v1"
+          PY
 
       - name: Check installer and doctor smoke
         run: |
@@ -120,7 +174,9 @@ jobs:
             --dry-run
           python3 install.py \
             --codex-home .ci/install-codex \
-            --agents-home .ci/install-agents
+            --agents-home .ci/install-agents \
+            --enable-measurement \
+            --activation-mode shadow
           python3 doctor.py \
             --codex-home .ci/install-codex \
             --agents-home .ci/install-agents
@@ -132,8 +188,30 @@ jobs:
           pipx_home="$(mktemp -d)"
           pipx_bin="$(mktemp -d)"
           PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python -m pipx install dist/*.whl
-          "$pipx_bin/lazy-skill-router" --version
+          expected_version="$(awk -F'"' '/^version = / {print $2; exit}' pyproject.toml)"
+          test "$("$pipx_bin/lazy-skill-router" --version)" = "lazy-skill-router $expected_version"
           "$pipx_bin/lazy-skill-router" route "GitHub PR에서 CI 실패 고쳐줘"
+          "$pipx_bin/lazy-skill-router" route --route-result-v2 "GitHub PR에서 CI 실패 고쳐줘"
+          "$pipx_bin/lazy-skill-router" route --recommendation-json "GitHub PR에서 CI 실패 고쳐줘"
+          "$pipx_bin/lazy-skill-router" route --hook-ir-json "GitHub PR에서 CI 실패 고쳐줘"
+          measurement_log="$(mktemp)"
+          "$pipx_bin/lazy-skill-router" outcome \
+            --config routes.default.json --log "$measurement_log" --case-id ci-smoke --replicate 1 \
+            --arm native --status fail --source objective
+          "$pipx_bin/lazy-skill-router" outcome \
+            --config routes.default.json --log "$measurement_log" --case-id ci-smoke --replicate 1 \
+            --arm inject --status pass --source objective
+          "$pipx_bin/lazy-skill-router" report --log "$measurement_log" --json > .ci/measurement-report.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path(".ci/measurement-report.json").read_text(encoding="utf-8"))
+          assert report["pairedNativeInject"]["pairs"] == 1
+          assert report["pairedNativeInject"]["rescues"] == 1
+          assert report["comparability"]["outcomeAggregateComparable"] is True
+          assert report["warnings"] == []
+          PY
           tmp="$(mktemp -d)"
           "$pipx_bin/lazy-skill-router" install \
             --codex-home "$tmp/codex" \
@@ -141,7 +219,9 @@ jobs:
             --dry-run
           "$pipx_bin/lazy-skill-router" install \
             --codex-home "$tmp/codex" \
-            --agents-home "$tmp/agents"
+            --agents-home "$tmp/agents" \
+            --enable-measurement \
+            --activation-mode shadow
           "$pipx_bin/lazy-skill-router" doctor \
             --codex-home "$tmp/codex" \
             --agents-home "$tmp/agents"

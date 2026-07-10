@@ -18,16 +18,21 @@
 - Do not execute MCP tools, shell commands, GitHub actions, browser actions, installs, commits, pushes, or repository edits from the hook.
 
 ## Architecture Map
-- `lazy_skill_router_core.py`: pure routing engine and logging metadata writer.
+- `lazy_skill_router_core.py`: pure routing engine and activation-mode policy.
+- `lazy_skill_router_contracts.py`: versioned route-result, structured recommendation, and Hook IR builders.
+- `lazy_skill_router_inventory.py`: path-redacted generated skill inventory and loader.
+- `lazy_skill_router_install_manifest.py`: install ownership records, digest validation, and safe removal state.
 - `lazy_skill_router_scoring.py`: route matching, confidence, score ranking, and fallback handling.
 - `lazy_skill_router.py`: Codex hook and dry-run CLI adapter.
+- `lazy_skill_router_logging.py`: bounded privacy-preserving measurement event journal.
+- `measurement.py`: outcome label writer and cumulative report builder.
 - `routes.default.json`: bundled default route policy data.
 - `validate_routes.py`: route config schema and regex validation.
 - `sync_skills.py`: report-only drift detection between installed skills and route references.
 - `install.py`: Codex home installation surface.
 - `doctor.py`: read-only install health checker.
 - `uninstall.py`: Codex home removal surface.
-- `lazy_skill_router_cli/`: public packaged CLI exposing `install`, `doctor`, `uninstall`, and `route`.
+- `lazy_skill_router_cli/`: public packaged CLI exposing `install`, `doctor`, `uninstall`, `route`, `outcome`, and `report`.
 - `release_checksums.py`: release checksum manifest generation and verification.
 - `eval_routes.py`: golden prompt regression evaluator.
 - `eval/prompts.jsonl`: prompt fixtures for route quality checks.
@@ -35,14 +40,14 @@
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
-- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
+- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
 - Validate JSON syntax: `python3 -m json.tool routes.default.json >/dev/null`
 - Smoke installer and doctor: `tmp="$(mktemp -d)" && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" && python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
 - Smoke packaged CLI: `python3 -m build && python3 -m twine check dist/* && pipx_home="$(mktemp -d)" && pipx_bin="$(mktemp -d)" && PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl && "$pipx_bin/lazy-skill-router" route "GitHub PR에서 CI 실패 고쳐줘" && tmp="$(mktemp -d)" && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" && "$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
-- Release workflow: `.github/workflows/release.yml` publishes PyPI packages from `v*.*.*` tags with Trusted Publishing, then generates `SHA256SUMS` and creates or updates the matching GitHub Release in a separate contents-write job. The PyPI project must trust owner `chowonje`, repository `lazy-skill-router`, workflow `release.yml`, and environment `pypi`.
+- Release workflow: `.github/workflows/release.yml` verifies and builds a `v*.*.*` tag once, passes that exact artifact bundle to PyPI Trusted Publishing, and then creates or updates the matching GitHub Release from the same files and `SHA256SUMS` in a separate contents-write job. The PyPI project must trust owner `chowonje`, repository `lazy-skill-router`, workflow `release.yml`, and environment `pypi`.
 
 ## Route Changes
 - Keep route changes data-only unless engine behavior must change.

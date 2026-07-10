@@ -5,68 +5,30 @@ on:
     tags: ["v*.*.*"]
 
 jobs:
-  publish-pypi:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/lazy-skill-router
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
 
       - name: Install release tools
-        run: python -m pip install build twine
+        run: python -m pip install build ruff twine
 
-      - name: Check tag matches package version
+      - name: Verify release candidate
         run: |
-          python - <<'PY'
-          import os
-          import tomllib
-          from pathlib import Path
-
-          project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
-          version = project["project"]["version"]
-          tag = os.environ["GITHUB_REF_NAME"]
-          expected = f"v{version}"
-          if tag != expected:
-              raise SystemExit(f"release tag {tag!r} does not match package version {expected!r}")
-          PY
-
-      - name: Build package
-        run: python -m build
-
-      - name: Check package metadata
-        run: python -m twine check dist/*
-
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-
-  github-release:
-    runs-on: ubuntu-latest
-    needs: publish-pypi
-    permissions:
-      contents: write
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install release tools
-        run: python -m pip install build twine
+          ruff check .
+          ruff format --check .
+          python -m unittest discover -s tests -p "test*.py"
+          python validate_routes.py routes.default.json
+          python eval_routes.py eval/prompts.jsonl
 
       - name: Check tag matches package version
         run: |
@@ -91,17 +53,66 @@ jobs:
 
       - name: Generate release checksums
         run: |
-          python release_checksums.py --root dist --output SHA256SUMS
-          python release_checksums.py --root dist --verify SHA256SUMS
+          mkdir -p release-bundle/dist
+          cp dist/* release-bundle/dist/
+          python release_checksums.py --root release-bundle/dist --output release-bundle/SHA256SUMS
+          python release_checksums.py --root release-bundle/dist --verify release-bundle/SHA256SUMS
+
+      - name: Upload verified release bundle
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: release-distributions
+          path: release-bundle/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-pypi:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: pypi
+      url: https://pypi.org/p/lazy-skill-router
+    permissions:
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Download verified release bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: release-distributions
+          path: release-artifacts
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          packages-dir: release-artifacts/dist/
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs: [build, publish-pypi]
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Download verified release bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: release-distributions
+          path: release-artifacts
 
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/* SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$GITHUB_REF_NAME" \
+              release-artifacts/dist/* release-artifacts/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/* SHA256SUMS \
+            gh release create "$GITHUB_REF_NAME" \
+              release-artifacts/dist/* release-artifacts/SHA256SUMS \
               --repo "$GITHUB_REPOSITORY" \
               --title "$GITHUB_REF_NAME" \
               --notes "Published lazy-skill-router ${GITHUB_REF_NAME#v} to PyPI."

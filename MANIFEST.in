@@ -1,0 +1,6 @@
+include ARCHITECTURE.md
+include CHANGELOG.md
+include CURRENT_PUBLIC_CONTRACT.md
+include SECURITY.md
+include SUPPORT.md
+include UNRELEASED_STRATEGY_IMPLEMENTATION.md

@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 import argparse
+import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from install import DEFAULT_SMOKE_PROMPT, InstallError, install_hook_command, lazy_router_hook_item, smoke_hook
-from lazy_skill_router_common import codex_home, load_hooks, load_json_object
+from install import (
+    InstallError,
+    install_hook_command,
+    install_stop_hook_command,
+    lazy_router_hook_items,
+    smoke_config_for_prompt,
+    smoke_hook,
+    smoke_stop_hook,
+)
+from lazy_skill_router_common import codex_home, load_hooks, load_json_object, write_json
+from lazy_skill_router_install_manifest import artifact_state, load_install_manifest
+from lazy_skill_router_inventory import load_inventory_manifest
 from sync_skills import build_report, scan_installed_skills
 from validate_routes import validate_config
 
@@ -15,6 +26,8 @@ HOOK_FILES = (
     "lazy_skill_router.py",
     "lazy_skill_router_core.py",
     "lazy_skill_router_common.py",
+    "lazy_skill_router_contracts.py",
+    "lazy_skill_router_inventory.py",
     "lazy_skill_router_logging.py",
     "lazy_skill_router_scoring.py",
 )
@@ -93,28 +106,59 @@ def load_routes_config(route_path: Path) -> tuple[dict[str, Any] | None, tuple[C
     return config, (ok(f"routes.json exists: {route_path}"), ok("routes.json validates"))
 
 
-def check_hook_registration(hooks_path: Path, expected_command: str) -> CheckResult:
+def check_hook_registration(
+    hooks_path: Path,
+    expected_command: str,
+    event_name: str = "UserPromptSubmit",
+) -> CheckResult:
     try:
         hooks = load_hooks(hooks_path)
     except (OSError, ValueError) as exc:
-        return fail(f"UserPromptSubmit hook registered: cannot read {hooks_path}: {exc}")
+        return fail(f"{event_name} hook registered: cannot read {hooks_path}: {exc}")
 
-    item = lazy_router_hook_item(hooks)
-    if item is None:
-        return fail("UserPromptSubmit hook registered: missing lazy-skill-router entry")
+    items = lazy_router_hook_items(hooks, event_name)
+    if not items:
+        return fail(f"{event_name} hook registered: missing lazy-skill-router entry")
+    if len(items) > 1:
+        return fail(f"{event_name} hook registered: multiple lazy-skill-router entries found")
+    item = items[0]
     if item.get("command") != expected_command:
-        return warn("UserPromptSubmit hook registered with a different command")
-    return ok("UserPromptSubmit hook registered")
+        return fail(f"{event_name} hook registered with a different command")
+    return ok(f"{event_name} hook registered")
 
 
-def check_smoke(hook_path: Path, route_path: Path, prompt: str) -> CheckResult:
-    if not hook_path.is_file() or not route_path.is_file():
-        return fail("hook dry-run smoke test passed: hook or routes file missing")
+def check_stop_registration(
+    hooks_path: Path,
+    expected_command: str,
+    route_config: dict[str, Any] | None,
+) -> CheckResult:
+    logging_config = route_config.get("logging") if isinstance(route_config, dict) else None
+    enabled = isinstance(logging_config, dict) and logging_config.get("enabled") is True
+    if enabled:
+        return check_hook_registration(hooks_path, expected_command, "Stop")
     try:
-        smoke_hook(hook_path, route_path, prompt)
-    except (InstallError, OSError) as exc:
-        return fail(f"hook dry-run smoke test passed: {exc}")
-    return ok("hook dry-run smoke test passed")
+        hooks = load_hooks(hooks_path)
+    except (OSError, ValueError) as exc:
+        return fail(f"Stop hook registration matches measurement setting: cannot read {hooks_path}: {exc}")
+    if lazy_router_hook_items(hooks, "Stop"):
+        return warn("Stop hook registered while measurement logging is disabled")
+    return ok("Stop hook not required while measurement logging is disabled")
+
+
+def check_smoke(hook_path: Path, route_path: Path, explicit_prompt: str | None) -> CheckResult:
+    if not hook_path.is_file() or not route_path.is_file():
+        return fail("hook smoke test passed: hook or routes file missing")
+    try:
+        with tempfile.TemporaryDirectory(prefix="lazy-skill-router-doctor-") as temp_dir:
+            smoke_route = Path(temp_dir) / "routes.json"
+            config = load_json_object(route_path, "routes root")
+            smoke_config, prompt = smoke_config_for_prompt(config, explicit_prompt)
+            write_json(smoke_route, smoke_config)
+            smoke_hook(hook_path, smoke_route, prompt)
+            smoke_stop_hook(hook_path, smoke_route)
+    except (InstallError, OSError, ValueError) as exc:
+        return fail(f"hook smoke test passed: {exc}")
+    return ok("hook smoke test passed")
 
 
 def duplicate_skill_word(count: int) -> str:
@@ -157,6 +201,41 @@ def check_skill_sync(config: dict[str, Any] | None, codex_root: Path, agents_roo
     return ok("skill sync checked")
 
 
+def check_inventory_manifest(path: Path) -> CheckResult:
+    snapshot = load_inventory_manifest(path)
+    if snapshot.state == "available":
+        return ok(f"skill inventory manifest validates: {snapshot.revision}")
+    reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
+    return fail(f"skill inventory manifest validates: {reason}")
+
+
+def check_install_manifest(path: Path, codex_root: Path) -> CheckResult:
+    snapshot = load_install_manifest(path)
+    if snapshot.state != "available":
+        reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
+        return fail(f"install ownership manifest validates: {reason}")
+
+    managed_drift = []
+    generated_drift = []
+    for artifact in snapshot.artifacts:
+        ownership = artifact.get("ownership")
+        if ownership == "preserved":
+            continue
+        state = artifact_state(codex_root, artifact)
+        if state == "matching":
+            continue
+        detail = f"{artifact.get('path')} ({state})"
+        if ownership == "managed":
+            managed_drift.append(detail)
+        else:
+            generated_drift.append(detail)
+    if managed_drift:
+        return fail("install ownership manifest validates: managed artifact drift: " + ", ".join(managed_drift))
+    if generated_drift:
+        return warn("install ownership manifest validates with generated config drift: " + ", ".join(generated_drift))
+    return ok(f"install ownership manifest validates: {snapshot.revision}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Diagnose a lazy-skill-router installation without editing files.")
     parser.add_argument(
@@ -166,25 +245,49 @@ def main() -> int:
         "--agents-home", default=str(Path.home() / ".agents"), help="Agents home directory. Defaults to ~/.agents."
     )
     parser.add_argument("--routes", help="Routes JSON. Defaults to $CODEX_HOME/lazy-skill-router/routes.json.")
-    parser.add_argument("--smoke-prompt", default=DEFAULT_SMOKE_PROMPT, help="Prompt used for the hook smoke test.")
+    parser.add_argument(
+        "--inventory",
+        help="Skill inventory manifest. Defaults to $CODEX_HOME/lazy-skill-router/skills.manifest.json.",
+    )
+    parser.add_argument(
+        "--smoke-prompt",
+        default=None,
+        help=("Explicit prompt used for the hook smoke test. When omitted, a temporary internal probe route is used."),
+    )
     args = parser.parse_args()
 
     codex_root = Path(args.codex_home).expanduser()
     agents_root = Path(args.agents_home).expanduser()
     hook_path = codex_root / "hooks" / "lazy_skill_router.py"
     route_path = Path(args.routes).expanduser() if args.routes else codex_root / "lazy-skill-router" / "routes.json"
+    inventory_path = (
+        Path(args.inventory).expanduser()
+        if args.inventory
+        else codex_root / "lazy-skill-router" / "skills.manifest.json"
+    )
+    install_manifest_path = codex_root / "lazy-skill-router" / "install.manifest.json"
     hooks_path = codex_root / "hooks.json"
     expected_command = install_hook_command(hook_path, route_path)
+    expected_stop_command = install_stop_hook_command(hook_path, route_path)
 
     route_config, route_checks = load_routes_config(route_path)
     main_hook, core_hooks = check_hook_files(codex_root)
+    install_manifest_check = check_install_manifest(install_manifest_path, codex_root)
+    smoke_check = (
+        fail("hook smoke test skipped: install ownership manifest is unhealthy")
+        if install_manifest_check.status is CheckStatus.FAIL
+        else check_smoke(hook_path, route_path, args.smoke_prompt)
+    )
     checks = (
         check_codex_home(codex_root),
         main_hook,
         core_hooks,
         *route_checks,
+        check_inventory_manifest(inventory_path),
+        install_manifest_check,
         check_hook_registration(hooks_path, expected_command),
-        check_smoke(hook_path, route_path, args.smoke_prompt),
+        check_stop_registration(hooks_path, expected_stop_command, route_config),
+        smoke_check,
         check_skill_sync(route_config, codex_root, agents_root),
     )
 
