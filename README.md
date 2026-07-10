@@ -531,8 +531,8 @@ mixing is detected.
 - It only writes measurement events when logging is explicitly enabled; `outcome` writes only when explicitly invoked.
 - It never commits, pushes, installs plugins, or changes repositories.
 - Current validation covers local macOS/POSIX, an isolated Codex CLI 0.144.0 shadow-hook canary, a Python 3.9
-  v0.3/v0.4 rollback canary, and hosted Ubuntu with Python 3.9. Broader Linux distributions and Python versions remain
-  experimental; WSL is unverified and native Windows is unsupported.
+  v0.3/v0.4 rollback canary, Ubuntu 22.04 x64 with Python 3.9, and Ubuntu 24.04 x64 with Python 3.11 and 3.14. Other
+  Linux distributions and architectures remain experimental; WSL is unverified and native Windows is unsupported.
 
 ## Release Checksums
 
