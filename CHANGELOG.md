@@ -64,7 +64,8 @@ Local measurement journals are user data and are intentionally preserved by unin
 - Experiment manifests, corpus versions, objective evaluator automation, random assignment, and confidence intervals
   are not implemented.
 - Runtime auth, MCP, dependency, and managed-policy eligibility remain unknown without a trusted runtime source.
-- Hosted Ubuntu/Python 3.9 CI passes; broader Linux distributions and versions remain experimental. WSL is unverified.
+- Full hosted CI passes on Ubuntu 22.04 x64 / Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 and 3.14. Other Linux
+  distributions and architectures remain experimental; WSL is unverified.
 - The released v0.3.0 logger uses `datetime.UTC`; on Python 3.9, disable v0.4 measurement before downgrading as shown
   above so the restored v0.3 hook does not enter that incompatible opt-in logging path.
 
@@ -78,3 +79,5 @@ Local measurement journals are user data and are intentionally preserved by unin
 - The documented `v0.3.0 -> v0.4.0 -> v0.3.0` rollback sequence passes with Python 3.9 after v0.4 measurement is
   disabled before downgrade.
 - PR #2 hosted Ubuntu/Python 3.9 CI passes the full source and package workflow.
+- PR #3 hosted Linux compatibility matrix run 29094967366 passes all three platform combinations and the aggregate
+  `verify` gate.

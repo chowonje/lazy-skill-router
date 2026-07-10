@@ -140,7 +140,7 @@ structured contracts explicitly state that config trust and availability do not 
 - Add trusted runtime probes before any inventory entry can become fully `eligible`.
 - Add an explicit phase policy before emitting `mutate` or `publish`; runtime permission remains authoritative.
 - Keep the optional low-margin LLM branch disabled until privacy, latency, labeled quality, and fail-open gates exist.
-- Expand beyond the passing hosted Ubuntu/Python 3.9 matrix before widening Linux support; WSL, native Windows, and
-  the release-tag path remain gated. The local Python 3.9 v0.3/v0.4 upgrade and rollback matrix passes when measurement
-  is disabled before downgrade.
-- The 0.4.0 candidate is published in Draft PR #2. It has not been merged, tagged, or published to PyPI.
+- Ubuntu 22.04 x64 / Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 and 3.14 now pass the full hosted workflow. Other
+  Linux distributions and architectures, WSL, native Windows, and the release-tag path remain gated. The local Python
+  3.9 v0.3/v0.4 upgrade and rollback matrix passes when measurement is disabled before downgrade.
+- The 0.4.0 candidate implementation was merged through PR #2. It has not been tagged or published to PyPI.

@@ -5,7 +5,8 @@
 | Environment | Level | Current evidence |
 | --- | --- | --- |
 | macOS with POSIX filesystem semantics, Python 3.9+ | supported-with-constraints | source and Python 3.9 tests, package/install/doctor/uninstall smoke, isolated Codex CLI 0.144.0 shadow-hook canary, and v0.3/v0.4 rollback canary |
-| Linux with Python 3.9+ | experimental | PR #2 hosted Ubuntu CI passed the full source, package, install, measurement, doctor, and uninstall matrix |
+| Ubuntu 22.04 x64 / Python 3.9 and Ubuntu 24.04 x64 / Python 3.11 or 3.14 | supported-with-constraints | PR #3 hosted CI passed the full source, package, install, measurement, doctor, and uninstall workflow on all three combinations |
+| Other Linux distributions or architectures | experimental | no equivalent hosted source-and-package matrix yet |
 | WSL | unverified | no current package, path, symlink, or hook registration matrix |
 | Native Windows | unsupported | standalone command, quoting, filesystem, and hook behavior are not implemented or verified for Windows |
 
