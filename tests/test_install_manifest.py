@@ -106,6 +106,55 @@ class InstallManifestTest(unittest.TestCase):
         self.assertEqual(doctor.returncode, 1)
         self.assertIn("[FAIL] install ownership manifest validates: managed artifact drift", doctor.stdout)
 
+    def test_doctor_does_not_execute_a_modified_managed_hook(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            marker = root / "executed.txt"
+            install = run_command(INSTALL_PATH, codex_home, agents_home=agents_home)
+            self.assertEqual(install.returncode, 0, install.stderr)
+
+            hook = codex_home / "hooks" / "lazy_skill_router.py"
+            hook.write_text(
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n"
+                "print('{}')\n",
+                encoding="utf-8",
+            )
+
+            doctor = run_command(DOCTOR_PATH, codex_home, agents_home=agents_home)
+
+        self.assertEqual(doctor.returncode, 1)
+        self.assertIn("managed artifact drift", doctor.stdout)
+        self.assertIn("hook smoke test skipped: install ownership manifest is unhealthy", doctor.stdout)
+        self.assertFalse(marker.exists())
+
+    def test_uninstall_refuses_a_symlinked_hooks_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            codex_home.mkdir()
+            outside = root / "outside-hooks.json"
+            command = f"python3 {codex_home}/hooks/lazy_skill_router.py"
+            original = {
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {"hooks": [{"type": "command", "command": command}]},
+                    ]
+                }
+            }
+            original_bytes = (json.dumps(original, indent=2) + "\n").encode()
+            outside.write_bytes(original_bytes)
+            os.symlink(outside, codex_home / "hooks.json")
+
+            uninstall = run_command(UNINSTALL_PATH, codex_home)
+            outside_after = outside.read_bytes()
+
+        self.assertEqual(uninstall.returncode, 1)
+        self.assertIn("unsafe or unreadable hooks.json", uninstall.stderr)
+        self.assertEqual(outside_after, original_bytes)
+
     def test_uninstall_preserves_modified_file_and_symlink_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

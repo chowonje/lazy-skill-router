@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
 from lazy_skill_router_common import backup_file, codex_home, load_hooks, write_json
-from lazy_skill_router_install_manifest import artifact_path, artifact_state, load_install_manifest
+from lazy_skill_router_install_manifest import artifact_path, artifact_state, confined_path, load_install_manifest
 
 
 def remove_hook_entries(data: dict[str, Any]) -> int:
@@ -98,8 +99,12 @@ def main() -> int:
     args = parser.parse_args()
 
     codex_root = Path(args.codex_home).expanduser()
-    hooks_json = codex_root / "hooks.json"
-    data = load_hooks(hooks_json)
+    try:
+        hooks_json = confined_path(codex_root, "hooks.json", allow_leaf_symlink=False)
+        data = load_hooks(hooks_json)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: unsafe or unreadable hooks.json: {exc}", file=sys.stderr)
+        return 1
     removed = remove_hook_entries(data)
 
     actions: list[str] = []

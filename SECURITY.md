@@ -34,8 +34,12 @@ recommendation and never falls through to a lower-precedence policy.
 Install validates and smoke-tests staged runtime before target mutation. Managed files are recorded in an ownership
 manifest. Mutation snapshots use a path-confined local journal, and the next install recovers a matching interrupted
 transaction before reading current state. Install, recovery, doctor, and uninstall reject artifact paths with symlinked
-parents below the selected Codex home. Doctor reports managed artifact drift. `uninstall --remove-files` does not follow
-or remove leaf symlink targets and preserves modified or user-owned artifacts.
+parents below the selected Codex home. Doctor reports managed artifact drift and skips executable smoke checks after
+that drift is detected. Uninstall refuses a symlinked `hooks.json` write target. `uninstall --remove-files` does not
+follow or remove leaf symlink targets and preserves modified or user-owned artifacts.
+
+Release distributions are built once. The same verified artifact bundle and checksum manifest are passed to PyPI and
+the GitHub Release job under separate least-privilege permissions.
 
 ## Reporting A Vulnerability
 

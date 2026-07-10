@@ -135,10 +135,12 @@ structured contracts explicitly state that config trust and availability do not 
 
 ## Remaining Release Gates
 
-- Keep structured recommendation and Hook IR in shadow mode until actual Codex consumer behavior is verified.
+- Keep structured recommendation and Hook IR opt-in while evaluation contracts mature; an isolated macOS Codex CLI
+  0.144.0 shadow-hook canary now verifies actual `UserPromptSubmit` and `Stop` delivery.
 - Add trusted runtime probes before any inventory entry can become fully `eligible`.
 - Add an explicit phase policy before emitting `mutate` or `publish`; runtime permission remains authoritative.
 - Keep the optional low-margin LLM branch disabled until privacy, latency, labeled quality, and fail-open gates exist.
-- Expand beyond the passing hosted Ubuntu/Python 3.9 matrix before widening Linux support; WSL, native Windows,
-  release-tag, upgrade, and rollback matrices remain gated.
-- Version and release these changes separately; this working tree has not committed, tagged, pushed, or published them.
+- Expand beyond the passing hosted Ubuntu/Python 3.9 matrix before widening Linux support; WSL, native Windows, and
+  the release-tag path remain gated. The local Python 3.9 v0.3/v0.4 upgrade and rollback matrix passes when measurement
+  is disabled before downgrade.
+- The 0.4.0 candidate is published in Draft PR #2. It has not been merged, tagged, or published to PyPI.

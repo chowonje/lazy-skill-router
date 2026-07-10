@@ -272,16 +272,22 @@ def main() -> int:
 
     route_config, route_checks = load_routes_config(route_path)
     main_hook, core_hooks = check_hook_files(codex_root)
+    install_manifest_check = check_install_manifest(install_manifest_path, codex_root)
+    smoke_check = (
+        fail("hook smoke test skipped: install ownership manifest is unhealthy")
+        if install_manifest_check.status is CheckStatus.FAIL
+        else check_smoke(hook_path, route_path, args.smoke_prompt)
+    )
     checks = (
         check_codex_home(codex_root),
         main_hook,
         core_hooks,
         *route_checks,
         check_inventory_manifest(inventory_path),
-        check_install_manifest(install_manifest_path, codex_root),
+        install_manifest_check,
         check_hook_registration(hooks_path, expected_command),
         check_stop_registration(hooks_path, expected_stop_command, route_config),
-        check_smoke(hook_path, route_path, args.smoke_prompt),
+        smoke_check,
         check_skill_sync(route_config, codex_root, agents_root),
     )
 

@@ -8,6 +8,7 @@
   v0.3 advisory hook output by default.
 - Adds opt-in shadow measurement with automatic decision/completion events and explicit cumulative outcome reporting.
 - Hardens install, recovery, doctor, and uninstall behavior with ownership manifests and symlink confinement.
+- Uses one verified distribution bundle for both PyPI and GitHub Release publication.
 
 ### Features
 
@@ -22,6 +23,8 @@
 - Authoritative invalid config fails open instead of silently falling through to a lower-precedence policy.
 - Install mutations use rollback snapshots and a path-confined recovery journal.
 - Removal preserves modified, user-owned, and symlinked artifacts.
+- Doctor skips executable smoke checks after managed runtime drift is detected.
+- Uninstall refuses to read or write through a symlinked `hooks.json` target.
 - Completion correlation requires matching session and turn hashes.
 - Duplicate outcomes are deduplicated, conflicting labels are excluded, and pairs do not cross policy/config revisions.
 - Unknown measurement schemas with valid timestamps remain bounded and preserved but are ignored by the current report.
@@ -45,10 +48,13 @@ before enabling measurement.
 
 ### Rollback
 
-1. Run `lazy-skill-router uninstall` to remove the current hook registrations.
-2. Install `lazy-skill-router==0.3.0` with pipx.
-3. Restore a v0.3-compatible route config when a custom schema v2 policy was enabled.
-4. Run `lazy-skill-router install` and `lazy-skill-router doctor`.
+1. While v0.4 is still installed, run
+   `lazy-skill-router install --disable-measurement --activation-mode inject` to remove the `Stop` hook and disable the
+   v0.4 measurement journal writer.
+2. Run `lazy-skill-router uninstall` to remove the current hook registrations.
+3. Install `lazy-skill-router==0.3.0` with pipx.
+4. Restore a v0.3-compatible route config when a custom schema v2 policy was enabled.
+5. Run `lazy-skill-router install` and `lazy-skill-router doctor`.
 
 Local measurement journals are user data and are intentionally preserved by uninstall.
 
@@ -59,10 +65,16 @@ Local measurement journals are user data and are intentionally preserved by unin
   are not implemented.
 - Runtime auth, MCP, dependency, and managed-policy eligibility remain unknown without a trusted runtime source.
 - Hosted Ubuntu/Python 3.9 CI passes; broader Linux distributions and versions remain experimental. WSL is unverified.
+- The released v0.3.0 logger uses `datetime.UTC`; on Python 3.9, disable v0.4 measurement before downgrading as shown
+  above so the restored v0.3 hook does not enter that incompatible opt-in logging path.
 
 ### Verification
 
-- 131 unit tests pass on the local default Python and Python 3.9.
+- 133 unit tests pass on the local default Python and Python 3.9.
 - Route evaluation passes 106 prompts across 15 categories.
 - Fresh wheel/sdist, isolated pipx, install, hook, report, doctor, and uninstall flows pass locally.
+- An isolated macOS Codex CLI 0.144.0 canary recorded correlated shadow `UserPromptSubmit` and `Stop` events without
+  persisting the raw prompt or response.
+- The documented `v0.3.0 -> v0.4.0 -> v0.3.0` rollback sequence passes with Python 3.9 after v0.4 measurement is
+  disabled before downgrade.
 - PR #2 hosted Ubuntu/Python 3.9 CI passes the full source and package workflow.

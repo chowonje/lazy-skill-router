@@ -119,7 +119,8 @@ The doctor checks that hook files exist, `routes.json` validates, inventory and 
 managed runtime digests match, exactly one `UserPromptSubmit` router entry is registered with the canonical standalone
 `python3` command, the optional `Stop` hook matches the measurement setting, the installed hook accepts real
 `UserPromptSubmit` and `Stop` smoke events through a temporary logging-disabled config, and configured route skills are
-installed. Missing, duplicate, or drifted registration is unhealthy.
+installed. Missing, duplicate, or drifted registration is unhealthy. If the ownership manifest reports managed runtime
+drift, doctor skips the executable smoke rather than running modified hook code.
 
 Use a custom Codex home when needed:
 
@@ -516,11 +517,12 @@ mixing is detected.
 
 - This hook fails open: malformed input or invalid config results in no injection.
 - The installer modifies `~/.codex/hooks.json`; run `lazy-skill-router install --dry-run` before installing.
-- `lazy-skill-router doctor` is read-only, uses a temporary logging-disabled route config for hook smoke checks, and exits non-zero when the installed hook, routes, manifests, registration, or configured skills are unhealthy.
+- `lazy-skill-router doctor` is read-only, uses a temporary logging-disabled route config for hook smoke checks, skips executable smoke after managed runtime drift, and exits non-zero when the installed hook, routes, manifests, registration, or configured skills are unhealthy.
 - Config source trust, route rank, and inventory availability are advisory and never authorize execution.
 - The installer restores snapshotted targets on mutation errors and replays a path-confined recovery journal on the next install after interruption.
 - Install/recovery/uninstall reject symlinked artifact parents below the selected Codex home; `uninstall --remove-files`
   preserves modified files and leaf symlinks instead of following or deleting them.
+- Uninstall refuses a symlinked `hooks.json` write target.
 - The installer backs up `hooks.json` before editing it.
 - Install only from PyPI or a trusted checkout of this repository.
 - It does not read secrets or authentication files.
@@ -528,8 +530,9 @@ mixing is detected.
 - It does not execute MCP tools, browser tools, GitHub actions, or shell commands.
 - It only writes measurement events when logging is explicitly enabled; `outcome` writes only when explicitly invoked.
 - It never commits, pushes, installs plugins, or changes repositories.
-- Current validation covers local macOS/POSIX and hosted Ubuntu with Python 3.9. Broader Linux distributions and Python
-  versions remain experimental; WSL is unverified and native Windows is unsupported.
+- Current validation covers local macOS/POSIX, an isolated Codex CLI 0.144.0 shadow-hook canary, a Python 3.9
+  v0.3/v0.4 rollback canary, and hosted Ubuntu with Python 3.9. Broader Linux distributions and Python versions remain
+  experimental; WSL is unverified and native Windows is unsupported.
 
 ## Release Checksums
 
@@ -559,7 +562,11 @@ PyPI publishing uses GitHub Actions Trusted Publishing. Configure the PyPI proje
 - Workflow: `release.yml`
 - Environment: `pypi`
 
-The release workflow builds the source distribution and wheel, verifies that the Git tag matches `pyproject.toml`, runs `twine check`, publishes to PyPI, then creates or updates the matching GitHub Release with `SHA256SUMS`. PyPI publishing and GitHub Release upload run in separate jobs so PyPI Trusted Publishing does not run with GitHub contents-write permission. The workflow does not store a PyPI token in GitHub secrets.
+The release workflow verifies the tests and route fixtures, confirms that the Git tag matches `pyproject.toml`, builds
+the source distribution and wheel once, and checks the resulting bundle with `twine` and `SHA256SUMS`. The exact same
+bundle is then published to PyPI and attached to the matching GitHub Release. PyPI publishing and GitHub Release upload
+run in separate jobs so Trusted Publishing does not share GitHub contents-write permission. The workflow does not store
+a PyPI token in GitHub secrets.
 
 Release steps:
 
