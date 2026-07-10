@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazy-skill-router"
-version = "0.3.0"
+version = "0.4.0"
 description = "Codex UserPromptSubmit hook that recommends local skills for the current prompt."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -21,9 +21,13 @@ py-modules = [
     "install",
     "lazy_skill_router",
     "lazy_skill_router_common",
+    "lazy_skill_router_contracts",
     "lazy_skill_router_core",
+    "lazy_skill_router_inventory",
+    "lazy_skill_router_install_manifest",
     "lazy_skill_router_logging",
     "lazy_skill_router_scoring",
+    "measurement",
     "release_checksums",
     "sync_skills",
     "uninstall",
@@ -35,6 +39,8 @@ py-modules = [
     "lazy_skill_router.py",
     "lazy_skill_router_core.py",
     "lazy_skill_router_common.py",
+    "lazy_skill_router_contracts.py",
+    "lazy_skill_router_inventory.py",
     "lazy_skill_router_logging.py",
     "lazy_skill_router_scoring.py",
     "routes.default.json",

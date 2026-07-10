@@ -10,10 +10,13 @@ from typing import Final
 
 import doctor
 import install
+import measurement
 import uninstall
+from lazy_skill_router_contracts import hook_ir_v1, route_result_v2, structured_recommendation_v1
 from lazy_skill_router_core import dry_run_output, load_config
+from lazy_skill_router_inventory import inventory_for_config
 
-COMMANDS: Final = ("install", "doctor", "uninstall", "route")
+COMMANDS: Final = ("install", "doctor", "uninstall", "route", "outcome", "report")
 DATA_ROOT_NAME: Final = "lazy-skill-router"
 PACKAGE_NAME: Final = "lazy-skill-router"
 UNKNOWN_VERSION: Final = "0.0.0"
@@ -69,6 +72,8 @@ def configure_install_sources(root: Path) -> None:
     install.COMMON_SOURCE = root / "lazy_skill_router_common.py"
     install.LOGGING_SOURCE = root / "lazy_skill_router_logging.py"
     install.SCORING_SOURCE = root / "lazy_skill_router_scoring.py"
+    install.CONTRACTS_SOURCE = root / "lazy_skill_router_contracts.py"
+    install.INVENTORY_SOURCE = root / "lazy_skill_router_inventory.py"
     install.SKILL_SOURCE = root / "skills" / "personal-skill-router"
     install.TEMPLATE_SOURCE = root / "routes.template.json"
 
@@ -91,11 +96,42 @@ def route_prompt(args: list[str]) -> int:
         description="Show which skill route would be recommended for a prompt.",
     )
     parser.add_argument("--config", help="Path to a routes JSON file.")
-    parser.add_argument("--json", action="store_true", help="Print full route diagnostics as JSON.")
+    parser.add_argument("--inventory", help="Path to a generated skill inventory manifest.")
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("--json", action="store_true", help="Print legacy route diagnostics as JSON.")
+    output_group.add_argument(
+        "--route-result-v2",
+        action="store_true",
+        help="Print the experimental route-result v2 shadow contract.",
+    )
+    output_group.add_argument(
+        "--recommendation-json",
+        action="store_true",
+        help="Print the experimental structured recommendation v1 shadow contract.",
+    )
+    output_group.add_argument(
+        "--hook-ir-json",
+        action="store_true",
+        help="Print the experimental compact Hook IR v1 shadow contract.",
+    )
     parser.add_argument("prompt", help="Prompt text to route.")
     parsed = parser.parse_args(args)
 
     config = load_config(resource_root() / "lazy_skill_router.py", parsed.config)
+    if parsed.hook_ir_json:
+        inventory = inventory_for_config(config, parsed.inventory)
+        print(json.dumps(hook_ir_v1(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
+        return 0
+
+    if parsed.recommendation_json:
+        inventory = inventory_for_config(config, parsed.inventory)
+        print(json.dumps(structured_recommendation_v1(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
+        return 0
+
+    if parsed.route_result_v2:
+        print(json.dumps(route_result_v2(parsed.prompt, config), ensure_ascii=False, indent=2))
+        return 0
+
     result = dry_run_output(parsed.prompt, config)
     if parsed.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -143,6 +179,10 @@ def run_command(command: str, args: list[str]) -> int:
         return run_main(uninstall.main, command, args)
     if command == "route":
         return route_prompt(args)
+    if command == "outcome":
+        return measurement.outcome_main(args)
+    if command == "report":
+        return measurement.report_main(args)
     raise ValueError(f"unknown command: {command}")
 
 

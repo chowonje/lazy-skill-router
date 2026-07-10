@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lazy_skill_router_common import codex_home, load_json_object
+from lazy_skill_router_common import codex_home, load_json_object, write_json
+from lazy_skill_router_inventory import build_inventory_manifest
 
 PLUGIN_PROVIDER_SEGMENTS = {
     "cache",
@@ -229,17 +231,28 @@ def main() -> int:
     )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     parser.add_argument("--strict", action="store_true", help="Exit non-zero when configured skills are missing.")
+    parser.add_argument(
+        "--manifest-output",
+        help="Write a path-redacted, version-stamped skill inventory manifest.",
+    )
     args = parser.parse_args()
 
     codex_root = Path(args.codex_home).expanduser()
     agents_root = Path(args.agents_home).expanduser()
     route_path = Path(args.routes).expanduser() if args.routes else default_routes_path(codex_root, Path(__file__))
-    report = build_report(load_json_object(route_path, "config root"), scan_installed_skills(codex_root, agents_root))
+    installed = scan_installed_skills(codex_root, agents_root)
+    report = build_report(load_json_object(route_path, "config root"), installed)
 
     if args.json:
         print(json.dumps(report_json(report), ensure_ascii=False, indent=2))
     else:
         print(format_report(report, route_path))
+
+    if args.manifest_output:
+        manifest_path = Path(args.manifest_output).expanduser()
+        write_json(manifest_path, build_inventory_manifest(installed, codex_root, agents_root))
+        message = f"wrote skill inventory manifest {manifest_path}"
+        print(message, file=sys.stderr if args.json else sys.stdout)
 
     if args.strict and (report.allowed_missing or report.route_references_missing):
         return 1

@@ -6,41 +6,84 @@ from pathlib import Path
 from typing import Any
 
 from lazy_skill_router_common import backup_file, codex_home, load_hooks, write_json
+from lazy_skill_router_install_manifest import artifact_path, artifact_state, load_install_manifest
 
 
 def remove_hook_entries(data: dict[str, Any]) -> int:
     hooks = data.setdefault("hooks", {})
-    groups = hooks.get("UserPromptSubmit")
-    if not isinstance(groups, list):
-        return 0
-
     removed = 0
-    for group in groups:
-        if not isinstance(group, dict):
+    for event_name in ("UserPromptSubmit", "Stop"):
+        groups = hooks.get(event_name)
+        if not isinstance(groups, list):
             continue
-        hook_items = group.get("hooks")
-        if not isinstance(hook_items, list):
-            continue
-        kept = []
-        for item in hook_items:
-            if isinstance(item, dict) and "lazy_skill_router.py" in str(item.get("command", "")):
-                removed += 1
-            else:
-                kept.append(item)
-        group["hooks"] = kept
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            hook_items = group.get("hooks")
+            if not isinstance(hook_items, list):
+                continue
+            kept = []
+            for item in hook_items:
+                if isinstance(item, dict) and "lazy_skill_router.py" in str(item.get("command", "")):
+                    removed += 1
+                else:
+                    kept.append(item)
+            group["hooks"] = kept
     return removed
 
 
 def remove_path(path: Path, *, dry_run: bool) -> str:
-    if not path.exists():
+    if not path.exists() and not path.is_symlink():
         return f"missing {path}"
     if dry_run:
         return f"would remove {path}"
-    if path.is_dir():
+    if path.is_symlink():
+        path.unlink()
+    elif path.is_dir():
         shutil.rmtree(path)
     else:
         path.unlink()
     return f"removed {path}"
+
+
+def remove_manifest_artifacts(codex_root: Path, manifest_path: Path, *, dry_run: bool) -> list[str]:
+    snapshot = load_install_manifest(manifest_path)
+    if snapshot.state != "available":
+        reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
+        return [f"kept installed files because ownership manifest is unavailable: {reason}"]
+
+    actions: list[str] = []
+    protected = False
+    artifacts = sorted(snapshot.artifacts, key=lambda item: len(Path(str(item.get("path", ""))).parts), reverse=True)
+    for artifact in artifacts:
+        ownership = str(artifact.get("ownership"))
+        try:
+            path = artifact_path(codex_root, artifact)
+        except ValueError:
+            actions.append(f"kept unsafe artifact path {artifact.get('path')}")
+            protected = True
+            continue
+        if ownership == "preserved":
+            actions.append(f"kept preserved artifact {path}")
+            protected = True
+            continue
+        state = artifact_state(codex_root, artifact)
+        if state == "matching":
+            actions.append(remove_path(path, dry_run=dry_run))
+        elif state == "symlink":
+            actions.append(f"kept symlink {ownership} artifact {path}")
+            protected = True
+        elif state in {"modified", "unreadable"}:
+            actions.append(f"kept modified {ownership} artifact {path}")
+            protected = True
+        else:
+            actions.append(f"missing {path}")
+
+    if protected:
+        actions.append(f"kept ownership manifest {manifest_path} for remaining artifacts")
+    else:
+        actions.append(remove_path(manifest_path, dry_run=dry_run))
+    return actions
 
 
 def main() -> int:
@@ -71,13 +114,8 @@ def main() -> int:
         actions.append("no lazy-skill-router hook entry found")
 
     if args.remove_files:
-        actions.append(remove_path(codex_root / "hooks" / "lazy_skill_router.py", dry_run=args.dry_run))
-        actions.append(remove_path(codex_root / "hooks" / "lazy_skill_router_core.py", dry_run=args.dry_run))
-        actions.append(remove_path(codex_root / "hooks" / "lazy_skill_router_common.py", dry_run=args.dry_run))
-        actions.append(remove_path(codex_root / "hooks" / "lazy_skill_router_logging.py", dry_run=args.dry_run))
-        actions.append(remove_path(codex_root / "hooks" / "lazy_skill_router_scoring.py", dry_run=args.dry_run))
-        actions.append(remove_path(codex_root / "lazy-skill-router", dry_run=args.dry_run))
-        actions.append(remove_path(codex_root / "skills" / "personal-skill-router", dry_run=args.dry_run))
+        manifest_path = codex_root / "lazy-skill-router" / "install.manifest.json"
+        actions.extend(remove_manifest_artifacts(codex_root, manifest_path, dry_run=args.dry_run))
 
     print("lazy-skill-router uninstall summary:")
     for action in actions:

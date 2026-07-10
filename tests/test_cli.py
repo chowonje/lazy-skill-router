@@ -28,6 +28,8 @@ class CliTest(unittest.TestCase):
         self.assertIn("doctor", completed.stdout)
         self.assertIn("uninstall", completed.stdout)
         self.assertIn("route", completed.stdout)
+        self.assertIn("outcome", completed.stdout)
+        self.assertIn("report", completed.stdout)
         self.assertNotIn("eval", completed.stdout)
         self.assertNotIn("generate-routes", completed.stdout)
 

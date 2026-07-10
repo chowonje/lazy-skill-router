@@ -18,16 +18,21 @@
 - Do not execute MCP tools, shell commands, GitHub actions, browser actions, installs, commits, pushes, or repository edits from the hook.
 
 ## Architecture Map
-- `lazy_skill_router_core.py`: pure routing engine and logging metadata writer.
+- `lazy_skill_router_core.py`: pure routing engine and activation-mode policy.
+- `lazy_skill_router_contracts.py`: versioned route-result, structured recommendation, and Hook IR builders.
+- `lazy_skill_router_inventory.py`: path-redacted generated skill inventory and loader.
+- `lazy_skill_router_install_manifest.py`: install ownership records, digest validation, and safe removal state.
 - `lazy_skill_router_scoring.py`: route matching, confidence, score ranking, and fallback handling.
 - `lazy_skill_router.py`: Codex hook and dry-run CLI adapter.
+- `lazy_skill_router_logging.py`: bounded privacy-preserving measurement event journal.
+- `measurement.py`: outcome label writer and cumulative report builder.
 - `routes.default.json`: bundled default route policy data.
 - `validate_routes.py`: route config schema and regex validation.
 - `sync_skills.py`: report-only drift detection between installed skills and route references.
 - `install.py`: Codex home installation surface.
 - `doctor.py`: read-only install health checker.
 - `uninstall.py`: Codex home removal surface.
-- `lazy_skill_router_cli/`: public packaged CLI exposing `install`, `doctor`, `uninstall`, and `route`.
+- `lazy_skill_router_cli/`: public packaged CLI exposing `install`, `doctor`, `uninstall`, `route`, `outcome`, and `report`.
 - `release_checksums.py`: release checksum manifest generation and verification.
 - `eval_routes.py`: golden prompt regression evaluator.
 - `eval/prompts.jsonl`: prompt fixtures for route quality checks.
@@ -35,7 +40,7 @@
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
-- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_logging.py lazy_skill_router_scoring.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
+- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
