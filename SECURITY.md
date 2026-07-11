@@ -44,7 +44,8 @@ recommendation and never falls through to a lower-precedence policy.
 
 Any Policy IR parser error suppresses all runtime recommendations from that config. When a local inventory manifest is
 configured, runtime scoring first verifies configured names, availability, uniqueness, and requested canonical IDs.
-Missing, invalid, or canonical-mismatched inventory state cannot redirect a route to a same-name replacement provider.
+Missing, invalid, canonical-mismatched, or cross-name duplicate canonical inventory state cannot redirect a route to a
+replacement provider. An unresolved default verification skill is removed before runtime route projection.
 
 Install validates and smoke-tests staged runtime before target mutation. Managed files are recorded in an ownership
 manifest. Mutation snapshots use a path-confined local journal, and the next install recovers a matching interrupted
@@ -66,6 +67,8 @@ existing routes remain unchanged before adding shadow candidates. Promotion acce
 shadow decisions from the same config revision that would win after activation, requires current inventory and host
 catalog revisions, requires explicit approval, and creates a backup before activating a route. App-generated patterns
 use a restricted regex subset without general unbounded quantifiers, lookaround, or backreferences.
+Policy stage/promotion and host-catalog build reject leaf symlinks and every symlinked parent below the selected trusted
+write root before backup or atomic replacement.
 
 ## Reporting A Vulnerability
 

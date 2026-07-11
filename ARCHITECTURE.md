@@ -161,6 +161,8 @@ Read-only install health checker. It verifies installed hook files, route valida
 `UserPromptSubmit` registration, the conditional `Stop` registration when measurement is enabled, real stdin smoke
 behavior through standalone `python3` argv, and skill drift. Doctor always uses a temporary logging-disabled smoke
 config, so its lifecycle checks do not append persistent events.
+The implicit smoke probe preserves the installed policy schema: v1 exercises direct skill references and v2 exercises
+capability requirements plus `skillBindings` instead of silently falling back to a v1-only probe.
 
 ### `install.py` And `uninstall.py`
 

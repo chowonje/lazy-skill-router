@@ -41,6 +41,10 @@
 - Invalid Policy IR fails open, configured inventory canonical IDs are enforced before runtime scoring, and versioned
   recommendation adapters exclude shadow and disabled routes.
 - Schema v2 compilation extends an existing `allowedSkills` list for new shadow routes and preserves all prior entries.
+- Inventory resolution rejects canonical IDs shared across usable configured names and drops unresolved default
+  verification references before model-visible hook context is built.
+- Implicit install and doctor probes preserve schema v1 or v2, and policy/catalog writes reject symlinked parent
+  components before backup or atomic replacement.
 - Install automatically upgrades the bundled router skill only when its managed manifest digest still matches. Modified,
   preserved, symlinked, unsafe, or unowned copies remain untouched without explicit `--force`.
 

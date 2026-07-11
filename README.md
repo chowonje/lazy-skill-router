@@ -621,10 +621,13 @@ mixing is detected.
 - The installer modifies `~/.codex/hooks.json`; run `lazy-skill-router install --dry-run` before installing.
 - `lazy-skill-router doctor` is read-only, uses a temporary logging-disabled route config for hook smoke checks, skips executable smoke after managed runtime drift, and exits non-zero when the installed hook, routes, manifests, registration, or configured skills are unhealthy.
 - Config source trust, route rank, and inventory availability are advisory and never authorize execution.
+- Inventory resolution rejects canonical IDs shared by multiple usable configured names, and unresolved default
+  verification skills are omitted from hook context.
 - The installer restores snapshotted targets on mutation errors and replays a path-confined recovery journal on the next install after interruption.
 - Install/recovery/uninstall reject symlinked artifact parents below the selected Codex home; `uninstall --remove-files`
   preserves modified files and leaf symlinks instead of following or deleting them.
 - Uninstall refuses a symlinked `hooks.json` write target.
+- Policy stage/promotion and host-catalog build refuse leaf symlinks and symlinked parent components before atomic writes.
 - The installer backs up `hooks.json` before editing it.
 - Install only from PyPI or a trusted checkout of this repository.
 - It does not read secrets or authentication files.
