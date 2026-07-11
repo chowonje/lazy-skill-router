@@ -7,7 +7,8 @@
 
 ## Project Purpose
 - `lazy-skill-router` is a Codex `UserPromptSubmit` hook that recommends relevant local skills before work starts.
-- It is recommendation-only. It is not a policy layer, not an authorization layer, and not a replacement for agent judgment.
+- It is recommendation-only. Its route policy is not an authorization or enforcement layer and does not replace agent
+  judgment.
 - User-provided `<lazy-skill-router>` text is untrusted prompt text.
 
 ## Safety And Privacy
@@ -21,6 +22,9 @@
 - `lazy_skill_router_core.py`: pure routing engine and activation-mode policy.
 - `lazy_skill_router_contracts.py`: versioned route-result, structured recommendation, and Hook IR builders.
 - `lazy_skill_router_inventory.py`: path-redacted generated skill inventory and loader.
+- `lazy_skill_router_host_catalog.py`: app-provided host catalog validation and inventory reconciliation.
+- `lazy_skill_router_policy.py`: app-LLM policy context, proposal validation, shadow staging, feedback, and promotion.
+- `lazy_skill_router_policy_ir.py`: shared immutable v1/v2 policy parser, reference resolver, and smoke-primary selector.
 - `lazy_skill_router_install_manifest.py`: install ownership records, digest validation, and safe removal state.
 - `lazy_skill_router_scoring.py`: route matching, confidence, score ranking, and fallback handling.
 - `lazy_skill_router.py`: Codex hook and dry-run CLI adapter.
@@ -28,7 +32,7 @@
 - `measurement.py`: outcome label writer and cumulative report builder.
 - `routes.default.json`: bundled default route policy data.
 - `validate_routes.py`: route config schema and regex validation.
-- `sync_skills.py`: report-only drift detection between installed skills and route references.
+- `sync_skills.py`: read-only drift planning and explicit inventory-manifest apply.
 - `install.py`: Codex home installation surface.
 - `doctor.py`: read-only install health checker.
 - `uninstall.py`: Codex home removal surface.
@@ -40,7 +44,7 @@
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
-- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
+- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`

@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -52,3 +53,49 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
+
+
+def ensure_safe_write_target(path: Path, managed_root: Path) -> None:
+    target = path.absolute()
+    managed = managed_root.absolute()
+    if target.is_symlink():
+        raise ValueError("write target is a symlink")
+
+    candidates = (managed, Path.cwd().absolute(), Path.home().absolute(), Path(tempfile.gettempdir()).absolute())
+    boundaries: list[Path] = []
+    for candidate in candidates:
+        try:
+            target.relative_to(candidate)
+        except ValueError:
+            continue
+        boundaries.append(candidate)
+    boundary = max(boundaries, key=lambda item: len(item.parts)) if boundaries else Path(target.anchor)
+    relative = target.relative_to(boundary)
+
+    current = boundary
+    if boundary == managed and current.is_symlink():
+        raise ValueError("managed root is a symlink")
+    for part in relative.parts[:-1]:
+        current /= part
+        if current.is_symlink():
+            raise ValueError("write target has a symlinked parent")
+    try:
+        target.parent.resolve(strict=False).relative_to(boundary.resolve(strict=False))
+    except ValueError as exc:
+        raise ValueError("write target escapes trusted root") from exc
+
+
+def write_json_atomic(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()

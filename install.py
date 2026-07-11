@@ -17,16 +17,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from generate_routes import TEMPLATE_SOURCE, generate_config, generated_route_count, installed_skill_names
+from generate_routes import (
+    TEMPLATE_SOURCE,
+    TemplateError,
+    generate_config,
+    generated_route_count,
+    installed_skill_names,
+)
 from lazy_skill_router_common import backup_file, codex_home, load_hooks, load_json_object, write_json
+from lazy_skill_router_host_catalog import load_host_catalog, reconcile_inventory
 from lazy_skill_router_install_manifest import (
     InstallManifestSnapshot,
+    artifact_state,
     build_install_manifest,
     confined_path,
     load_install_manifest,
     safe_relative_path,
 )
 from lazy_skill_router_inventory import build_inventory_manifest
+from lazy_skill_router_policy_ir import parse_policy_config, select_smoke_primary
 from sync_skills import scan_installed_skills
 from validate_routes import validate_config
 
@@ -38,6 +47,7 @@ LOGGING_SOURCE = PROJECT_ROOT / "lazy_skill_router_logging.py"
 SCORING_SOURCE = PROJECT_ROOT / "lazy_skill_router_scoring.py"
 CONTRACTS_SOURCE = PROJECT_ROOT / "lazy_skill_router_contracts.py"
 INVENTORY_SOURCE = PROJECT_ROOT / "lazy_skill_router_inventory.py"
+POLICY_IR_SOURCE = PROJECT_ROOT / "lazy_skill_router_policy_ir.py"
 SKILL_SOURCE = PROJECT_ROOT / "skills" / "personal-skill-router"
 INTERNAL_SMOKE_PROMPT = "lazy-skill-router-internal-probe"
 TRANSACTION_JOURNAL_SCHEMA = "lazy-skill-router.install-transaction/v1"
@@ -520,19 +530,28 @@ def copy_hook_runtime(hook_path: Path, *, dry_run: bool, codex_root: Path | None
         dry_run=dry_run,
         codex_root=codex_root,
     )
+    copy_file(
+        POLICY_IR_SOURCE,
+        hook_path.parent / "lazy_skill_router_policy_ir.py",
+        dry_run=dry_run,
+        codex_root=codex_root,
+    )
 
 
 def copy_skill(destination: Path, *, force: bool, dry_run: bool, codex_root: Path | None = None) -> str:
-    if (destination.exists() or destination.is_symlink()) and not force:
-        return "kept existing skill"
-    if dry_run:
-        return "would copy skill"
+    exists = destination.exists() or destination.is_symlink()
+    if exists and not force:
+        return "would keep existing skill" if dry_run else "kept existing skill"
     if codex_root is not None:
         checked_install_path(codex_root, destination, allow_leaf_symlink=False)
+    elif destination.is_symlink():
+        raise InstallError(f"refusing to overwrite symlink: {destination}")
+    if dry_run:
+        return "would upgrade existing skill" if exists else "would copy skill"
     if destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(SKILL_SOURCE, destination)
-    return "copied skill"
+    return "upgraded existing skill" if exists else "copied skill"
 
 
 def write_skill_inventory(destination: Path, codex_root: Path, agents_root: Path, *, dry_run: bool) -> None:
@@ -540,7 +559,15 @@ def write_skill_inventory(destination: Path, codex_root: Path, agents_root: Path
         return
     checked_install_path(codex_root, destination, allow_leaf_symlink=False)
     records = scan_installed_skills(codex_root, agents_root)
-    write_json(destination, build_inventory_manifest(records, codex_root, agents_root))
+    manifest = build_inventory_manifest(records, codex_root, agents_root)
+    host_catalog_path = destination.with_name("host-catalog.json")
+    host_catalog = load_host_catalog(host_catalog_path)
+    if host_catalog.state == "invalid":
+        reason = ", ".join(host_catalog.reason_codes) or "invalid"
+        raise InstallError(f"cannot use invalid host catalog: {reason}")
+    if host_catalog.state == "available":
+        manifest = reconcile_inventory(manifest, host_catalog)
+    write_json(destination, manifest)
 
 
 def write_install_json(codex_root: Path, destination: Path, data: dict[str, Any]) -> None:
@@ -555,6 +582,17 @@ def previous_ownership(snapshot: InstallManifestSnapshot, relative_path: str, de
         if artifact.get("path") == relative_path and artifact.get("ownership") in {"managed", "generated", "preserved"}:
             return str(artifact["ownership"])
     return default
+
+
+def can_auto_upgrade_skill(snapshot: InstallManifestSnapshot, codex_root: Path) -> bool:
+    if snapshot.state != "available":
+        return False
+    records = tuple(
+        artifact for artifact in snapshot.artifacts if artifact.get("path") == "skills/personal-skill-router"
+    )
+    if len(records) != 1 or records[0].get("kind") != "directory" or records[0].get("ownership") != "managed":
+        return False
+    return artifact_state(codex_root, records[0]) == "matching"
 
 
 def install_artifacts(
@@ -575,7 +613,8 @@ def install_artifacts(
         (hook_dir / "lazy_skill_router_scoring.py", "managed"),
         (hook_dir / "lazy_skill_router_contracts.py", "managed"),
         (hook_dir / "lazy_skill_router_inventory.py", "managed"),
-        (inventory_destination, "managed"),
+        (hook_dir / "lazy_skill_router_policy_ir.py", "managed"),
+        (inventory_destination, "generated"),
         (routes_destination, route_ownership),
         (skill_destination, skill_ownership),
     )
@@ -586,7 +625,10 @@ def route_errors(config: dict[str, Any]) -> tuple[str, ...]:
 
 
 def installed_names_for_install(codex_root: Path, agents_root: Path) -> set[str]:
-    names = installed_skill_names(codex_root, agents_root)
+    try:
+        names = installed_skill_names(codex_root, agents_root)
+    except TemplateError as exc:
+        raise InstallError(str(exc)) from exc
     names.add("personal-skill-router")
     return names
 
@@ -712,33 +754,61 @@ def smoke_stop_hook(hook_path: Path, route_path: Path) -> None:
 
 
 def first_route_primary(route_config: dict[str, Any]) -> str:
-    routes = route_config.get("routes")
-    if not isinstance(routes, list) or not routes:
-        raise InstallError("routes unavailable for implicit smoke probe")
-    first_route = routes[0]
-    if not isinstance(first_route, dict):
-        raise InstallError("routes unavailable for implicit smoke probe")
-    primary = first_route.get("primary")
-    if not isinstance(primary, str) or not primary:
-        raise InstallError("route primary unavailable for implicit smoke probe")
+    parsed = parse_policy_config(route_config)
+    primary = select_smoke_primary(parsed.policy)
+    if primary is None:
+        raise InstallError("eligible active route primary unavailable for implicit smoke probe")
     return primary
 
 
-def smoke_probe_config(primary: str) -> dict[str, Any]:
-    config: dict[str, Any] = {
-        "allowedSkills": [primary],
-        "logging": {"enabled": False, "path": ""},
-        "routes": [
-            {
-                "name": "internal-smoke-probe",
-                "primary": primary,
-                "supporting": [],
-                "verification": "",
-                "reason": "internal smoke probe",
-                "patterns": [f"^{INTERNAL_SMOKE_PROMPT}$"],
-            }
-        ],
-    }
+def smoke_probe_config(route_config: dict[str, Any]) -> dict[str, Any]:
+    primary = first_route_primary(route_config)
+    schema_version = parse_policy_config(route_config).policy.schema_version
+    if schema_version == 2:
+        capability = "internal-smoke-primary"
+        config: dict[str, Any] = {
+            "schemaVersion": 2,
+            "policyVersion": "internal-smoke-probe",
+            "selection": {
+                "mode": "ranked",
+                "maxRecommendations": 1,
+                "minMatchStrength": 0.55,
+                "minScoreMargin": 0.05,
+            },
+            "skillBindings": {capability: {"skill": primary}},
+            "allowedSkills": [primary],
+            "logging": {"enabled": False, "path": ""},
+            "routes": [
+                {
+                    "id": "internal-smoke-probe",
+                    "intent": "internal_smoke_probe",
+                    "capabilityRequirements": {"primary": [capability]},
+                    "match": {
+                        "any": [
+                            {
+                                "id": "internal-smoke-probe.token",
+                                "regex": f"^{INTERNAL_SMOKE_PROMPT}$",
+                            }
+                        ]
+                    },
+                }
+            ],
+        }
+    else:
+        config = {
+            "allowedSkills": [primary],
+            "logging": {"enabled": False, "path": ""},
+            "routes": [
+                {
+                    "name": "internal-smoke-probe",
+                    "primary": primary,
+                    "supporting": [],
+                    "verification": "",
+                    "reason": "internal smoke probe",
+                    "patterns": [f"^{INTERNAL_SMOKE_PROMPT}$"],
+                }
+            ],
+        }
     errors = route_errors(config)
     if errors:
         raise InstallError("internal smoke probe routes failed validation: " + "; ".join(errors))
@@ -747,7 +817,7 @@ def smoke_probe_config(primary: str) -> dict[str, Any]:
 
 def smoke_config_for_prompt(route_config: dict[str, Any], explicit_prompt: str | None) -> tuple[dict[str, Any], str]:
     if explicit_prompt is None:
-        return smoke_probe_config(first_route_primary(route_config)), INTERNAL_SMOKE_PROMPT
+        return smoke_probe_config(route_config), INTERNAL_SMOKE_PROMPT
     staged_config: dict[str, Any] = copy.deepcopy(route_config)
     staged_config["logging"] = {"enabled": False, "path": ""}
     staged_config["activation"] = {"mode": "inject"}
@@ -882,10 +952,12 @@ def main() -> int:
             actions.append(f"copy hook scoring {hook_destination.parent / 'lazy_skill_router_scoring.py'}")
             actions.append(f"copy hook contracts {hook_destination.parent / 'lazy_skill_router_contracts.py'}")
             actions.append(f"copy hook inventory {hook_destination.parent / 'lazy_skill_router_inventory.py'}")
+            actions.append(f"copy hook policy IR {hook_destination.parent / 'lazy_skill_router_policy_ir.py'}")
 
+            auto_upgrade_skill = can_auto_upgrade_skill(previous_manifest, codex_root)
             skill_state = copy_skill(
                 skill_destination,
-                force=args.force,
+                force=args.force or auto_upgrade_skill,
                 dry_run=args.dry_run,
                 codex_root=codex_root,
             )
@@ -919,8 +991,9 @@ def main() -> int:
             )
             skill_ownership = (
                 "managed"
-                if skill_state in {"copied skill", "would copy skill"}
-                else previous_ownership(previous_manifest, "skills/personal-skill-router", "preserved")
+                if skill_state
+                in {"copied skill", "would copy skill", "upgraded existing skill", "would upgrade existing skill"}
+                else "preserved"
             )
             if args.dry_run:
                 actions.append(f"would write install ownership manifest {install_manifest_destination}")

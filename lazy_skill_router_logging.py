@@ -21,7 +21,7 @@ DEFAULT_RETENTION_DAYS = 30
 MAX_MAX_ENTRIES = 10000
 MAX_RETENTION_DAYS = 365
 MEASUREMENT_EVENT_SCHEMA = "lazy-skill-router.measurement-event/v1"
-MEASUREMENT_EVENT_TYPES = frozenset({"completion", "decision", "outcome"})
+MEASUREMENT_EVENT_TYPES = frozenset({"completion", "decision", "outcome", "policy-feedback"})
 
 
 class RouteLike(Protocol):
@@ -207,6 +207,15 @@ def candidate_route_ids(candidates: Iterable[RouteMatchLike]) -> list[str]:
     return [candidate.route.name for candidate in candidates]
 
 
+def candidate_proposal_revisions(candidates: Iterable[RouteMatchLike]) -> dict[str, str]:
+    revisions = {}
+    for candidate in candidates:
+        revision = getattr(candidate.route, "proposal_revision", None)
+        if isinstance(revision, str) and revision:
+            revisions[candidate.route.name] = revision
+    return revisions
+
+
 def log_decision(
     prompt: str,
     match: RouteMatchLike | None,
@@ -216,13 +225,19 @@ def log_decision(
     mode: str = "direct",
     injected: bool = False,
     candidates: Iterable[RouteMatchLike] = (),
+    shadow_candidates: Iterable[RouteMatchLike] = (),
+    shadow_would_win: Iterable[str] = (),
     decision_status: str | None = None,
     latency_ms: float | None = None,
     catalog_revision: str | None = None,
     runtime_revision: str | None = None,
 ) -> None:
+    shadow_candidates = tuple(shadow_candidates)
     matched_pattern_ids = list(getattr(match, "matched_pattern_ids", ())) if match is not None else []
     candidate_ids = candidate_route_ids(candidates)
+    shadow_candidate_ids = candidate_route_ids(shadow_candidates)
+    compiler = config.get("policyCompiler")
+    proposal_revision = compiler.get("proposalRevision") if isinstance(compiler, dict) else None
     if not candidate_ids and match is not None:
         candidate_ids = [match.route.name]
     event = {
@@ -240,6 +255,10 @@ def log_decision(
         "matchStrength": match.confidence if match else 0.0,
         "score": match.score if match else 0.0,
         "candidateRouteIds": candidate_ids,
+        "shadowCandidateRouteIds": shadow_candidate_ids,
+        "shadowCandidateProposalRevisions": candidate_proposal_revisions(shadow_candidates),
+        "shadowWouldWinRouteIds": list(shadow_would_win),
+        "proposalRevision": proposal_revision if isinstance(proposal_revision, str) else None,
         "matchedPatternIds": matched_pattern_ids,
         "policyVersion": policy_version(config),
         "configRevision": config_revision(config),

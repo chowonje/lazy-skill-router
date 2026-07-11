@@ -30,6 +30,9 @@ class CliTest(unittest.TestCase):
         self.assertIn("route", completed.stdout)
         self.assertIn("outcome", completed.stdout)
         self.assertIn("report", completed.stdout)
+        self.assertIn("sync", completed.stdout)
+        self.assertIn("policy", completed.stdout)
+        self.assertIn("catalog", completed.stdout)
         self.assertNotIn("eval", completed.stdout)
         self.assertNotIn("generate-routes", completed.stdout)
 

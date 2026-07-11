@@ -14,7 +14,7 @@ from lazy_skill_router_core import (
     dry_run_output,
     format_context,
     load_config,
-    route_matches,
+    route_matches_with_shadow_competition,
     show_router_notice,
     text_matches,
 )
@@ -99,23 +99,22 @@ def main(argv: list[str] | None = None) -> int:
     prompt, event = prompt_and_event(args.prompt, args.prompt_text)
     if not isinstance(prompt, str) or not prompt.strip():
         return 0
+    inventory = inventory_for_config(config, args.inventory)
 
     if args.hook_ir_json:
-        inventory = inventory_for_config(config, args.inventory)
         print(json.dumps(hook_ir_v1(prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
     if args.recommendation_json:
-        inventory = inventory_for_config(config, args.inventory)
         print(json.dumps(structured_recommendation_v1(prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
     if args.route_result_v2:
-        print(json.dumps(route_result_v2(prompt, config), ensure_ascii=False, indent=2))
+        print(json.dumps(route_result_v2(prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
     if args.dry_run:
-        print(json.dumps(dry_run_output(prompt, config), ensure_ascii=False, indent=2))
+        print(json.dumps(dry_run_output(prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
     started = time.perf_counter()
@@ -133,9 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    matches = route_matches(prompt, config)
+    matches, shadow_matches, promotion_winners = route_matches_with_shadow_competition(prompt, config, inventory)
     match = matches[0] if matches else None
-    inventory = inventory_for_config(config, args.inventory)
     log_decision(
         prompt,
         match,
@@ -144,6 +142,9 @@ def main(argv: list[str] | None = None) -> int:
         mode=mode,
         injected=mode == "inject" and match is not None,
         candidates=matches[:3],
+        shadow_candidates=shadow_matches[:3],
+        shadow_would_win=promotion_winners,
+        decision_status=("matched" if match is not None else "shadow-match" if shadow_matches else "no-match"),
         latency_ms=(time.perf_counter() - started) * 1000,
         catalog_revision=inventory.revision if inventory is not None else None,
         runtime_revision=code_revision,

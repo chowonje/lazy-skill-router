@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.5.0.dev0 (Unreleased)
+
+### App-Aware Policy Sync
+
+- Adds `catalog`, `sync`, and `policy` CLI workflows for app-provided skill metadata, revisioned inventory drift, and
+  app-LLM-generated route proposals.
+- Adds bounded frontmatter description extraction so policy context can explain filesystem skills without persisting
+  full `SKILL.md` bodies.
+- Keeps LLM use out of the runtime hook. Proposals compile into deterministic `shadow` routes layered after preserved
+  active routes.
+- Adds route lifecycle enforcement, real-shadow-decision feedback linkage, and an explicit promotion gate requiring at
+  least five samples, helpful rate of `0.8`, zero harmful samples, and user approval.
+- Adds explicit route retirement for removed or disabled skills; retirement keeps the route record and marks it
+  `disabled` after stage review.
+- Makes doctor detect filesystem and host-catalog inventory staleness and counts missing skill names uniquely.
+- Excludes unresolved duplicate skill names and inactive host-confirmed cache entries from automatic route generation.
+- Adds one immutable Policy IR shared by runtime, validator, sync, doctor, install smoke, evaluator, and policy compiler.
+  Route config v1 and v2 remain supported in their original schema.
+- Adds preferred `policy-proposal/v2` with canonical bindings, identifier-safe route/intent/pattern/skill names, and no
+  free-form route reason or pattern label. Proposal v1 remains as a deprecated compatibility input.
+- Adds schema-tagged per-reference resolution results and distinct missing, inactive, ambiguous, canonical-missing, and
+  canonical-mismatch findings to sync JSON.
+- Preserves v1 or v2 base policy shape during compilation and adds new routes only as shadow candidates.
+
+### Safety
+
+- Policy compilation rejects stale inventory revisions, unavailable or ambiguous skills, unsupported fields, unsafe
+  regex forms, and overlapping positive examples.
+- Stage and promotion re-check the current inventory and host-catalog revisions. Promotion evidence is bound to the
+  exact config revision and only counts shadow decisions that would win after activation.
+- App-generated regexes use a restricted, bounded subset; unbounded quantifiers, quantified alternation, lookaround,
+  and backreferences are rejected.
+- Sync apply writes only the inventory manifest. Policy compilation writes a separate candidate file, and stage and
+  promotion back up the active route config before mutation.
+- Skill scanning rejects leaf symlinks, symlinked parents, and metadata outside the selected root before reading it;
+  additive `scanIssues` expose only relative locators and reason codes.
+- Hook context uses validated pattern IDs and a fixed router-owned reason, so descriptions and proposal v1 reason/label
+  text cannot become model-visible routing instructions.
+- Invalid Policy IR fails open, configured inventory canonical IDs are enforced before runtime scoring, and versioned
+  recommendation adapters exclude shadow and disabled routes.
+- Schema v2 compilation extends an existing `allowedSkills` list for new shadow routes and preserves all prior entries.
+- Inventory resolution rejects canonical IDs shared across usable configured names and drops unresolved default
+  verification references before model-visible hook context is built.
+- Implicit install and doctor probes preserve schema v1 or v2, and policy/catalog writes reject symlinked parent
+  components before backup or atomic replacement.
+- Install automatically upgrades the bundled router skill only when its managed manifest digest still matches. Modified,
+  preserved, symlinked, unsafe, or unowned copies remain untouched without explicit `--force`.
+
 ## 0.4.0 (2026-07-10)
 
 ### Highlights

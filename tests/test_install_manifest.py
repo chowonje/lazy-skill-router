@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -8,7 +10,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import install
 from lazy_skill_router_install_manifest import build_install_manifest, load_install_manifest, manifest_revision
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +32,61 @@ def run_command(
         command.extend(["--agents-home", str(agents_home)])
     command.extend(args)
     return subprocess.run(command, check=False, capture_output=True, text=True, cwd=ROOT)
+
+
+def run_install_main(
+    codex_home: Path,
+    agents_home: Path,
+    *args: str,
+) -> subprocess.CompletedProcess[str]:
+    argv = [
+        "install.py",
+        "--codex-home",
+        str(codex_home),
+        "--agents-home",
+        str(agents_home),
+        *args,
+    ]
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    with (
+        mock.patch.object(sys, "argv", argv),
+        mock.patch.object(install, "smoke_staged_hook"),
+        contextlib.redirect_stdout(stdout),
+        contextlib.redirect_stderr(stderr),
+    ):
+        returncode = install.main()
+    return subprocess.CompletedProcess(argv, returncode, stdout.getvalue(), stderr.getvalue())
+
+
+def seed_installed_skill(codex_home: Path, ownership: str) -> tuple[Path, Path]:
+    skill = codex_home / "skills" / "personal-skill-router"
+    skill.mkdir(parents=True)
+    marker = skill / "legacy-marker.txt"
+    marker.write_text("legacy skill\n", encoding="utf-8")
+    (skill / "SKILL.md").write_text(
+        "---\nname: personal-skill-router\n---\nlegacy skill\n",
+        encoding="utf-8",
+    )
+    manifest = build_install_manifest(
+        codex_home,
+        ((skill, ownership),),
+        "python3 old-hook.py",
+        generated_at="2026-07-10T00:00:00Z",
+    )
+    manifest_path = codex_home / "lazy-skill-router" / "install.manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return skill, marker
+
+
+def skill_ownership(codex_home: Path) -> str:
+    snapshot = load_install_manifest(codex_home / "lazy-skill-router" / "install.manifest.json")
+    return next(
+        str(artifact["ownership"])
+        for artifact in snapshot.artifacts
+        if artifact.get("path") == "skills/personal-skill-router"
+    )
 
 
 class InstallManifestTest(unittest.TestCase):
@@ -105,6 +164,94 @@ class InstallManifestTest(unittest.TestCase):
 
         self.assertEqual(doctor.returncode, 1)
         self.assertIn("[FAIL] install ownership manifest validates: managed artifact drift", doctor.stdout)
+
+    def test_install_auto_upgrades_a_matching_managed_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            skill, marker = seed_installed_skill(codex_home, "managed")
+
+            dry_run = run_install_main(codex_home, agents_home, "--dry-run")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stderr)
+            self.assertIn("would upgrade existing skill", dry_run.stdout)
+            self.assertTrue(marker.is_file())
+
+            with mock.patch.object(install, "write_skill_inventory", side_effect=OSError("injected failure")):
+                failed_install = run_install_main(codex_home, agents_home)
+            self.assertEqual(failed_install.returncode, 1)
+            self.assertIn("injected failure", failed_install.stderr)
+            self.assertTrue(marker.is_file())
+
+            completed = run_install_main(codex_home, agents_home)
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("upgraded existing skill", completed.stdout)
+            self.assertFalse(marker.exists())
+            self.assertEqual(
+                (skill / "SKILL.md").read_bytes(),
+                (ROOT / "skills" / "personal-skill-router" / "SKILL.md").read_bytes(),
+            )
+            self.assertEqual(skill_ownership(codex_home), "managed")
+
+    def test_install_preserves_a_modified_managed_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            _, marker = seed_installed_skill(codex_home, "managed")
+            marker.write_text("user-modified skill\n", encoding="utf-8")
+
+            dry_run = run_install_main(codex_home, agents_home, "--dry-run")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stderr)
+            self.assertIn("would keep existing skill", dry_run.stdout)
+
+            completed = run_install_main(codex_home, agents_home)
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("kept existing skill", completed.stdout)
+            self.assertEqual(marker.read_text(encoding="utf-8"), "user-modified skill\n")
+            self.assertEqual(skill_ownership(codex_home), "preserved")
+            second_dry_run = run_install_main(codex_home, agents_home, "--dry-run")
+            self.assertEqual(second_dry_run.returncode, 0, second_dry_run.stderr)
+            self.assertIn("would keep existing skill", second_dry_run.stdout)
+
+    def test_install_preserves_a_skill_with_preserved_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            _, marker = seed_installed_skill(codex_home, "preserved")
+
+            dry_run = run_install_main(codex_home, agents_home, "--dry-run")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stderr)
+            self.assertIn("would keep existing skill", dry_run.stdout)
+            self.assertTrue(marker.is_file())
+
+            completed = run_install_main(codex_home, agents_home)
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertTrue(marker.is_file())
+            self.assertEqual(skill_ownership(codex_home), "preserved")
+
+    def test_force_replaces_a_preserved_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            _, marker = seed_installed_skill(codex_home, "preserved")
+
+            dry_run = run_install_main(codex_home, agents_home, "--force", "--dry-run")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stderr)
+            self.assertIn("would upgrade existing skill", dry_run.stdout)
+            self.assertTrue(marker.is_file())
+
+            completed = run_install_main(codex_home, agents_home, "--force")
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("upgraded existing skill", completed.stdout)
+            self.assertFalse(marker.exists())
+            self.assertEqual(skill_ownership(codex_home), "managed")
 
     def test_doctor_does_not_execute_a_modified_managed_hook(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1,19 +1,21 @@
 # Overlap Policy
 
-Primary skills own the work. Supporting skills constrain, inspect, or verify.
+Primary skills own the requested action. Supporting skills add bounded context or constraints. Verification skills check
+the result after the work.
 
-## Common Overlaps
+## Tie Breakers
 
-| Overlap | Choose | Why |
-|---|---|---|
-| `superpowers` vs `task-brief-normalizer` | `superpowers` | Broader reasoning loop. Use `task-brief-normalizer` for rough prompt cleanup. |
-| `ponytail-lite` vs `omo:refactor` | `omo:refactor` for code changes, `ponytail-lite` for scope control | One changes code structure; one constrains approach. |
-| `omo:lsp` vs `code-navigation` | `code-navigation` for explanation, `omo:lsp` for diagnostics or rename checks | Use the narrower need. |
-| `omo:visual-qa` vs `playwright` | `visual-qa` for appearance, `playwright` for behavior | They verify different surfaces. |
-| `browser:control-in-app-browser` vs `chrome:control-chrome` | `browser` for current Codex browser, `chrome` for logged-in Chrome | Choose target browser state. |
-| `github:github` vs `github:yeet` | `github` for reading/context, `yeet` for publishing | Do not publish unless the user asked. |
-| `docs-sync` vs `writing-polish` | `docs-sync` for factual sync, `writing-polish` for wording | Use both when docs must be accurate and polished. |
-| `codex-security:security-scan` vs `security-best-practices` | `security-scan` | Full scan is primary; best practices are lightweight advice. |
+Apply these rules only to candidates present in the current app catalog:
+
+1. Exact product, format, or workflow support beats a generic domain match.
+2. An executor beats a planner or style guardrail for implementation work.
+3. A state-aware integration beats generic automation when the request depends on an existing signed-in session.
+4. A repeatable automation tool beats ad hoc interaction when the user asks for reproducible verification.
+5. A focused security, privacy, or migration workflow beats generic review for that exact risk.
+6. A verifier remains verification unless the request itself is solely a readiness check.
+
+If the intended action still does not distinguish the candidates, do not inject either automatically. Record a narrow
+shadow route only after synthetic positive and negative examples separate the intent.
 
 ## Stop Rules
 
@@ -25,4 +27,4 @@ Use more than three total skills only when:
 - a verification skill is required after implementation
 - a security or privacy review is part of the requested done condition
 
-When uncertain, choose the primary skill and state the omitted candidate as a fallback.
+When uncertain, abstain from automatic routing. The main agent may still choose an available skill explicitly.

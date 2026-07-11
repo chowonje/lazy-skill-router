@@ -1,18 +1,23 @@
 # lazy-skill-router
 
 `lazy-skill-router` is a Codex hook that classifies the current prompt, optionally injects a small skill recommendation,
-and can accumulate privacy-preserving activation evidence.
+and can accumulate privacy-preserving activation evidence. Its app-aware sync workflow lets the host LLM describe the
+skills it can actually see and propose user-specific routes before the deterministic hook uses them.
 
-It is a recommendation layer, not a policy layer. Codex should still inspect the actual task, repository state, and safety constraints before choosing any skill.
+It is a recommendation policy, not an authorization layer. Codex should still inspect the actual task, repository
+state, and safety constraints before choosing any skill.
 
 The current shipped behavior is documented in [`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md).
-The current source branch targets `0.4.0`; upgrade and rollback notes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
+The released compatibility baseline is `0.4.0`; unreleased source changes and rollback notes are tracked in
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ## Why Use It
 
 Use this when your Codex setup has more skills than you want to remember.
 
-`personal-skill-router` is the guidebook: it groups locally installed skills by purpose and records which ones should be primary, supporting, or verification skills.
+`personal-skill-router` is the setup guide: it can use the current app's skill metadata to prepare a local host catalog
+and policy proposal. When no compiled policy exists, it selects only from the current app catalog and abstains when no
+available skill is a clear match.
 
 `lazy-skill-router` is the hook: it reads each prompt, checks the route table, and either injects a short recommendation
 or measures the decision in shadow mode.
@@ -57,8 +62,12 @@ On each user prompt, the hook:
 4. Injects a short `<lazy-skill-router>` recommendation in `inject` mode, or records the same decision in `shadow` mode.
 5. Fails open when no route is clear and can correlate a later `Stop` completion event when measurement is enabled.
 
+The app LLM runs only during explicit setup or sync. It writes structured metadata and a policy proposal; it never
+writes executable hook code. The runtime hook makes no LLM or network call.
+
 The default hook and `route --json` remain compatible with route config v1. The v0.4 release also contains opt-in
-route-result v2, structured recommendation v1, compact Hook IR, and schema v2 policy support. See
+route-result v2, structured recommendation v1, compact Hook IR, and schema v2 policy support. The v0.5 development
+line normalizes both route schemas through one Policy IR and prefers the safer policy-proposal v2 contract. See
 [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md) for the exact boundary.
 
 Operational boundaries are documented in [`SUPPORT.md`](SUPPORT.md) and [`SECURITY.md`](SECURITY.md).
@@ -69,13 +78,16 @@ The injected block includes:
 - route name
 - confidence
 - selection score
-- matched signals
+- validated pattern IDs
 - primary skill
 - supporting skills
 - verification skill
-- reason
+- a fixed router-owned reason
 
 User-provided `<lazy-skill-router>` text is treated as untrusted prompt text. The hook never reads instructions from user-injected router blocks.
+Any Policy IR parse error fails open with no recommendation. When an inventory manifest is configured, runtime routing
+also excludes routes whose configured names are missing, inactive, ambiguous, or do not match a requested canonical ID.
+Versioned route-result, structured recommendation, and Hook IR outputs use the same resolved active-route set.
 
 ## Install
 
@@ -86,6 +98,7 @@ pipx install lazy-skill-router
 lazy-skill-router route "GitHub PR에서 CI 실패 고쳐줘"
 lazy-skill-router install --dry-run
 lazy-skill-router install
+lazy-skill-router sync --plan
 lazy-skill-router doctor
 ```
 
@@ -99,6 +112,7 @@ The installer:
 - stages the standalone copied runtime and a logging-disabled smoke config in a temporary directory
 - runs the staged hook with a real stdin `UserPromptSubmit` envelope through the canonical standalone `python3` argv before mutating target paths, then removes the temporary staging directory
 - after the staged smoke succeeds, copies the hook runtime into `~/.codex/hooks/`, installs the bundled `personal-skill-router` skill, and writes generated or changed routes
+- upgrades an unchanged manifest-owned `personal-skill-router` automatically, while preserving modified, symlinked, or user-owned copies unless `--force` is explicit
 - generates path-redacted skill inventory and install ownership manifests
 - journals every mutation target, restores on a later copy/write error, and recovers an interrupted transaction on the next install
 - backs up `~/.codex/hooks.json` before editing it
@@ -107,7 +121,11 @@ The installer:
 
 Hook registration is the final install step. If route generation, validation, or the staged smoke fails, the installer exits before target mutation: no new target artifacts are written, and an existing `routes.json` remains byte-for-byte unchanged.
 
-When `--smoke-prompt` is omitted, install and doctor use a controlled temporary probe route. This verifies the copied runtime and real hook envelope without requiring a valid narrow custom route table to match a hard-coded user prompt. Passing `--smoke-prompt PROMPT` instead runs that prompt against the validated real route config and requires a routed envelope; a no-match result is a strict smoke failure.
+When `--smoke-prompt` is omitted, install and doctor select the first eligible active primary from the shared Policy IR
+and use it in a controlled temporary probe route. This supports both route schemas without depending on JSON order or a
+shadow route. If no eligible active primary exists, install fails before target mutation. Passing `--smoke-prompt
+PROMPT` instead runs that prompt against the validated real route config and requires a routed envelope; a no-match
+result is a strict smoke failure.
 
 After install, run the read-only doctor:
 
@@ -116,6 +134,7 @@ lazy-skill-router doctor
 ```
 
 The doctor checks that hook files exist, `routes.json` validates, inventory and ownership manifest revisions are valid,
+the stored inventory still matches the filesystem and optional host catalog,
 managed runtime digests match, exactly one `UserPromptSubmit` router entry is registered with the canonical standalone
 `python3` command, the optional `Stop` hook matches the measurement setting, the installed hook accepts real
 `UserPromptSubmit` and `Stop` smoke events through a temporary logging-disabled config, and configured route skills are
@@ -155,6 +174,10 @@ python3 -m pipx upgrade lazy-skill-router
 `lazy-skill-router install --overwrite-routes` only when you want to regenerate local routes from the currently
 installed skills.
 
+The bundled `personal-skill-router` is upgraded automatically only when its previous install manifest marks it as
+managed and its digest still matches. Modified, preserved, missing-manifest, symlinked, and otherwise unsafe copies are
+left untouched. Use `--force` only when an explicit replacement is intended.
+
 For the `0.4.0` upgrade, measurement remains disabled and the legacy advisory hook output remains the default. Enable
 shadow measurement explicitly only after reviewing the local log path and retention settings. See
 [`CHANGELOG.md`](CHANGELOG.md) for rollback and compatibility notes.
@@ -190,12 +213,20 @@ Install only from PyPI or a trusted checkout of this repository. Avoid curl-pipe
 - `~/.codex/hooks/lazy_skill_router_contracts.py`
 - `~/.codex/hooks/lazy_skill_router_inventory.py`
 - `~/.codex/hooks/lazy_skill_router_logging.py`
+- `~/.codex/hooks/lazy_skill_router_policy_ir.py`
 - `~/.codex/hooks/lazy_skill_router_scoring.py`
 - `~/.codex/skills/personal-skill-router/`
 - `~/.codex/lazy-skill-router/routes.json`
 - `~/.codex/lazy-skill-router/skills.manifest.json`
 - `~/.codex/lazy-skill-router/install.manifest.json`
 - `~/.codex/hooks.json`
+
+The explicit app-policy workflow may also write user-owned `host-catalog.json`, `policy.proposal.json`,
+`routes.candidate.json`, policy feedback events, and route backups. Uninstall does not remove these user-owned policy
+artifacts automatically.
+
+Complete package and bundled-skill upgrades before generating the host catalog or policy proposal. A skill-file change
+after sync changes the inventory revision, so stage and promotion correctly reject the older candidate.
 
 It does not run MCP tools, browser tools, GitHub Actions, or shell commands on your repositories.
 
@@ -270,6 +301,7 @@ Example output:
   "score": 0.8,
   "confidenceLabel": "normal",
   "matchedSignals": ["CI keyword", "Korean CI failure"],
+  "matchedPatternIds": ["github-ci.5966e187f646", "github-ci.1609409fc690"],
   "matchedPatterns": ["\\bci\\b", "ci.*실패"],
   "candidates": [
     {
@@ -281,6 +313,7 @@ Example output:
       "score": 0.8,
       "confidenceLabel": "normal",
       "matchedSignals": ["CI keyword", "Korean CI failure"],
+      "matchedPatternIds": ["github-ci.5966e187f646", "github-ci.1609409fc690"],
       "matchedPatterns": ["\\bci\\b", "ci.*실패"]
     }
   ],
@@ -288,7 +321,10 @@ Example output:
 }
 ```
 
-Dry-run output includes the selected route and up to three ranked route candidates so route tuning can show why a route won. `matchedSignals` contains human-readable labels when configured, while `matchedPatterns` preserves the regexes that matched for debugging.
+Dry-run output includes the selected route and up to three ranked route candidates so route tuning can show why a
+route won. `matchedSignals` contains human-readable labels and `matchedPatterns` preserves regexes for local diagnostics.
+`matchedPatternIds` is the safe identifier list used by the model-visible hook context; labels and regexes are not
+injected.
 
 Weak recommendations are still injected by default when they pass `minConfidence`, but they are labeled as weak so the agent can treat them cautiously.
 
@@ -321,13 +357,17 @@ Important fields:
 - `routes[].fallback`: optional boolean; fallback routes only win when no non-fallback route matches
 - `routes[].patterns`: strings or `{ "regex": "...", "label": "..." }` objects
 
-Schema v2 is opt-in and keeps intent/capability policy separate from concrete `skillBindings`. Unsupported schema
-versions fail open. The schema, example, and migration boundary are documented in
+Schema v2 is opt-in and keeps intent/capability policy separate from concrete `skillBindings`. A binding may be a
+configured-name string or `{ "skill": "...", "canonicalId": "..." }`. Runtime, validation, sync, doctor, install,
+and policy compilation normalize v1 and v2 through the same Policy IR. Unsupported schema versions fail open. The
+schema, example, and migration boundary are documented in
 [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md).
 
-If your Codex setup does not include skills like `omo:programming` or `github:github`, either remove those routes or change them to skills you have installed.
+Legacy route files can reference skills that the current app no longer exposes. Use the catalog and policy sync workflow
+to retire those routes explicitly; do not substitute a merely related skill or trust stale plugin-cache copies.
 
-Use pattern labels when a regex is too noisy for the injected recommendation block:
+Use pattern labels to make local dry-run diagnostics easier to read. Labels are not included in the injected
+recommendation block:
 
 ```json
 {
@@ -386,9 +426,11 @@ python3 generate_routes.py
 
 The generator:
 
-- selects the first installed `primaryCandidates` entry for each route
-- skips a route when none of its primary candidates are installed
-- keeps only installed supporting and verification candidates
+- reconciles filesystem skills with `host-catalog.json` when available
+- excludes unresolved duplicate names and host-confirmed inactive cache entries
+- selects the first eligible `primaryCandidates` entry for each route
+- skips a route when none of its primary candidates are eligible
+- keeps only eligible supporting and verification candidates
 - writes `~/.codex/lazy-skill-router/routes.json` by default
 
 It does not edit `hooks.json`, install skills, or change the runtime hook.
@@ -408,35 +450,94 @@ Run golden prompt regression checks after route changes:
 python3 eval_routes.py eval/prompts.jsonl
 ```
 
-When you add or remove Codex skills, check whether the route table still matches your local setup:
+When you add, remove, enable, or disable skills, start with a read-only sync plan:
 
 ```bash
-python3 sync_skills.py
-python3 sync_skills.py --routes ~/.codex/lazy-skill-router/routes.json
+lazy-skill-router sync --plan
+lazy-skill-router sync --plan --json
 ```
 
-`sync_skills.py` is report-only. It scans installed `SKILL.md` files, compares them with `allowedSkills` and route references, and prints:
+The plan compares the current inventory with the previous manifest and reports:
 
+- added, removed, and content-changed skills
 - configured skills that are no longer installed
 - route references to missing skills
 - installed skills that are not yet included in the router
 - duplicate installed skill names
+- rejected skill metadata locators and reason codes in additive `scanIssues`
+- schema-specific resolved references and canonical/availability findings
 
-Duplicate skill names are reported as a warning, not an install failure. They usually mean the same skill exists in more
-than one Codex skill root or plugin cache. Use `python3 sync_skills.py --json` when you need full paths for cleanup.
+JSON reports include additive `policySchemaVersion` and `resolvedReferences`. Each resolution records the route field,
+lifecycle, configured name, requested and resolved canonical IDs, and a deterministic status such as `resolved`,
+`missing`, `inactive`, `ambiguous`, or `canonical_mismatch`.
 
-Use `--strict` in CI or release checks when missing configured skills should fail the command.
+`sync --plan` never edits routes or manifests. `sync --apply` updates only `skills.manifest.json`; active routes remain
+byte-for-byte preserved. Duplicate names remain unavailable to automatic route generation until a host catalog resolves
+the active skill.
 
-Write the canonical, path-redacted inventory used by structured diagnostics with:
+Use `--strict` in CI or release checks when missing, inactive, ambiguous, rejected, or canonical-mismatched active
+bindings should fail the command. Rejected but unreferenced metadata remains a warning. The legacy source report remains
+available as `python3 sync_skills.py`.
+
+## App LLM Policy Sync
+
+The current app can contribute its actual visible skill names, descriptions, and enabled state without putting an LLM
+inside the runtime hook. The app writes a draft; the CLI validates, sorts, and revisions it:
 
 ```bash
-python3 sync_skills.py \
-  --routes ~/.codex/lazy-skill-router/routes.json \
-  --manifest-output ~/.codex/lazy-skill-router/skills.manifest.json
+lazy-skill-router catalog build
+lazy-skill-router catalog validate
+lazy-skill-router sync --apply
+lazy-skill-router policy context
 ```
 
-The installer writes this manifest automatically. Duplicate configured names remain ambiguous, and unverified runtime,
-auth, MCP, and managed-policy states remain `unknown` rather than being promoted to eligible.
+`host-catalog.draft.json` must contain only `host`, `complete`, and skill metadata. Set `complete` to true only when the
+app confirms the full runtime catalog; otherwise filesystem-only skills remain unknown rather than being falsely marked
+inactive. Catalogs and inventories exclude absolute paths and full skill bodies.
+
+`policy context` advertises `lazy-skill-router.policy-proposal/v2`. It requires identifier-safe route, intent, pattern,
+and configured skill names, canonical skill bindings, bounded regexes, and synthetic examples, and it has no free-form
+route reason or pattern label. Proposal v1 remains readable through a compatibility adapter and emits a deprecation
+warning; its identifiers pass the same safety rules and its free-form reason and labels are discarded before any
+model-visible context is built.
+
+After the app LLM writes `policy.proposal.json`, run:
+
+```bash
+lazy-skill-router policy validate
+lazy-skill-router policy compile
+lazy-skill-router policy stage
+```
+
+Compilation writes `routes.candidate.json`, preserves existing route records, rejects stale inventory revisions,
+unavailable or ambiguous skills, unsafe regexes, and overlapping positive examples, and marks every new route `shadow`.
+An explicit `retireRoutes` entry can mark a stale existing route `disabled` without deleting it. If a v2 base already
+uses `allowedSkills`, compilation extends that allowlist for the new shadow route without removing existing entries.
+Review the plan before staging:
+
+```bash
+lazy-skill-router policy stage --apply
+lazy-skill-router install --enable-measurement
+```
+
+Shadow routes are evaluated but never injected. Explicit human or objective feedback attaches only to a real, locally
+recorded shadow decision:
+
+```bash
+lazy-skill-router policy feedback --route-id pdf-generated --verdict helpful --source human
+lazy-skill-router policy promote --route-id pdf-generated
+```
+
+Activation requires current inventory and host-catalog revisions, at least five same-config shadow samples where the
+route would beat the active winner, helpful rate at least `0.8`, zero harmful samples, no conflicts, and explicit
+approval:
+
+```bash
+lazy-skill-router policy promote --route-id pdf-generated --apply --approve
+```
+
+See [`skills/personal-skill-router/references/policy-sync.md`](skills/personal-skill-router/references/policy-sync.md)
+for the draft and proposal schemas.
 
 ## Automatic Measurement And Cumulative Evaluation
 
@@ -501,7 +602,8 @@ lazy-skill-router report --config "$config" --json
 
 The versioned report includes route counts, abstention/injection rates, injection/shadow counts, internal decision-latency
 mean/p95/max, correlated completion rate, success by experiment arm, and paired native/inject rescue, harm, and net-win
-counts. Completion correlation requires both the session and turn hashes. Turn-based outcomes without a case id also
+counts. `decisions.shadowOnly` counts prompts matched only by lifecycle-shadow routes and includes them in the abstention
+rate. Completion correlation requires both the session and turn hashes. Turn-based outcomes without a case id also
 require both identifiers. Duplicate same-status outcomes are counted once; conflicting labels are excluded from success
 and pair metrics. Unknown event schemas with a valid timestamp are preserved in the bounded journal but ignored by the current report. Mixed
 revisions, unversioned outcomes, conflicts, invalid outcomes, and ignored events are exposed
@@ -519,10 +621,13 @@ mixing is detected.
 - The installer modifies `~/.codex/hooks.json`; run `lazy-skill-router install --dry-run` before installing.
 - `lazy-skill-router doctor` is read-only, uses a temporary logging-disabled route config for hook smoke checks, skips executable smoke after managed runtime drift, and exits non-zero when the installed hook, routes, manifests, registration, or configured skills are unhealthy.
 - Config source trust, route rank, and inventory availability are advisory and never authorize execution.
+- Inventory resolution rejects canonical IDs shared by multiple usable configured names, and unresolved default
+  verification skills are omitted from hook context.
 - The installer restores snapshotted targets on mutation errors and replays a path-confined recovery journal on the next install after interruption.
 - Install/recovery/uninstall reject symlinked artifact parents below the selected Codex home; `uninstall --remove-files`
   preserves modified files and leaf symlinks instead of following or deleting them.
 - Uninstall refuses a symlinked `hooks.json` write target.
+- Policy stage/promotion and host-catalog build refuse leaf symlinks and symlinked parent components before atomic writes.
 - The installer backs up `hooks.json` before editing it.
 - Install only from PyPI or a trusted checkout of this repository.
 - It does not read secrets or authentication files.
@@ -593,7 +698,7 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json

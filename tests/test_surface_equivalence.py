@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from generate_routes import generate_config
-from lazy_skill_router_core import dry_run_output
+from lazy_skill_router_core import context_value, dry_run_output
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_HOOK = ROOT / "lazy_skill_router.py"
@@ -106,10 +106,10 @@ class SurfaceEquivalenceTest(unittest.TestCase):
         )
 
         context = hook_output["hookSpecificOutput"]["additionalContext"]
-        signals = diagnostics["matchedSignals"]
-        signal_text = ", ".join(signals) if signals else "none"
-        self.assertIn(f"Route: {diagnostics['route']}", context)
-        self.assertIn(f"Primary skill: {diagnostics['primary']}", context)
+        signals = diagnostics["matchedPatternIds"]
+        signal_text = ", ".join(context_value(signal) for signal in signals) if signals else "none"
+        self.assertIn(f"Route: {context_value(diagnostics['route'])}", context)
+        self.assertIn(f"Primary skill: {context_value(diagnostics['primary'])}", context)
         self.assertIn(f"Selection score: {diagnostics['score']:.2f}", context)
         self.assertIn(f"Matched signals: {signal_text}", context)
 

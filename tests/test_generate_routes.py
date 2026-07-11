@@ -139,6 +139,24 @@ class GenerateRoutesTest(unittest.TestCase):
         self.assertEqual(result.config["allowedSkills"], ["omo:programming"])
         self.assertEqual(result.config["routes"][0]["primary"], "omo:programming")
 
+    def test_ambiguous_duplicate_skill_names_are_not_automatic_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            write_skill(codex_home / "skills" / "same" / "SKILL.md", "same")
+            write_skill(agents_home / "skills" / "same" / "SKILL.md", "same")
+
+            installed = generate_routes.installed_skill_names(codex_home, agents_home)
+            result = generate_routes.generate_config(
+                {"routes": [{"name": "same", "primaryCandidates": ["same"], "patterns": ["same"]}]},
+                installed,
+            )
+
+        self.assertNotIn("same", installed)
+        self.assertEqual(result.config["routes"], [])
+        self.assertEqual(result.skipped_routes, ("same",))
+
     def test_cli_writes_generated_routes_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

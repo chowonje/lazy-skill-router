@@ -1,4 +1,4 @@
 interface:
   display_name: "Personal Skill Router"
-  short_description: "Pick the right local Codex skills for the current task"
-  default_prompt: "Route this task to the right Codex skills before starting."
+  short_description: "Route tasks and sync app-aware local skill policy"
+  default_prompt: "Route this task, or synchronize the app-visible skill catalog and shadow policy when requested."

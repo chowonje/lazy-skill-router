@@ -126,6 +126,33 @@ class RouteResultV2Test(unittest.TestCase):
 
         self.assertEqual(source, packaged)
 
+    def test_versioned_contracts_exclude_disabled_and_shadow_routes(self) -> None:
+        config = {
+            "routes": [
+                {
+                    "name": "disabled",
+                    "primary": "pdf",
+                    "patterns": ["pdf"],
+                    "lifecycle": {"state": "disabled"},
+                },
+                {
+                    "name": "shadow",
+                    "primary": "pdf",
+                    "patterns": ["pdf"],
+                    "lifecycle": {"state": "shadow"},
+                },
+            ]
+        }
+
+        route_result = route_result_v2("pdf", config)
+        recommendation = structured_recommendation_v1("pdf", config)
+        hook_ir = hook_ir_v1("pdf", config)
+
+        self.assertEqual(route_result["status"], "no-match")
+        self.assertEqual(route_result["recommendations"], [])
+        self.assertEqual(recommendation["recommendations"], [])
+        self.assertEqual(hook_ir["routes"], [])
+
 
 class StructuredRecommendationV1Test(unittest.TestCase):
     def test_contract_is_self_describing_and_has_no_authority(self) -> None:

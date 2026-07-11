@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from lazy_skill_router_common import codex_home, load_json_object, write_json
+from lazy_skill_router_host_catalog import effective_skill_names, load_host_catalog, reconcile_inventory
+from lazy_skill_router_inventory import build_inventory_manifest
 from sync_skills import scan_installed_skills, string_list
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -29,7 +31,15 @@ class TemplateError(Exception):
 
 
 def installed_skill_names(codex_root: Path, agents_root: Path) -> set[str]:
-    return {record.name for record in scan_installed_skills(codex_root, agents_root)}
+    records = scan_installed_skills(codex_root, agents_root)
+    manifest = build_inventory_manifest(records, codex_root, agents_root)
+    host_catalog = load_host_catalog(codex_root / "lazy-skill-router" / "host-catalog.json")
+    if host_catalog.state == "invalid":
+        reason = ", ".join(host_catalog.reason_codes) or "invalid"
+        raise TemplateError(f"cannot use invalid host catalog: {reason}")
+    if host_catalog.state == "available":
+        manifest = reconcile_inventory(manifest, host_catalog)
+    return effective_skill_names(manifest)
 
 
 def first_installed(candidates: tuple[str, ...], installed: set[str]) -> str | None:
@@ -173,9 +183,13 @@ def main() -> int:
     template_path = Path(args.template).expanduser()
     output_path = Path(args.output).expanduser() if args.output else codex_root / "lazy-skill-router" / "routes.json"
 
-    result = generate_config(
-        load_json_object(template_path, "template root"), installed_skill_names(codex_root, agents_root)
-    )
+    try:
+        result = generate_config(
+            load_json_object(template_path, "template root"), installed_skill_names(codex_root, agents_root)
+        )
+    except (OSError, ValueError, TemplateError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     route_count = generated_route_count(result)
     if route_count == 0:
         print("ERROR: generated 0 routes; no installed primary candidates matched", file=sys.stderr)
