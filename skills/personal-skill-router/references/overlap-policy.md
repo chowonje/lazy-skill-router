@@ -28,3 +28,7 @@ Use more than three total skills only when:
 - a security or privacy review is part of the requested done condition
 
 When uncertain, abstain from automatic routing. The main agent may still choose an available skill explicitly.
+
+A `propose` decision is not a weaker form of activation. It means every skill remains deferred until the current agent
+confirms ownership of the requested action. Supporting and verification candidates never become active merely because
+their route won.

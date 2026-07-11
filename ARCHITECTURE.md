@@ -13,12 +13,16 @@ The current shipped public behavior is tracked in [`CURRENT_PUBLIC_CONTRACT.md`]
 3. `lazy_skill_router_core.py` resolves route config from an explicit path, `$LAZY_SKILL_ROUTER_CONFIG`, installed Codex config, or `routes.default.json`. Explicit and environment paths are authoritative, and an existing installed config is authoritative over the bundled default. A selected authoritative config that cannot be read or parsed produces an empty route table instead of falling through to a lower-trust source.
 4. `lazy_skill_router_policy_ir.py` normalizes route config v1 or v2 into immutable `PolicyIR` records. The routing
    engine checks normalized regex patterns, applies the skill allowlist, scores all matching candidates, and returns the
-   highest-ranked route.
-5. Route lifecycle is evaluated before delivery. `active` routes may inject, `shadow` routes are measured but never
-   injected, and `disabled` routes are ignored. Global `activation.mode` can still disable injection or all routing.
-6. The adapter injects a `<lazy-skill-router>` context block in `inject` mode, emits nothing model-visible in `shadow`
-   mode, or skips routing in `off` mode.
-7. When measurement is enabled, the decision is appended to a bounded local event journal and a conditional `Stop` hook
+   ranked route candidates.
+5. `lazy_skill_router_activation.py` turns those candidates into an immutable `ActivationIR` disposition:
+   `activate`, `propose`, or `abstain`. Meta, answer-only, weak, ambiguous, fallback, and incomplete-facet matches do
+   not auto-activate. Explicit actions override soft explanation wording, while hard no-action rules take precedence.
+6. Route lifecycle is evaluated before activation. `active` routes may participate, `shadow` routes are measured but
+   never injected, and `disabled` routes are ignored. Runtime `propose` is separate from policy lifecycle `shadow`.
+7. The adapter injects a `<lazy-skill-router>` context block in `inject` mode, emits nothing model-visible in `shadow`
+   mode, or skips routing in `off` mode. Only the primary skill can be activated; supporting and verification roles are
+   deferred.
+8. When measurement is enabled, the decision is appended to a bounded local event journal and a conditional `Stop` hook
    records turn completion without reading or storing the assistant response.
 
 The default path remains the v1 top-1 compatibility surface. Opt-in shadow paths normalize the same prompt into
@@ -31,8 +35,9 @@ The hook is intentionally fail-open. Missing authoritative config, invalid JSON,
 
 ### `lazy_skill_router_core.py`
 
-Pure routing engine and activation-mode policy. It consumes normalized routes, owns pattern matching, confidence labels,
-answer-only detection, recommendation formatting, and opt-in visible route notices.
+Pure routing orchestration and hook-context projection. It consumes normalized routes, owns answer-only detection,
+connects ranked candidates to `ActivationIR`, formats candidate-only or activation context, and handles opt-in visible
+route notices.
 
 The core should remain independent from Codex hook I/O so dry-run, tests, and evals can exercise routing behavior without installing the hook.
 
@@ -44,6 +49,23 @@ canonical inventory identities, reports missing/inactive/ambiguous/mismatched re
 records, and selects the first eligible active primary for smoke tests. Input files retain their original schema and are
 never rewritten merely by parsing.
 
+Patterns may carry identifier-safe facets, and routes may require a set of those facets before automatic activation.
+A route may also use `activation.mode: propose-only` when relevance should be surfaced but automatic activation is
+structurally unsafe. The same normalized activation rule is used for v1 and v2 input without rewriting either source
+schema.
+
+### `lazy_skill_router_activation.py`
+
+Deterministic activation boundary above route ranking. It defines `ActivationPolicyIR`, `IntentFrame`,
+`SkillActivationIR`, and `ActivationIR`. The decision uses only validated local policy, matched pattern IDs/facets,
+score margin, effective action/answer-only/meta classification, route activation mode, fallback state, and bounded
+regex metadata. It performs no LLM or network call and never serializes raw prompts or regexes.
+
+`activate` selects only the primary skill. `propose` keeps every role deferred and requires the current agent to confirm
+that the primary skill owns the requested action. `abstain` emits no model-visible context; it may retain a diagnostic
+route ID for a hard meta-context rejection. Scope is advisory and can be `turn`, `phase`, or `task`; the default is
+`turn`.
+
 The runtime rejects a Policy IR containing any parser error. When a configured inventory snapshot is available, active
 and shadow routes are resolved before scoring and any route with an unresolved reference is excluded. A configured but
 invalid inventory also fails open; the legacy no-inventory source path remains available for v1 compatibility.
@@ -52,7 +74,7 @@ invalid inventory also fails open; the legacy no-inventory source path remains a
 
 Candidate matching and ranking. It owns route dataclasses, confidence calculation, optional `priority` and `weight` scoring, allowlist filtering, and `fallback` handling.
 
-Route patterns may be raw regex strings or labeled pattern objects. Matching uses the regex. Labels and regexes remain
+Route patterns may be raw regex strings or labeled pattern objects with an optional identifier-safe `facet`. Matching uses the regex. Labels and regexes remain
 available in local diagnostics; model-visible recommendation context uses only validated pattern IDs.
 
 Fallback routes are only selected when no non-fallback route matches. Use them for broad categories such as generic implementation work.
@@ -62,8 +84,8 @@ Pattern weights default to `1`, preserving v1 scoring, while explicit v2 weights
 
 ### `lazy_skill_router_contracts.py`
 
-Versioned, recommendation-only output models. It builds route-result v2, structured recommendation v1, and compact
-Hook IR from the same ranked evidence. It excludes raw prompts and absolute paths, marks match strength as
+Versioned, recommendation-only output models. It builds route-result v2, structured recommendation v1, compact Hook
+IR, and additive ActivationIR references from the same ranked evidence. It excludes raw prompts and absolute paths, marks match strength as
 `not_probability`, preserves agent override, and never represents availability or config trust as authorization.
 All three adapters use only resolved `active` routes; `shadow` remains measurement-only and `disabled` remains ignored.
 
@@ -73,6 +95,9 @@ Generated skill inventory and runtime loader. The manifest uses canonical provid
 references, content digests, bounded `name`/`description` frontmatter metadata, revisions, and ambiguity-preserving
 duplicate handling. It never stores the remaining `SKILL.md` body. Runtime/auth/MCP/dependency states remain `unknown`
 until a trusted source can verify them.
+
+Frontmatter parsing reads at most 64 KiB and 200 lines. Content digests stream in 64 KiB chunks with a 1 MiB document
+ceiling; oversized documents receive a distinct unavailable reason rather than an unbounded read.
 
 The inventory also compares persisted and current revisions, reporting added, removed, content-changed, and ambiguous
 skills without storing absolute paths or full skill bodies. The scanner refuses leaf symlinks, symlinked parents, and
@@ -92,7 +117,8 @@ The runtime hook never imports this module and never calls an LLM.
 ### `lazy_skill_router_policy.py`
 
 Builds a path-redacted context for the app LLM and advertises `policy-proposal/v2`. V2 accepts identifier-safe route,
-intent, pattern, and configured skill names, canonical skill bindings, bounded patterns, and synthetic examples, but no
+intent, pattern, facet, and configured skill names, canonical skill bindings, bounded patterns, required activation
+facets, route `auto`/`propose-only` mode, and synthetic examples, but no
 free-form route reason or pattern label. Proposal v1 remains a deprecated compatibility input; its identifiers pass the
 same safety rules and its free-form reason and labels do not reach model-visible context. Compilation preserves the base
 schema: v1 bases receive v1 shadow routes, while v2 bases receive deterministic capability IDs and binding objects.
@@ -117,7 +143,8 @@ pattern IDs plus a fixed router-owned reason.
 
 ### `lazy_skill_router_logging.py` And `measurement.py`
 
-The logging module writes locked, atomic, count- and age-bounded measurement events. Decision and completion records use
+The logging module writes locked, atomic, count- and age-bounded measurement events. Decision records separate delivery
+mode from activation disposition and completion records use
 hashed prompt/session/turn identifiers and exclude raw prompt, assistant response, transcript path, and working directory.
 Unknown event schemas with a valid timestamp are preserved in the bounded journal but excluded from current reports. `measurement.py` appends explicit
 objective/human/grader outcome labels and builds cumulative reports. Completion correlation uses the session and turn
@@ -126,7 +153,14 @@ cross policy/config revision contexts. Completion is a lifecycle observation, no
 
 ### `routes.default.json`
 
-Bundled route policy data. It defines the skill allowlist, confidence threshold, answer-only patterns, and route metadata.
+Bundled route policy data. It defines the skill allowlist, candidate threshold, automatic-activation threshold,
+meta-context patterns, soft answer-only patterns, hard no-action patterns, and route metadata. The self-referential
+`skill-routing` route is `propose-only`.
+
+The bundled policy intentionally has no LazyCodex/OMO bindings or generic coding executor. Those requests remain
+model-native. A narrower non-OMO skill may enter through the catalog-bound app-LLM proposal workflow, but only as a
+shadow route first. The docs route excludes mixed code-and-documentation actions so a prose skill cannot replace the
+missing implementation owner, while documentation-only work about code artifacts remains eligible.
 
 Routes may define optional `priority`, `weight`, and `fallback` fields. Candidate ranking prefers non-fallback routes, then higher score, then higher confidence, then earlier config order.
 
@@ -153,7 +187,8 @@ Drift planner and inventory sync surface. It compares the previous manifest with
 reports added, removed, changed, ambiguous, missing-route, and unrouted skills. `--plan` is read-only. `--apply` writes
 only `skills.manifest.json`; it never edits `routes.json`, installs, removes, enables, or disables skills. Active v1/v2
 bindings are resolved through the shared Policy IR. A rejected metadata path blocks strict sync only when an active route
-references that skill; unused rejections are warnings.
+references that skill; unused rejections are warnings. Human-readable reports escape terminal control and formatting
+characters while JSON contracts retain their original structured values.
 
 ### `doctor.py`
 
@@ -177,8 +212,11 @@ Only after smoke succeeds does install snapshot all mutation targets, copy runti
 inventory, and ownership manifests, and register the hook last. A process-visible exception restores the snapshots in
 reverse order. `install.manifest.json` records relative artifact paths, ownership, digest, expected registration, and a
 canonical revision. The transaction snapshot directory contains a path-confined journal; the next install recovers a
-matching interrupted transaction before reading current install state. Uninstall with `--remove-files` removes only
-matching managed/generated artifacts and preserves modified files, symlinks, and preserved user artifacts.
+matching interrupted transaction before reading current install state. Dry-run validates and counts matching journals
+without rolling back snapshots or deleting the journal. Hook config and ownership manifests are confined before reads,
+and hook ownership uses exact normalized argv from the canonical command or a valid manifest rather than marker
+substrings. Uninstall with `--remove-files` removes only matching managed/generated artifacts and preserves modified
+files, symlinks, and preserved user artifacts.
 Artifact path `.` and symlinked parents below the selected Codex home are unsafe: install, recovery, doctor, and uninstall
 refuse to traverse them, while a leaf symlink is reported and preserved.
 An unchanged bundled `personal-skill-router` with a matching managed manifest digest is upgraded automatically. Modified,
@@ -196,7 +234,8 @@ Tag-triggered release automation. It verifies tests and route fixtures, checks t
 `pyproject.toml`, then builds and checks one distribution bundle. PyPI Trusted Publishing and the GitHub Release job
 download that same bundle and `SHA256SUMS` under separate least-privilege permissions, so Trusted Publishing does not
 share GitHub contents-write permission. This workflow must remain separate from hook runtime behavior and must not
-require PyPI tokens in repository secrets.
+require PyPI tokens in repository secrets. Checksum verification rejects empty, partial, duplicate, absolute,
+parent-traversing, or symlinked manifests and requires exact artifact-root coverage before hashing.
 
 ### `eval_routes.py`
 
@@ -231,10 +270,11 @@ experimental; WSL is unverified and outside the 0.4.0 support claim, and native 
 Route quality is checked at three levels:
 
 - Unit tests cover core behavior and utility scripts.
-- Contract tests cover schema v2, route-result v2, structured recommendation, Hook IR, inventory, trust, retention,
+- Contract tests cover schema v2, route-result v2, structured recommendation, Hook IR, ActivationIR, inventory, trust, retention,
   ownership drift, safe uninstall, and transaction rollback.
 - `validate_routes.py` checks route JSON shape and regex validity.
-- `eval_routes.py` checks golden prompt fixtures across normal routing, answer-only prompts, composite prompts, security requests, install/config requests, and external-state requests.
+- `eval_routes.py` checks golden prompt fixtures across normal routing, answer-only prompts, activation precision,
+  composite prompts, security requests, install/config requests, and external-state requests.
 - Measurement tests cover inject/shadow/off delivery, session-aware lifecycle correlation, privacy fields, event schema
   handling, conflicting outcome exclusion, revision segmentation, and native/inject harm-rescue reporting.
 

@@ -96,7 +96,7 @@ def copy_top_level_fields(template: dict[str, Any], config: dict[str, Any]) -> N
 
 
 def copy_route_metadata(raw_route: dict[str, Any], generated: dict[str, Any]) -> None:
-    for key in ("reason", "excludePatterns", "priority", "weight", "fallback"):
+    for key in ("reason", "excludePatterns", "priority", "weight", "fallback", "activation"):
         if key in raw_route:
             generated[key] = raw_route[key]
 

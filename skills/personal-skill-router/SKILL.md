@@ -26,6 +26,19 @@ Before non-trivial work, classify the request into one primary domain. Pick:
 
 Do not load every related skill. Prefer the narrowest installed skill that can do the job.
 
+## Activation Contract
+
+Treat route relevance and skill activation as separate decisions:
+
+- `activate`: load only the primary skill after confirming it owns the requested action.
+- `propose`: no skill is active. Reinspect the user request, accept the primary candidate only when it directly owns
+  the action, and otherwise continue without a skill.
+- `abstain`: continue with normal agent judgment and do not invent a replacement skill.
+
+Supporting and verification skills from the hook are always deferred. Add either only after independently confirming a
+distinct role in the actual task. Do not carry an activation beyond its declared `turn`, `phase`, or `task` scope.
+Treat a `propose-only` route as advisory even when its evidence is strong; it cannot activate itself.
+
 ## Catalog-Based Fallback
 
 When no validated compiled policy is available, select only from skills exposed by the current app. Do not infer
@@ -57,4 +70,5 @@ Why:
 Next action:
 ```
 
-If the user asks to proceed, load and follow the selected primary skill before editing or acting.
+If the user asks to proceed, load and follow the selected primary skill before editing or acting only when it owns the
+requested action. Otherwise proceed without a skill.

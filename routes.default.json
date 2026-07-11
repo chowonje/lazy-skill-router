@@ -1,13 +1,33 @@
 {
   "version": 1,
-  "policyVersion": "2026-07-10.1",
+  "policyVersion": "2026-07-11.1",
   "minConfidence": 0.55,
   "selection": {
     "maxRecommendations": 3,
     "minScoreMargin": 0.05
   },
   "activation": {
-    "mode": "inject"
+    "mode": "inject",
+    "autoActivateMinStrength": 0.8,
+    "metaPatterns": [
+      "(skill|스킬|route|라우트|router|라우터|hook|훅).*(select|recommend|use|activat|match|선택|추천|사용|활성|매치).*(why|problem|wrong|explain|왜|문제|잘못|설명)",
+      "(skill|스킬|route|라우트|router|라우터|hook|훅).*(why|problem|wrong|explain|왜|문제|잘못|설명).*(select|recommend|use|activat|match|선택|추천|사용|활성|매치)",
+      "(why|problem|wrong|explain|왜|문제|잘못|설명).*(skill|스킬|route|라우트|router|라우터|hook|훅).*(select|recommend|use|activat|match|선택|추천|사용|활성|매치)",
+      "(select|recommend|use|activat|match|선택|추천|사용|활성|매치).*(skill|스킬|route|라우트|router|라우터|hook|훅).*(why|problem|wrong|explain|왜|문제|잘못|설명)"
+    ],
+    "actionPatterns": [
+      "\\b(fix|implement|update|change|add|create|install|remove|delete)\\b",
+      "(수정|구현|추가|생성|변경|설치|삭제|업데이트)(해|하고|해서|하자|하라|해라)",
+      "(고치|만들)(고|거나|면)|고쳐|만들어"
+    ],
+    "noActionPatterns": [
+      "(?:don't|do\\s+not)\\s+(?:change|edit|modify|fix|install|remove|delete)",
+      "\\bno\\s+(?:edits?|changes?)\\b",
+      "\\b(?:explain|describe)\\b[^.!?\\n]{0,160}\\bhow(?:\\s+(?:i|we|you|one|someone)\\s+(?:should|could|can|would))?\\s+(?:to\\s+)?(?:fix|implement|update|change|add|create|install|remove|delete)\\b",
+      "(수정|구현|추가|생성|변경|설치|삭제|업데이트)하지\\s*마",
+      "(고치|만들)지\\s*마",
+      "(?:수정|구현|추가|생성|변경|설치|삭제|업데이트|고치|만들)(?:하는|할)?\\s*방법(?:만)?\\s*(?:을|를)?\\s*설명"
+    ]
   },
   "defaultVerification": "verification-gate",
   "logging": {
@@ -38,12 +58,6 @@
     "google-drive:google-drive",
     "google-drive:google-sheets",
     "google-drive:google-slides",
-    "omo:debugging",
-    "omo:frontend",
-    "omo:lsp",
-    "omo:programming",
-    "omo:refactor",
-    "omo:visual-qa",
     "openai-docs",
     "pdf",
     "personal-skill-router",
@@ -61,6 +75,8 @@
   "answerOnlyPatterns": [
     "그냥\\s*설명",
     "설명만",
+    "설명(?:해\\s*줘|해주세요|해줘)",
+    "\\bexplain\\b",
     "don't change",
     "do not change",
     "no edit",
@@ -76,7 +92,7 @@
       "patterns": [
         {"regex": "\\bci\\b", "label": "CI keyword"},
         {"regex": "github actions?", "label": "GitHub Actions"},
-        {"regex": "\\baction(s)?\\b.*fail", "label": "GitHub Actions failure"},
+        {"regex": "\\baction(s)?\\b.*(?:fail|실패)", "label": "GitHub Actions failure"},
         {"regex": "체크.*실패", "label": "Korean check failure"},
         {"regex": "ci.*실패", "label": "Korean CI failure"},
         {"regex": "빌드.*실패", "label": "Korean build failure"}
@@ -136,7 +152,8 @@
       "supporting": ["superpowers", "ponytail-lite"],
       "verification": "",
       "reason": "Skill selection, classification, deduplication, or usage-guide language was detected.",
-      "patterns": ["skill router", "skill routing", "which skill", "스킬.*(추천|분류|찾|사용|가이드|중복|정리)", "어떤\\s*스킬"]
+      "patterns": ["skill router", "skill routing", "which skill", "스킬.*(추천|분류|찾|사용|가이드|중복|정리)", "어떤\\s*스킬"],
+      "activation": {"mode": "propose-only", "scope": "turn"}
     },
     {
       "name": "skill-plugin",
@@ -156,14 +173,6 @@
       "patterns": ["\\bgithub\\b", "\\bpr\\b", "pull request", "\\bissue\\b", "리뷰\\s*댓글", "깃허브"]
     },
     {
-      "name": "frontend",
-      "primary": "omo:frontend",
-      "supporting": ["omo:visual-qa", "playwright"],
-      "verification": "omo:visual-qa",
-      "reason": "Frontend, UI, layout, or visual work language was detected.",
-      "patterns": ["\\bui\\b", "\\bux\\b", "frontend", "front-end", "레이아웃", "화면", "디자인", "스타일", "버튼", "모바일", "반응형", "간격"]
-    },
-    {
       "name": "browser",
       "primary": "playwright",
       "supporting": ["browser:control-in-app-browser", "chrome:control-chrome"],
@@ -172,51 +181,13 @@
       "patterns": ["browser", "chrome", "playwright", "클릭", "폼", "스크린샷", "새로고침", "브라우저", "페이지.*열"]
     },
     {
-      "name": "debugging",
-      "primary": "omo:debugging",
-      "supporting": ["omo:programming"],
-      "verification": "verification-gate",
-      "reason": "Runtime failure, broken behavior, or error language was detected.",
-      "patterns": ["\\berror\\b", "\\bbug\\b", "\\bcrash", "stack trace", "not working", "broken", "오류", "에러", "버그", "크래시", "안\\s*돼", "고장", "실패"]
-    },
-    {
-      "name": "refactor",
-      "primary": "omo:refactor",
-      "supporting": ["ponytail-lite", "omo:lsp"],
-      "verification": "verification-gate",
-      "reason": "Refactor, simplify, or code cleanup language was detected.",
-      "patterns": ["refactor", "cleanup", "simplif", "코드.*정리", "리팩터", "리팩토", "단순화", "구조\\s*개선"]
-    },
-    {
-      "name": "code-docs",
-      "primary": "omo:programming",
-      "supporting": ["writing-polish", "docs-sync", "ponytail-lite", "omo:lsp"],
-      "verification": "verification-gate",
-      "weight": 0.2,
-      "reason": "Implementation and documentation work were both detected.",
-      "patterns": [
-        {
-          "regex": "(?=.*(python|\\bcode\\b|\\bbug\\b|fix|implement|patch|function|class|코드|구현|수정|고치|추가|패치|함수|버그))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그|문장))",
-          "label": "Code and documentation work"
-        }
-      ]
-    },
-    {
-      "name": "code",
-      "primary": "omo:programming",
-      "supporting": ["ponytail-lite", "omo:lsp"],
-      "verification": "verification-gate",
-      "fallback": true,
-      "reason": "Implementation or code-editing language was detected.",
-      "patterns": ["implement", "code", "edit", "patch", "function", "class", "구현", "코드", "수정", "추가", "패치", "함수"]
-    },
-    {
       "name": "docs",
       "primary": "writing-polish",
       "supporting": ["docs-sync", "release-notes"],
       "verification": "verification-gate",
       "reason": "Documentation, README, changelog, release note, or prose editing language was detected.",
-      "patterns": ["readme", "docs?", "documentation", "changelog", "release notes?", "문서", "릴리스", "체인지로그", "글(쓰기|\\s*다듬|\\s*수정|\\s*정리)", "문장"]
+      "patterns": ["readme", "docs?", "documentation", "changelog", "release notes?", "문서", "릴리스", "체인지로그", "글(쓰기|\\s*다듬|\\s*수정|\\s*정리)", "문장"],
+      "excludePatterns": ["^(?=.*(?:(?:(?<![A-Za-z0-9_])(?:fix|implement|patch|edit|add|change|update|create|apply)(?![A-Za-z0-9_])|(?:고치|수정|구현|추가|변경|적용))\\s*(?:(?:the|a|an|this|that|new|small|helper|python|새|새로운)\\s+){0,3}(?:(?<![A-Za-z0-9_])(?:code|bug|function|class|patch)(?![A-Za-z0-9_])|(?:코드|버그|함수|클래스|패치))(?:을|를|은|는|이|가)?|(?:(?<![A-Za-z0-9_])(?:code|bug|function|class|patch)(?![A-Za-z0-9_])|(?:코드|버그|함수|클래스|패치))(?:을|를|은|는|이|가)?\\s*(?:(?<![A-Za-z0-9_])(?:fix|implement|patch|edit|add|change|update|create|apply)(?![A-Za-z0-9_])|(?:고치|수정|구현|추가|변경|적용))))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그))"]
     },
     {
       "name": "security",

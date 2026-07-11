@@ -3,6 +3,10 @@
 This file records the public contract for `lazy-skill-router` v0.4.0 at commit
 `f42c8384709893548dfd5bd8a0ef828627460046`.
 
+> Development note: this is an immutable v0.4 release snapshot, not the exact `0.5.0.dev0` source contract. The
+> `0.5.0.dev0` development source adds ActivationIR, additive `route --json` fields, and `--activation-ir-json`; see
+> [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md) and [`README.md`](README.md).
+
 The default hook and route diagnostics preserve the released v0.3 behavior. Version 0.4 adds opt-in strategy surfaces
 documented in [`UNRELEASED_STRATEGY_IMPLEMENTATION.md`](UNRELEASED_STRATEGY_IMPLEMENTATION.md); those surfaces are
 released but do not replace the default v1-compatible wire contract.

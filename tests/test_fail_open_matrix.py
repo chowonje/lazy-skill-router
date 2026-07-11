@@ -13,6 +13,9 @@ HOOK_PATH = ROOT / "lazy_skill_router.py"
 CLI_MODULE = "lazy_skill_router_cli.cli"
 ROUTED_PROMPT = "PDF 만들어줘"
 NO_MATCH_FIELDS = {
+    "activation",
+    "activationDecision",
+    "activationReason",
     "answerOnly",
     "candidates",
     "confidence",
@@ -20,8 +23,10 @@ NO_MATCH_FIELDS = {
     "matchedPatternIds",
     "matchedSignals",
     "reason",
+    "requestMode",
     "score",
     "shouldInject",
+    "shouldActivate",
 }
 
 
@@ -104,6 +109,9 @@ class FailOpenMatrixTest(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(set(payload), NO_MATCH_FIELDS)
         self.assertFalse(payload["shouldInject"])
+        self.assertFalse(payload["shouldActivate"])
+        self.assertEqual(payload["activationDecision"], "abstain")
+        self.assertEqual(payload["requestMode"], "action")
         self.assertEqual(payload["candidates"], [])
 
     def assert_override_fails_open(self, override: Path, env: dict[str, str]) -> None:

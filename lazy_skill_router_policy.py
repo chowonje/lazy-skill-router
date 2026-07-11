@@ -48,6 +48,7 @@ MAX_PATTERNS_PER_ROUTE = 12
 MAX_EXAMPLES_PER_ROUTE = 20
 MAX_WHITESPACE_QUANTIFIERS = 1
 MAX_SUPPORTING_SKILLS = 2
+MAX_REQUIRED_FACETS = 4
 MIN_PROMOTION_SAMPLES = 5
 MIN_HELPFUL_RATE = 0.8
 POLICY_FEEDBACK_VERDICTS = frozenset({"helpful", "harmful", "irrelevant"})
@@ -150,6 +151,17 @@ def policy_context(data: dict[str, Any], snapshot: InventorySnapshot) -> dict[st
             "maxSupportingSkills": MAX_SUPPORTING_SKILLS,
             "requirePositiveAndNegativeExamples": True,
             "supportsExplicitRouteRetirement": True,
+            "supportsActivationFacets": True,
+            "activationDisposition": ["activate", "propose", "abstain"],
+            "activationContract": {
+                "patternFacetField": "facet",
+                "routeField": "activation",
+                "requiredFacetsField": "requiredFacets",
+                "modes": ["auto", "propose-only"],
+                "scopes": ["turn", "phase", "task"],
+                "requireContrastiveMetaExamples": True,
+            },
+            "supportingSkillsDefault": "deferred",
             "runtimeLlmCalls": False,
         },
     }
@@ -192,7 +204,7 @@ def validate_pattern(
     if not isinstance(value, dict):
         errors.append(f"route {route_id} {field} entries must be objects")
         return None
-    allowed_fields = {"id", "regex", "weight"}
+    allowed_fields = {"id", "regex", "weight", "facet"}
     if allow_label:
         allowed_fields.add("label")
     unknown = set(value) - allowed_fields
@@ -211,6 +223,17 @@ def validate_pattern(
     if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not 0 < float(weight) <= 3:
         errors.append(f"route {route_id} pattern weight must be greater than 0 and at most 3")
         weight = 1
+    facet_value = value.get("facet")
+    facet = (
+        validate_safe_identifier(
+            facet_value,
+            f"route {route_id} pattern facet",
+            MAX_ROUTE_ID_LENGTH,
+            errors,
+        )
+        if facet_value is not None
+        else None
+    )
     if regex:
         try:
             compiled = re.compile(regex, re.IGNORECASE)
@@ -236,7 +259,10 @@ def validate_pattern(
             quantifier_probe = ESCAPED_TOKEN_PATTERN.sub("", quantifier_probe)
             if UNBOUNDED_QUANTIFIER_PATTERN.search(quantifier_probe):
                 errors.append(f"route {route_id} regex contains an unsupported quantifier")
-    return {"id": pattern_id, "regex": regex, "label": label, "weight": float(weight)}
+    normalized = {"id": pattern_id, "regex": regex, "label": label, "weight": float(weight)}
+    if facet is not None:
+        normalized["facet"] = facet
+    return normalized
 
 
 def skill_is_resolvable(snapshot: InventorySnapshot, name: str) -> bool:
@@ -306,7 +332,58 @@ def example_matches(route: dict[str, Any], example: str) -> bool:
     excluded = route.get("excludePatterns", [])
     if any(re.search(pattern["regex"], example, re.IGNORECASE) for pattern in excluded):
         return False
-    return any(re.search(pattern["regex"], example, re.IGNORECASE) for pattern in route.get("patterns", []))
+    matched = [pattern for pattern in route.get("patterns", []) if re.search(pattern["regex"], example, re.IGNORECASE)]
+    if not matched:
+        return False
+    activation = route.get("activation")
+    required_facets = activation.get("requiredFacets", []) if isinstance(activation, dict) else []
+    matched_facets = {pattern.get("facet", "signal") for pattern in matched}
+    return all(facet in matched_facets for facet in required_facets)
+
+
+def normalize_activation_contract(
+    value: Any,
+    route_id: str,
+    patterns: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        errors.append(f"route {route_id} activation must be an object")
+        return {"requiredFacets": [], "scope": "turn"}
+    unknown = set(value) - {"requiredFacets", "scope", "mode"}
+    if unknown:
+        errors.append(f"route {route_id} activation contains unsupported fields: {', '.join(sorted(unknown))}")
+    required = string_list(value.get("requiredFacets", []))
+    if required is None or len(required) > MAX_REQUIRED_FACETS:
+        errors.append(
+            f"route {route_id} activation.requiredFacets must contain at most {MAX_REQUIRED_FACETS} identifiers"
+        )
+        required = []
+    normalized_required = []
+    for facet in required:
+        if not ROUTE_ID_PATTERN.fullmatch(facet):
+            errors.append(f"route {route_id} activation.requiredFacets contains unsupported characters: {facet}")
+            continue
+        if facet not in normalized_required:
+            normalized_required.append(facet)
+    available_facets = {pattern.get("facet", "signal") for pattern in patterns}
+    missing = [facet for facet in normalized_required if facet not in available_facets]
+    if missing:
+        errors.append(f"route {route_id} activation.requiredFacets are not present in patterns: {', '.join(missing)}")
+    scope = value.get("scope", "turn")
+    if not isinstance(scope, str) or scope not in {"turn", "phase", "task"}:
+        errors.append(f"route {route_id} activation.scope must be one of: phase, task, turn")
+        scope = "turn"
+    normalized = {"requiredFacets": normalized_required, "scope": scope}
+    mode = value.get("mode")
+    if mode is not None:
+        if not isinstance(mode, str) or mode not in {"auto", "propose-only"}:
+            errors.append(f"route {route_id} activation.mode must be one of: auto, propose-only")
+        else:
+            normalized["mode"] = mode
+    return normalized
 
 
 def normalize_route(
@@ -332,6 +409,7 @@ def normalize_route(
             "excludePatterns",
             "positiveExamples",
             "negativeExamples",
+            "activation",
         }
         if is_v2
         else {
@@ -345,6 +423,7 @@ def normalize_route(
             "excludePatterns",
             "positiveExamples",
             "negativeExamples",
+            "activation",
         }
     )
     unknown = set(value) - allowed_fields
@@ -458,6 +537,7 @@ def normalize_route(
         )
         is not None
     ]
+    activation = normalize_activation_contract(value.get("activation"), route_id, patterns, errors)
     for pattern in [*patterns, *excludes]:
         pattern_id = pattern["id"]
         if pattern_id in seen_pattern_ids:
@@ -491,6 +571,8 @@ def normalize_route(
         "positiveExamples": positive,
         "negativeExamples": negative,
     }
+    if activation is not None:
+        normalized["activation"] = activation
     if is_v2:
         normalized["resolvedBindings"] = {
             "primary": resolved_primary,
@@ -652,7 +734,7 @@ def validate_policy_proposal(
 
 
 def compiled_route(route: dict[str, Any], proposal_revision: str) -> dict[str, Any]:
-    return {
+    compiled = {
         "name": route["id"],
         "intent": route["intent"],
         "primary": route["primary"],
@@ -663,6 +745,9 @@ def compiled_route(route: dict[str, Any], proposal_revision: str) -> dict[str, A
         "excludePatterns": [pattern["regex"] for pattern in route["excludePatterns"]],
         "lifecycle": {"state": "shadow", "proposalRevision": proposal_revision},
     }
+    if isinstance(route.get("activation"), dict):
+        compiled["activation"] = route["activation"]
+    return compiled
 
 
 def route_identifier(route: dict[str, Any], schema_version: int) -> str | None:
@@ -726,6 +811,7 @@ def compiled_route_v2(
                     "id": pattern["id"],
                     "regex": pattern["regex"],
                     "weight": pattern["weight"],
+                    **({"facet": pattern["facet"]} if isinstance(pattern.get("facet"), str) else {}),
                 }
                 for pattern in route["patterns"]
             ],
@@ -734,12 +820,15 @@ def compiled_route_v2(
                     "id": pattern["id"],
                     "regex": pattern["regex"],
                     "weight": pattern["weight"],
+                    **({"facet": pattern["facet"]} if isinstance(pattern.get("facet"), str) else {}),
                 }
                 for pattern in route["excludePatterns"]
             ],
         },
         "lifecycle": {"state": "shadow", "proposalRevision": proposal_revision},
     }
+    if isinstance(route.get("activation"), dict):
+        compiled["activation"] = route["activation"]
     return compiled, bindings
 
 

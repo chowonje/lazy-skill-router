@@ -63,8 +63,8 @@ class GenerateRoutesTest(unittest.TestCase):
                 "routes": [
                     {
                         "name": "programming",
-                        "primaryCandidates": ["omo:programming", "ponytail-lite"],
-                        "supportingCandidates": ["ponytail-lite", "code-navigation", "omo:lsp"],
+                        "primaryCandidates": ["custom:programming", "ponytail-lite"],
+                        "supportingCandidates": ["ponytail-lite", "code-navigation", "custom:lsp"],
                         "verificationCandidates": ["verification-gate"],
                         "reason": "Implementation language was detected.",
                         "patterns": ["구현", {"regex": "fix", "label": "Fix keyword"}],
@@ -75,7 +75,7 @@ class GenerateRoutesTest(unittest.TestCase):
                     },
                     {
                         "name": "missing-primary",
-                        "primaryCandidates": ["omo:frontend"],
+                        "primaryCandidates": ["custom:frontend"],
                         "patterns": ["ui"],
                     },
                 ],
@@ -112,22 +112,14 @@ class GenerateRoutesTest(unittest.TestCase):
             codex_home = root / "codex"
             agents_home = root / "agents"
             write_skill(
-                codex_home
-                / "plugins"
-                / "cache"
-                / "sisyphuslabs"
-                / "omo"
-                / "4.13.0"
-                / "skills"
-                / "programming"
-                / "SKILL.md",
+                codex_home / "plugins" / "cache" / "acme" / "custom" / "4.13.0" / "skills" / "programming" / "SKILL.md",
                 "programming",
             )
             template = {
                 "routes": [
                     {
                         "name": "code",
-                        "primaryCandidates": ["omo:programming", "ponytail-lite"],
+                        "primaryCandidates": ["custom:programming", "ponytail-lite"],
                         "patterns": ["code"],
                     }
                 ]
@@ -136,8 +128,8 @@ class GenerateRoutesTest(unittest.TestCase):
             installed = generate_routes.installed_skill_names(codex_home, agents_home)
             result = generate_routes.generate_config(template, installed)
 
-        self.assertEqual(result.config["allowedSkills"], ["omo:programming"])
-        self.assertEqual(result.config["routes"][0]["primary"], "omo:programming")
+        self.assertEqual(result.config["allowedSkills"], ["custom:programming"])
+        self.assertEqual(result.config["routes"][0]["primary"], "custom:programming")
 
     def test_ambiguous_duplicate_skill_names_are_not_automatic_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

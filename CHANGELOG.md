@@ -24,6 +24,30 @@
   canonical-mismatch findings to sync JSON.
 - Preserves v1 or v2 base policy shape during compilation and adds new routes only as shadow candidates.
 
+### Activation Precision
+
+- Adds immutable `ActivationIR` with separate `activate`, `propose`, and `abstain` runtime dispositions above the
+  existing route ranking layer.
+- Treats weak, ambiguous, fallback, answer-only, and incomplete-facet matches as candidate-only proposals; a proposal
+  explicitly activates no skill. Selection-rationale meta matches hard-abstain and emit no model-visible context,
+  while explicit implementation actions override soft explanation wording and hard no-action rules remain dominant.
+- Adds per-route `auto`/`propose-only` activation mode and marks the self-referential skill-routing route
+  `propose-only`, preventing it from activating itself even when action words are present.
+- Activates only the primary skill. Supporting and verification skills remain deferred and are no longer named in the
+  model-visible hook block as an automatic bundle.
+- Adds optional identifier-safe pattern `facet` values and per-route `activation.requiredFacets`, `scope`, and `mode`
+  for deterministic target/action-style eligibility gates in both route schemas.
+- Extends `policy-proposal/v2` and the v1/v2 compilers with safe activation facets while preserving old proposals that
+  omit those optional fields.
+- Adds `route --activation-ir-json`, additive activation data in diagnostics and versioned contracts, and cumulative
+  activate/propose/abstain measurement counts.
+- Suppresses route and skill recommendation lists from every structured contract when the activation decision abstains.
+- Expands the golden corpus with contrastive meta-discussion, weak-candidate, strong-activation, and abstention cases.
+- Removes bundled LazyCodex/OMO allowlist entries and generic OMO frontend, debugging, refactor, code, and code-docs
+  routes. Generic implementation stays model-native, and prompts with explicit code-edit plus documentation actions
+  now abstain instead of activating a documentation-only substitute. Docs-only prose about code artifacts remains
+  routable.
+
 ### Safety
 
 - Policy compilation rejects stale inventory revisions, unavailable or ambiguous skills, unsupported fields, unsafe
@@ -32,6 +56,7 @@
   exact config revision and only counts shadow decisions that would win after activation.
 - App-generated regexes use a restricted, bounded subset; unbounded quantifiers, quantified alternation, lookaround,
   and backreferences are rejected.
+- Custom activation regexes use a conservative subset, with only the exact audited bundled defaults allowlisted.
 - Sync apply writes only the inventory manifest. Policy compilation writes a separate candidate file, and stage and
   promotion back up the active route config before mutation.
 - Skill scanning rejects leaf symlinks, symlinked parents, and metadata outside the selected root before reading it;
@@ -47,6 +72,15 @@
   components before backup or atomic replacement.
 - Install automatically upgrades the bundled router skill only when its managed manifest digest still matches. Modified,
   preserved, symlinked, unsafe, or unowned copies remain untouched without explicit `--force`.
+- Installer dry-run validates pending recovery journals without rolling back or deleting files, and hook configuration
+  is confined before reads.
+- Install and uninstall identify owned hooks by exact normalized command or a valid confined ownership manifest instead
+  of marker substrings; unsafe manifest parents and foreign lookalike hooks are preserved.
+- Release checksum verification rejects empty, incomplete, duplicate, escaping, and symlinked manifests and requires
+  exact artifact-root coverage before hashing.
+- Skill metadata parsing is limited to 64 KiB/200 lines, document hashing is streamed with a 1 MiB ceiling, and terminal
+  controls are escaped in human sync output. The shipped composite docs exclusion uses a start-anchored scan, while
+  activation meta detection uses a linear token scan that preserves the legacy order and single-line boundaries.
 
 ## 0.4.0 (2026-07-10)
 

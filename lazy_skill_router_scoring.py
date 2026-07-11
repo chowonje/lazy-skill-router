@@ -20,6 +20,7 @@ class RoutePattern:
     label: str
     pattern_id: str
     weight: float
+    facet: str = "signal"
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,13 @@ class CapabilityRequirements:
     primary: tuple[str, ...]
     supporting: tuple[str, ...]
     verification: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RouteActivation:
+    required_facets: tuple[str, ...] = ()
+    scope: str = "turn"
+    mode: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -45,6 +53,7 @@ class Route:
     capability_requirements: CapabilityRequirements
     lifecycle_state: str = "active"
     proposal_revision: str | None = None
+    activation: RouteActivation = RouteActivation()
 
 
 @dataclass(frozen=True)
@@ -75,7 +84,7 @@ def stable_pattern_id(route_id: str, regex: str) -> str:
 
 def route_pattern(value: Any, route_id: str = "route") -> RoutePattern | None:
     if isinstance(value, str):
-        return RoutePattern(value, value, stable_pattern_id(route_id, value), 1.0)
+        return RoutePattern(value, value, stable_pattern_id(route_id, value), 1.0, "signal")
     if not isinstance(value, dict):
         return None
 
@@ -83,6 +92,7 @@ def route_pattern(value: Any, route_id: str = "route") -> RoutePattern | None:
     label = value.get("label", regex)
     configured_id = value.get("id", value.get("pattern_id"))
     configured_weight = value.get("weight", 1.0)
+    configured_facet = value.get("facet", "signal")
     if not isinstance(regex, str) or not regex:
         return None
     if not isinstance(label, str) or not label:
@@ -95,7 +105,8 @@ def route_pattern(value: Any, route_id: str = "route") -> RoutePattern | None:
         if not isinstance(configured_weight, bool) and isinstance(configured_weight, (int, float))
         else 1.0
     )
-    return RoutePattern(regex, label, pattern_id, max(0.0, weight))
+    facet = configured_facet if isinstance(configured_facet, str) and configured_facet else "signal"
+    return RoutePattern(regex, label, pattern_id, max(0.0, weight), facet)
 
 
 def tuple_of_patterns(value: Any, route_id: str = "route") -> tuple[RoutePattern, ...]:
@@ -209,6 +220,7 @@ def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
         route.capability_requirements,
         route.lifecycle_state,
         route.proposal_revision,
+        route.activation,
     )
 
 

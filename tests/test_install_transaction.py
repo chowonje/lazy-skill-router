@@ -118,6 +118,52 @@ class InstallTransactionTest(unittest.TestCase):
         self.assertFalse(created_exists)
         self.assertFalse(journal_exists)
 
+    def test_install_dry_run_does_not_recover_pending_transaction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            existing = codex_home / "hooks" / "lazy_skill_router.py"
+            created = codex_home / "lazy-skill-router" / "skills.manifest.json"
+            existing.parent.mkdir(parents=True)
+            existing.write_text("original\n", encoding="utf-8")
+
+            transaction = install.InstallMutation(codex_home, (existing, created))
+            transaction.__enter__()
+            journal_root = transaction.temp_dir
+            existing.write_text("interrupted\n", encoding="utf-8")
+            created.parent.mkdir(parents=True)
+            created.write_text("partial\n", encoding="utf-8")
+
+            argv = [
+                "install.py",
+                "--codex-home",
+                str(codex_home),
+                "--agents-home",
+                str(agents_home),
+                "--dry-run",
+            ]
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(sys, "argv", argv),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                result = install.main()
+
+            existing_value = existing.read_text(encoding="utf-8")
+            created_exists = created.exists()
+            created_value = created.read_text(encoding="utf-8") if created_exists else None
+            journal_exists = journal_root.exists()
+
+        self.assertEqual(result, 0, stderr.getvalue())
+        self.assertIn("would recover 1 interrupted install transaction", stdout.getvalue())
+        self.assertEqual(existing_value, "interrupted\n")
+        self.assertTrue(created_exists)
+        self.assertEqual(created_value, "partial\n")
+        self.assertTrue(journal_exists)
+
     def test_recovery_rejects_journal_paths_outside_codex_home(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -141,6 +187,38 @@ class InstallTransactionTest(unittest.TestCase):
             outside_value = outside.read_text(encoding="utf-8")
 
         self.assertEqual(outside_value, "keep\n")
+
+    def test_recovery_skips_symlinked_transaction_root_or_journal(self) -> None:
+        for symlink_kind in ("transaction-root", "journal"):
+            with self.subTest(symlink_kind=symlink_kind), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                codex_home = root / "codex"
+                victim = codex_home / "hooks" / "victim.py"
+                victim.parent.mkdir(parents=True)
+                victim.write_text("keep\n", encoding="utf-8")
+                journal = {
+                    "schema": install.TRANSACTION_JOURNAL_SCHEMA,
+                    "root_fingerprint": install.codex_root_fingerprint(codex_home),
+                    "snapshots": [{"path": "hooks/victim.py", "kind": "missing", "backup": None, "link_target": None}],
+                    "created_paths": [],
+                    "created_parents": [],
+                }
+                journal_root = root / f"{install.TRANSACTION_PREFIX}malicious"
+                external_root = root / "external-journal"
+                external_root.mkdir()
+                external_journal = external_root / "journal.json"
+                external_journal.write_text(json.dumps(journal), encoding="utf-8")
+                if symlink_kind == "transaction-root":
+                    journal_root.symlink_to(external_root, target_is_directory=True)
+                else:
+                    journal_root.mkdir()
+                    (journal_root / "journal.json").symlink_to(external_journal)
+
+                recovered = install.recover_pending_transactions(codex_home)
+
+                self.assertEqual(recovered, 0)
+                self.assertEqual(victim.read_text(encoding="utf-8"), "keep\n")
+                self.assertTrue(external_journal.exists())
 
 
 if __name__ == "__main__":

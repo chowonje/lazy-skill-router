@@ -35,6 +35,7 @@ HOOK_FILES = (
     "lazy_skill_router_contracts.py",
     "lazy_skill_router_inventory.py",
     "lazy_skill_router_policy_ir.py",
+    "lazy_skill_router_activation.py",
     "lazy_skill_router_logging.py",
     "lazy_skill_router_scoring.py",
 )
@@ -123,7 +124,7 @@ def check_hook_registration(
     except (OSError, ValueError) as exc:
         return fail(f"{event_name} hook registered: cannot read {hooks_path}: {exc}")
 
-    items = lazy_router_hook_items(hooks, event_name)
+    items = lazy_router_hook_items(hooks, event_name, owned_commands=(expected_command,))
     if not items:
         return fail(f"{event_name} hook registered: missing lazy-skill-router entry")
     if len(items) > 1:
@@ -147,7 +148,7 @@ def check_stop_registration(
         hooks = load_hooks(hooks_path)
     except (OSError, ValueError) as exc:
         return fail(f"Stop hook registration matches measurement setting: cannot read {hooks_path}: {exc}")
-    if lazy_router_hook_items(hooks, "Stop"):
+    if lazy_router_hook_items(hooks, "Stop", owned_commands=(expected_command,)):
         return warn("Stop hook registered while measurement logging is disabled")
     return ok("Stop hook not required while measurement logging is disabled")
 

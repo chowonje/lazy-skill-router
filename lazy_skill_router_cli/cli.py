@@ -13,8 +13,9 @@ import install
 import measurement
 import sync_skills
 import uninstall
+from lazy_skill_router_activation import activation_ir_dict
 from lazy_skill_router_contracts import hook_ir_v1, route_result_v2, structured_recommendation_v1
-from lazy_skill_router_core import dry_run_output, load_config
+from lazy_skill_router_core import activation_for_prompt, dry_run_output, load_config
 from lazy_skill_router_host_catalog import catalog_main
 from lazy_skill_router_inventory import inventory_for_config
 from lazy_skill_router_policy import policy_main
@@ -78,6 +79,7 @@ def configure_install_sources(root: Path) -> None:
     install.CONTRACTS_SOURCE = root / "lazy_skill_router_contracts.py"
     install.INVENTORY_SOURCE = root / "lazy_skill_router_inventory.py"
     install.POLICY_IR_SOURCE = root / "lazy_skill_router_policy_ir.py"
+    install.ACTIVATION_SOURCE = root / "lazy_skill_router_activation.py"
     install.SKILL_SOURCE = root / "skills" / "personal-skill-router"
     install.TEMPLATE_SOURCE = root / "routes.template.json"
 
@@ -118,6 +120,11 @@ def route_prompt(args: list[str]) -> int:
         action="store_true",
         help="Print the experimental compact Hook IR v1 shadow contract.",
     )
+    output_group.add_argument(
+        "--activation-ir-json",
+        action="store_true",
+        help="Print the runtime Activation IR v1 decision contract.",
+    )
     parser.add_argument("prompt", help="Prompt text to route.")
     parsed = parser.parse_args(args)
 
@@ -125,6 +132,11 @@ def route_prompt(args: list[str]) -> int:
     inventory = inventory_for_config(config, parsed.inventory)
     if parsed.hook_ir_json:
         print(json.dumps(hook_ir_v1(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
+        return 0
+
+    if parsed.activation_ir_json:
+        activation = activation_for_prompt(parsed.prompt, config, inventory)
+        print(json.dumps(activation_ir_dict(activation), ensure_ascii=False, indent=2))
         return 0
 
     if parsed.recommendation_json:
@@ -142,6 +154,9 @@ def route_prompt(args: list[str]) -> int:
 
     if not result["shouldInject"]:
         print("No route")
+        print(f"Activation: {result['activationDecision']} ({result['activationReason']})")
+        if isinstance(result.get("route"), str):
+            print(f"Diagnostic route: {result['route']}")
         print(f"Reason: {result['reason']}")
         print(f"Answer-only: {str(result['answerOnly']).lower()}")
         return 0
@@ -153,9 +168,10 @@ def route_prompt(args: list[str]) -> int:
     signals_text = ", ".join(str(signal) for signal in signals) if signals else "none"
 
     print(f"Route: {result['route']}")
+    print(f"Activation: {result['activationDecision']} ({result['activationReason']})")
     print(f"Primary skill: {result['primary']}")
-    print(f"Supporting skills: {supporting_text}")
-    print(f"Verification skill: {verification}")
+    print(f"Deferred supporting skills: {supporting_text}")
+    print(f"Deferred verification skill: {verification}")
     print(f"Confidence: {result['confidence']:.2f} ({result['confidenceLabel']})")
     print(f"Selection score: {result['score']:.2f}")
     print(f"Matched signals: {signals_text}")

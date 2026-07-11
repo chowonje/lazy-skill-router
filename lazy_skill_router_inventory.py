@@ -10,6 +10,8 @@ from typing import Any, Protocol
 from urllib.parse import quote
 
 INVENTORY_SCHEMA = "lazy-skill-router.skill-inventory/v1"
+MAX_SKILL_DOCUMENT_BYTES = 1024 * 1024
+SKILL_DIGEST_CHUNK_BYTES = 64 * 1024
 
 
 class SkillRecordLike(Protocol):
@@ -70,11 +72,22 @@ def canonical_segment(value: str) -> str:
     return quote(value, safe="-._~")
 
 
-def content_digest(path: Path) -> str | None:
+def content_digest(path: Path) -> tuple[str | None, str | None]:
+    digest = hashlib.sha256()
+    total_bytes = 0
     try:
-        return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        with path.open("rb") as handle:
+            while True:
+                remaining_bytes = MAX_SKILL_DOCUMENT_BYTES - total_bytes
+                chunk = handle.read(min(SKILL_DIGEST_CHUNK_BYTES, remaining_bytes + 1))
+                if not chunk:
+                    return "sha256:" + digest.hexdigest(), None
+                total_bytes += len(chunk)
+                if total_bytes > MAX_SKILL_DOCUMENT_BYTES:
+                    return None, "skill_document_too_large"
+                digest.update(chunk)
     except OSError:
-        return None
+        return None, "skill_document_unreadable"
 
 
 def relative_path(path: Path, root: Path) -> Path | None:
@@ -154,13 +167,13 @@ def skill_identity(record: SkillRecordLike, codex_root: Path, agents_root: Path)
 
 def manifest_skill(record: SkillRecordLike, codex_root: Path, agents_root: Path) -> dict[str, Any]:
     identity = skill_identity(record, codex_root, agents_root)
-    digest = content_digest(record.path)
+    digest, digest_reason = content_digest(record.path)
     description = getattr(record, "description", "")
     if not isinstance(description, str):
         description = ""
     reason_codes = ["runtime_state_unchecked"]
-    if digest is None:
-        reason_codes.insert(0, "skill_document_unreadable")
+    if digest_reason is not None:
+        reason_codes.insert(0, digest_reason)
     return {
         "configured_name": record.name,
         **identity,

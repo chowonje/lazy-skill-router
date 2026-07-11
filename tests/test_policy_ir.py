@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
+from lazy_skill_router_activation import (
+    DEFAULT_ACTION_PATTERNS,
+    DEFAULT_META_PATTERNS,
+    DEFAULT_NO_ACTION_PATTERNS,
+)
 from lazy_skill_router_contracts import structured_recommendation_v1
 from lazy_skill_router_core import route_prompt
 from lazy_skill_router_inventory import InventorySnapshot
 from lazy_skill_router_policy_ir import (
+    activation_pattern_risk,
     parse_policy_config,
     policy_references,
     resolve_policy,
@@ -23,6 +30,77 @@ def available_skill(name: str, canonical_id: str) -> dict[str, object]:
 
 
 class PolicyIRTest(unittest.TestCase):
+    def test_activation_pattern_structure_is_rejected_before_regex_execution(self) -> None:
+        compiled = mock.Mock()
+
+        risk = activation_pattern_risk(r"(a+)+$", compiled)
+
+        self.assertEqual(risk, "nested repetition is unsupported")
+        compiled.search.assert_not_called()
+
+    def test_activation_patterns_reject_catastrophic_custom_regex(self) -> None:
+        fields_and_codes = (
+            ("metaPatterns", "activation_meta_pattern_regex_unsafe"),
+            ("actionPatterns", "activation_action_pattern_regex_unsafe"),
+            ("noActionPatterns", "activation_no_action_pattern_regex_unsafe"),
+        )
+
+        for field, expected_code in fields_and_codes:
+            with self.subTest(field=field):
+                parsed = parse_policy_config(
+                    {
+                        "activation": {"mode": "inject", field: [r"(a+)+$"]},
+                        "routes": [{"name": "pdf", "primary": "pdf", "patterns": ["pdf"]}],
+                    }
+                )
+
+                self.assertFalse(parsed.valid)
+                self.assertIn(expected_code, {finding.code for finding in parsed.findings})
+
+    def test_shipped_activation_patterns_pass_the_custom_regex_boundary(self) -> None:
+        parsed = parse_policy_config(
+            {
+                "activation": {
+                    "mode": "inject",
+                    "metaPatterns": list(DEFAULT_META_PATTERNS),
+                    "actionPatterns": list(DEFAULT_ACTION_PATTERNS),
+                    "noActionPatterns": list(DEFAULT_NO_ACTION_PATTERNS),
+                },
+                "routes": [{"name": "pdf", "primary": "pdf", "patterns": ["pdf"]}],
+            }
+        )
+
+        self.assertTrue(parsed.valid, parsed.findings)
+
+    def test_activation_patterns_reject_ambiguous_custom_repeats(self) -> None:
+        for pattern in (r"a*a*a*a*a*a*b", r"\s+$"):
+            with self.subTest(pattern=pattern):
+                parsed = parse_policy_config(
+                    {
+                        "activation": {"mode": "inject", "actionPatterns": [pattern]},
+                        "routes": [{"name": "pdf", "primary": "pdf", "patterns": ["pdf"]}],
+                    }
+                )
+
+                self.assertFalse(parsed.valid)
+                self.assertIn("activation_action_pattern_regex_unsafe", {finding.code for finding in parsed.findings})
+
+    def test_activation_patterns_reject_before_compile_resource_errors(self) -> None:
+        for pattern in (
+            ("(" * 2_000) + "a" + (")" * 2_000),
+            r"a{999999999999999999999999999999999999}",
+        ):
+            with self.subTest(pattern=pattern[:40]):
+                parsed = parse_policy_config(
+                    {
+                        "activation": {"mode": "inject", "actionPatterns": [pattern]},
+                        "routes": [{"name": "pdf", "primary": "pdf", "patterns": ["pdf"]}],
+                    }
+                )
+
+                self.assertFalse(parsed.valid)
+                self.assertIn("activation_action_pattern_regex_unsafe", {item.code for item in parsed.findings})
+
     def test_legacy_base_identifiers_remain_compatible(self) -> None:
         v1 = {
             "routes": [

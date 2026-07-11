@@ -52,12 +52,14 @@ jobs:
         run: >
           python3 -m py_compile
           lazy_skill_router.py
+          lazy_skill_router_activation.py
           lazy_skill_router_contracts.py
           lazy_skill_router_core.py
           lazy_skill_router_common.py
           lazy_skill_router_install_manifest.py
           lazy_skill_router_inventory.py
           lazy_skill_router_logging.py
+          lazy_skill_router_policy_ir.py
           lazy_skill_router_scoring.py
           measurement.py
           generate_routes.py
@@ -70,6 +72,7 @@ jobs:
           eval_routes.py
           lazy_skill_router_cli/cli.py
           tests/test_cli.py
+          tests/test_activation_ir.py
           tests/test_config_trust.py
           tests/test_eval_routes.py
           tests/test_fail_open_matrix.py
@@ -163,6 +166,11 @@ jobs:
             --inventory .ci/skills.manifest.json \
             --hook-ir-json \
             "GitHub PR에서 CI 실패 고쳐줘" > .ci/hook-ir-v1.json
+          python3 lazy_skill_router.py \
+            --config .ci/generated-routes.json \
+            --inventory .ci/skills.manifest.json \
+            --activation-ir-json \
+            "GitHub PR에서 CI 실패 고쳐줘" > .ci/activation-ir-v1.json
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -170,11 +178,14 @@ jobs:
           route_result = json.loads(Path(".ci/route-result-v2.json").read_text(encoding="utf-8"))
           recommendation = json.loads(Path(".ci/recommendation-v1.json").read_text(encoding="utf-8"))
           hook_ir = json.loads(Path(".ci/hook-ir-v1.json").read_text(encoding="utf-8"))
+          activation_ir = json.loads(Path(".ci/activation-ir-v1.json").read_text(encoding="utf-8"))
           assert route_result["contract"] == "lazy-skill-router.route-result/v2"
           assert recommendation["contract"]["name"] == "lazy-skill-router.skill-recommendation"
           assert recommendation["producer"]["inventory_state"] == "available"
           assert recommendation["semantics"]["authority"] == "none"
           assert hook_ir["schema"] == "lazy-skill-router.hook-ir/v1"
+          assert activation_ir["schema"] == "lazy-skill-router.activation-ir/v1"
+          assert activation_ir["disposition"] in {"activate", "propose", "abstain"}
           PY
 
       - name: Check installer and doctor smoke
@@ -205,6 +216,7 @@ jobs:
           "$pipx_bin/lazy-skill-router" route --route-result-v2 "GitHub PR에서 CI 실패 고쳐줘"
           "$pipx_bin/lazy-skill-router" route --recommendation-json "GitHub PR에서 CI 실패 고쳐줘"
           "$pipx_bin/lazy-skill-router" route --hook-ir-json "GitHub PR에서 CI 실패 고쳐줘"
+          "$pipx_bin/lazy-skill-router" route --activation-ir-json "GitHub PR에서 CI 실패 고쳐줘"
           measurement_log="$(mktemp)"
           "$pipx_bin/lazy-skill-router" outcome \
             --config routes.default.json --log "$measurement_log" --case-id ci-smoke --replicate 1 \

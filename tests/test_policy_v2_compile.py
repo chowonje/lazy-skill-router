@@ -91,6 +91,39 @@ class PolicyV2CompileTest(unittest.TestCase):
         self.assertEqual(promoted["schemaVersion"], 2)
         self.assertEqual(promoted["routes"][-1]["lifecycle"]["state"], "active")
 
+    def test_v2_compiler_preserves_activation_facets(self) -> None:
+        proposal = normalized_v2_proposal()
+        proposal["routes"][0]["patterns"] = [
+            {
+                "id": "pdf.target",
+                "regex": "pdf",
+                "label": "pdf.target",
+                "weight": 1.0,
+                "facet": "target",
+            },
+            {
+                "id": "pdf.action",
+                "regex": "generated",
+                "label": "pdf.action",
+                "weight": 1.0,
+                "facet": "action",
+            },
+        ]
+        proposal["routes"][0]["activation"] = {
+            "requiredFacets": ["target", "action"],
+            "scope": "phase",
+            "mode": "propose-only",
+        }
+
+        candidate = compile_policy(schema_v2_config(), proposal, "proposal-revision")
+
+        added = candidate["routes"][-1]
+        self.assertEqual(added["activation"], proposal["routes"][0]["activation"])
+        self.assertEqual(
+            [pattern["facet"] for pattern in added["match"]["any"]],
+            ["target", "action"],
+        )
+
     def test_v2_compiler_extends_existing_allowlist_for_shadow_route(self) -> None:
         base = schema_v2_config()
         base["allowedSkills"] = ["personal-skill-router"]

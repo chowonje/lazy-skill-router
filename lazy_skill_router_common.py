@@ -3,9 +3,11 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import shlex
 import shutil
 import sys
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,49 @@ def debug(message: str) -> None:
 def codex_home() -> Path:
     configured = os.environ.get("CODEX_HOME")
     return Path(configured).expanduser() if configured else Path.home() / ".codex"
+
+
+def canonical_hook_command(hook_path: Path, routes_path: Path, *, stop: bool = False) -> str:
+    argv = ("python3", str(hook_path), "--config", str(routes_path))
+    if stop:
+        argv = (*argv, "--hook-event", "stop")
+    return shlex.join(argv)
+
+
+def normalized_command_argv(value: Any) -> tuple[str, ...] | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        argv = tuple(shlex.split(value))
+    except ValueError:
+        return None
+    return argv or None
+
+
+def command_matches_any(value: Any, expected_commands: Iterable[str]) -> bool:
+    argv = normalized_command_argv(value)
+    if argv is None:
+        return False
+    for command in expected_commands:
+        expected = normalized_command_argv(command)
+        if expected is not None and argv == expected:
+            return True
+    return False
+
+
+def registered_hook_command(registration: Any, event_name: str) -> str | None:
+    if not isinstance(registration, dict):
+        return None
+    if event_name == "UserPromptSubmit":
+        entry = registration
+    elif event_name == "Stop":
+        entry = registration.get("lifecycle")
+    else:
+        return None
+    if not isinstance(entry, dict) or entry.get("event") != event_name:
+        return None
+    command = entry.get("command")
+    return command if normalized_command_argv(command) is not None else None
 
 
 def load_json_object(path: Path, root_name: str) -> dict[str, Any]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
+from lazy_skill_router_activation import activation_ir_dict, decide_activation
 from lazy_skill_router_core import answer_only_patterns, parse_routes
 from lazy_skill_router_inventory import InventorySnapshot
 from lazy_skill_router_scoring import RouteMatch, ranked_route_matches_v2, text_matches
@@ -100,8 +101,18 @@ def route_result_v2(
     fallback_used = bool(matches and matches[0].route.fallback)
     top_margin = score_margin(matches, 0)
     ambiguous = bool(len(matches) > 1 and top_margin is not None and top_margin < min_score_margin(config))
-    status = "ambiguous" if ambiguous else "matched" if matches else "no-match"
-    bounded = matches[: max_recommendations(config)]
+    activation = decide_activation(
+        prompt,
+        matches,
+        config,
+        answer_only=text_matches(prompt, answer_only_patterns(config)),
+    )
+    if activation.disposition == "abstain":
+        status = "abstained" if matches else "no-match"
+        bounded = ()
+    else:
+        status = "ambiguous" if ambiguous else "matched" if matches else "no-match"
+        bounded = matches[: max_recommendations(config)]
 
     return {
         "contract": "lazy-skill-router.route-result/v2",
@@ -113,7 +124,11 @@ def route_result_v2(
         "fallback_used": fallback_used,
         "fallback_reason": "no_matching_normal_route" if fallback_used else None,
         "ambiguous": ambiguous,
-        "compatibility": {"legacy_route_v1_top1": True, "default_hook_output_unchanged": True},
+        "activation": activation_ir_dict(activation),
+        "compatibility": {
+            "legacy_route_v1_top1": True,
+            "should_inject_means_context_delivery": True,
+        },
     }
 
 
@@ -215,8 +230,13 @@ def structured_recommendation_v1(
     inventory: InventorySnapshot | None = None,
 ) -> dict[str, Any]:
     route_result = route_result_v2(prompt, config, inventory)
-    matches = contract_matches(prompt, config, inventory)[: max_recommendations(config)]
+    matches = (
+        ()
+        if route_result["activation"]["disposition"] == "abstain"
+        else contract_matches(prompt, config, inventory)[: max_recommendations(config)]
+    )
     route_recommendations = route_result["recommendations"]
+    activation = route_result["activation"]
     recommendations = []
     for index, match in enumerate(matches):
         route_recommendation = route_recommendations[index]
@@ -235,7 +255,17 @@ def structured_recommendation_v1(
                 "intent": route_recommendation["intent"],
                 "plan_kind": "unresolved_capabilities",
                 "phases": [],
-                "skills": skill_recommendations(match, inventory),
+                "skills": [
+                    {
+                        **skill,
+                        "activation_state": (
+                            "activated"
+                            if index == 0 and skill["role"] == "primary" and activation["disposition"] == "activate"
+                            else "deferred"
+                        ),
+                    }
+                    for skill in skill_recommendations(match, inventory)
+                ],
                 "unresolved_capabilities": unresolved,
             }
         )
@@ -267,6 +297,9 @@ def structured_recommendation_v1(
             "fallback_used": route_result["fallback_used"],
             "fallback_reason": route_result["fallback_reason"],
             "ambiguous": route_result["ambiguous"],
+            "activation_disposition": activation["disposition"],
+            "activation_reason_code": activation["reasonCode"],
+            "activation_request_mode": activation["intentFrame"]["requestMode"],
         },
         "recommendations": recommendations,
         "selection_notes": {
@@ -298,7 +331,7 @@ def hook_ir_v1(
     recommendation_contract = structured_recommendation_v1(prompt, config, inventory)
     recommendations = recommendation_contract["recommendations"]
     route_ref = recommendation_contract["route_result_ref"]
-    answer_only = text_matches(prompt, answer_only_patterns(config))
+    answer_only = route_ref["activation_request_mode"] == "answer-only"
     ir_routes: list[dict[str, Any]] = []
     for recommendation_item in recommendations:
         for skill in recommendation_item["skills"]:
@@ -317,6 +350,7 @@ def hook_ir_v1(
                     "eligibility": availability["status"],
                     "trust": recommendation_contract["producer"]["config_trust"],
                     "risk_hint": "advisory",
+                    "activation_state": skill["activation_state"],
                     "unresolved_capability": recommendation_item["unresolved_capabilities"],
                 }
             )
@@ -338,6 +372,8 @@ def hook_ir_v1(
             "status": route_ref["status"],
             "match_strength": first_match.get("match_strength", 0.0),
             "score_margin": first_match.get("score_margin"),
+            "activation_disposition": route_ref["activation_disposition"],
+            "activation_reason_code": route_ref["activation_reason_code"],
         },
         "routes": ir_routes,
         "inventory": {
