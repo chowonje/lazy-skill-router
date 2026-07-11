@@ -25,6 +25,7 @@
 - `lazy_skill_router_host_catalog.py`: app-provided host catalog validation and inventory reconciliation.
 - `lazy_skill_router_policy.py`: app-LLM policy context, proposal validation, shadow staging, feedback, and promotion.
 - `lazy_skill_router_policy_ir.py`: shared immutable v1/v2 policy parser, reference resolver, and smoke-primary selector.
+- `lazy_skill_router_activation.py`: deterministic `activate`/`propose`/`abstain` decision and Activation IR projection.
 - `lazy_skill_router_install_manifest.py`: install ownership records, digest validation, and safe removal state.
 - `lazy_skill_router_scoring.py`: route matching, confidence, score ranking, and fallback handling.
 - `lazy_skill_router.py`: Codex hook and dry-run CLI adapter.
@@ -44,7 +45,7 @@
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
-- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
+- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
@@ -60,6 +61,8 @@
 - Use `priority` and `weight` sparingly; prefer better patterns when a route is too broad.
 - Prefer specific patterns and `excludePatterns` over generic catch-all regexes.
 - Add or update `eval/prompts.jsonl` fixtures for every route behavior change.
+- Treat route candidacy and skill activation separately. Weak, ambiguous, fallback, meta, answer-only, or incomplete
+  facet matches must not silently become automatic skill activation.
 - Run `validate_routes.py`, `eval_routes.py`, and unit tests after route edits.
 
 ## Install And Uninstall Changes

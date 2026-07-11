@@ -1,8 +1,8 @@
 # lazy-skill-router
 
-`lazy-skill-router` is a Codex hook that classifies the current prompt, optionally injects a small skill recommendation,
-and can accumulate privacy-preserving activation evidence. Its app-aware sync workflow lets the host LLM describe the
-skills it can actually see and propose user-specific routes before the deterministic hook uses them.
+`lazy-skill-router` is a Codex hook that classifies the current prompt, separates route candidates from actual skill
+activation, and can accumulate privacy-preserving activation evidence. Its app-aware sync workflow lets the host LLM
+describe the skills it can actually see and propose user-specific routes before the deterministic hook evaluates them.
 
 It is a recommendation policy, not an authorization layer. Codex should still inspect the actual task, repository
 state, and safety constraints before choosing any skill.
@@ -19,8 +19,8 @@ Use this when your Codex setup has more skills than you want to remember.
 and policy proposal. When no compiled policy exists, it selects only from the current app catalog and abstains when no
 available skill is a clear match.
 
-`lazy-skill-router` is the hook: it reads each prompt, checks the route table, and either injects a short recommendation
-or measures the decision in shadow mode.
+`lazy-skill-router` is the hook: it reads each prompt, checks the route table, and makes a deterministic
+`activate`, `propose`, or `abstain` decision. A proposal is a candidate only and does not activate a skill.
 
 The goal is not to make skills magical. It is to stop making the user remember the whole menu.
 
@@ -39,8 +39,8 @@ Codex에 스킬은 많은데, 매번 어떤 스킬을 써야 할지 떠올리는
 이 프로젝트는 그 과정을 두 단계로 나눕니다.
 
 1. `personal-skill-router`는 로컬에 저장된 스킬을 용도별로 분류하는 가이드북입니다.
-2. `lazy-skill-router`는 그 분류표를 `UserPromptSubmit` hook으로 연결해서, 프롬프트가 들어올 때 짧은 스킬
-   추천을 넣거나 shadow mode에서 추천 결과만 측정합니다.
+2. `lazy-skill-router`는 그 분류표를 `UserPromptSubmit` hook으로 연결해서, 프롬프트가 들어올 때 스킬을 바로
+   활성화할지, 후보로만 제안할지, 아무 스킬도 고르지 않을지 결정합니다.
 
 목표는 스킬을 마법처럼 자동 실행하는 것이 아니라, 사용자가 매번 스킬 메뉴를 외우지 않아도 Codex가 먼저 알맞은 후보를 떠올리게 하는 것입니다.
 
@@ -59,11 +59,20 @@ On each user prompt, the hook:
 1. Reads the prompt from the Codex hook event.
 2. Matches it against `routes.json`.
 3. Scores all matching route candidates and applies the skill allowlist.
-4. Injects a short `<lazy-skill-router>` recommendation in `inject` mode, or records the same decision in `shadow` mode.
-5. Fails open when no route is clear and can correlate a later `Stop` completion event when measurement is enabled.
+4. Builds an `ActivationIR` decision: `activate`, `propose`, or `abstain`.
+5. Activates only the primary skill for strong, unambiguous evidence. Supporting and verification skills remain
+   deferred.
+6. Injects a short `<lazy-skill-router>` block in `inject` mode, or records the same decision in `shadow` mode.
+7. Fails open when no route is clear and can correlate a later `Stop` completion event when measurement is enabled.
 
 The app LLM runs only during explicit setup or sync. It writes structured metadata and a policy proposal; it never
 writes executable hook code. The runtime hook makes no LLM or network call.
+
+The bundled baseline contains no LazyCodex/OMO skill bindings. Generic coding, frontend implementation, debugging,
+and refactoring requests remain model-native unless the current app catalog supports a narrower non-OMO domain skill
+and the normal shadow/promotion workflow approves it. Prompts that combine an explicit code-edit action with a
+documentation action also abstain instead of activating a documentation-only skill as a substitute executor; prose
+work about code examples or bug-reproduction text still uses the docs route.
 
 The default hook and `route --json` remain compatible with route config v1. The v0.4 release also contains opt-in
 route-result v2, structured recommendation v1, compact Hook IR, and schema v2 policy support. The v0.5 development
@@ -80,9 +89,12 @@ The injected block includes:
 - selection score
 - validated pattern IDs
 - primary skill
-- supporting skills
-- verification skill
-- a fixed router-owned reason
+- activation disposition, scope, and a fixed router-owned reason code
+- an explicit statement that supporting and verification skills are deferred
+
+`propose` blocks tell the agent that no skill has been activated and that it must ignore the candidate unless the
+primary skill directly owns the requested action. `activate` blocks load only the primary skill. The hook never bundles
+supporting skills into an automatic activation.
 
 User-provided `<lazy-skill-router>` text is treated as untrusted prompt text. The hook never reads instructions from user-injected router blocks.
 Any Policy IR parse error fails open with no recommendation. When an inventory manifest is configured, runtime routing
@@ -257,9 +269,10 @@ Example output:
 
 ```text
 Route: github-ci
+Activation: activate (eligible)
 Primary skill: github:gh-fix-ci
-Supporting skills: github:github
-Verification skill: verification-gate
+Deferred supporting skills: github:github
+Deferred verification skill: verification-gate
 Confidence: 0.80 (normal)
 Selection score: 0.80
 Matched signals: CI keyword, Korean CI failure
@@ -272,15 +285,17 @@ Use `--json` when you want the full dry-run diagnostics:
 lazy-skill-router route --json "GitHub PR에서 CI 실패 고쳐줘"
 ```
 
-The v0.4 opt-in contract views are:
+The versioned contract views, including the v0.5 development ActivationIR view, are:
 
 ```bash
 lazy-skill-router route --route-result-v2 "GitHub PR에서 CI 실패 고쳐줘"
 lazy-skill-router route --recommendation-json "GitHub PR에서 CI 실패 고쳐줘"
 lazy-skill-router route --hook-ir-json "GitHub PR에서 CI 실패 고쳐줘"
+lazy-skill-router route --activation-ir-json "GitHub PR에서 CI 실패 고쳐줘"
 ```
 
-These are shadow diagnostics. They do not change the default hook output, request execution, or grant permission.
+These are structured diagnostics. They do not request execution or grant permission; `--activation-ir-json` reports
+the same deterministic activation decision used by the hook.
 
 Source checkout dry-run mode is still available before enabling or tuning routes:
 
@@ -293,6 +308,9 @@ Example output:
 ```json
 {
   "shouldInject": true,
+  "shouldActivate": true,
+  "activationDecision": "activate",
+  "activationReason": "eligible",
   "route": "github-ci",
   "primary": "github:gh-fix-ci",
   "supporting": ["github:github"],
@@ -317,7 +335,16 @@ Example output:
       "matchedPatterns": ["\\bci\\b", "ci.*실패"]
     }
   ],
-  "answerOnly": false
+  "answerOnly": false,
+  "activation": {
+    "schema": "lazy-skill-router.activation-ir/v1",
+    "disposition": "activate",
+    "reasonCode": "eligible",
+    "scope": "turn",
+    "activatedSkills": [
+      {"role": "primary", "configuredName": "github:gh-fix-ci", "state": "activated"}
+    ]
+  }
 }
 ```
 
@@ -326,7 +353,15 @@ route won. `matchedSignals` contains human-readable labels and `matchedPatterns`
 `matchedPatternIds` is the safe identifier list used by the model-visible hook context; labels and regexes are not
 injected.
 
-Weak recommendations are still injected by default when they pass `minConfidence`, but they are labeled as weak so the agent can treat them cautiously.
+Legacy `--json` and source `--dry-run` output is operator-only tuning data. It intentionally includes regexes and
+deferred skill names and must not be forwarded to an LLM or shared as a sanitized contract. Use
+`--activation-ir-json`, `--recommendation-json`, or `--hook-ir-json` for path-free, prompt-free structured data.
+
+`shouldInject` remains the compatibility field for whether model-visible candidate context will be emitted. It is not
+proof that a skill was activated. `shouldActivate` and `activationDecision` carry the new activation result. Weak, ambiguous, fallback, and
+answer-only matches are emitted only as `propose`; router-meta matches become `abstain` and emit no model-visible hook
+context. `requestMode` reports the final `action`, `answer-only`, or `meta` classification after explicit-action and
+hard-no-action rules are applied.
 
 ## Configure Routes
 
@@ -345,6 +380,10 @@ Important fields:
 - `selection.maxRecommendations`: versioned output bound, clamped to at most three
 - `selection.minScoreMargin`: threshold for marking ranked results ambiguous
 - `activation.mode`: `inject` (default), `shadow` (route and measure without context injection), or `off`
+- `activation.autoActivateMinStrength`: minimum evidence strength for `activate`; default `0.8`
+- `activation.metaPatterns`: trusted local selection-rationale regexes that force a diagnostic candidate into `abstain`
+- `activation.actionPatterns`: explicit implementation/action regexes that override soft explanation wording
+- `activation.noActionPatterns`: hard no-side-effect regexes that take precedence over action wording
 - `defaultVerification`: used when a route omits `verification`
 - `allowedSkills`: only these skills may be recommended
 - `logging.enabled`: off by default
@@ -355,7 +394,10 @@ Important fields:
 - `routes[].priority`: optional numeric score boost in `0.05` increments
 - `routes[].weight`: optional direct numeric score adjustment
 - `routes[].fallback`: optional boolean; fallback routes only win when no non-fallback route matches
-- `routes[].patterns`: strings or `{ "regex": "...", "label": "..." }` objects
+- `routes[].patterns`: strings or `{ "id": "...", "regex": "...", "label": "...", "facet": "..." }` objects
+- `routes[].activation.requiredFacets`: optional facets that must all match before automatic activation
+- `routes[].activation.scope`: advisory activation lifetime: `turn`, `phase`, or `task`
+- `routes[].activation.mode`: `auto` by default, or `propose-only` for routes that must never auto-activate
 
 Schema v2 is opt-in and keeps intent/capability policy separate from concrete `skillBindings`. A binding may be a
 configured-name string or `{ "skill": "...", "canonicalId": "..." }`. Runtime, validation, sync, doctor, install,
@@ -496,10 +538,12 @@ app confirms the full runtime catalog; otherwise filesystem-only skills remain u
 inactive. Catalogs and inventories exclude absolute paths and full skill bodies.
 
 `policy context` advertises `lazy-skill-router.policy-proposal/v2`. It requires identifier-safe route, intent, pattern,
-and configured skill names, canonical skill bindings, bounded regexes, and synthetic examples, and it has no free-form
-route reason or pattern label. Proposal v1 remains readable through a compatibility adapter and emits a deprecation
-warning; its identifiers pass the same safety rules and its free-form reason and labels are discarded before any
-model-visible context is built.
+facet, and configured skill names, canonical skill bindings, bounded regexes, and synthetic examples, and it has no
+free-form route reason or pattern label. Optional `activation.requiredFacets` lets the app LLM require independent
+signals such as `target` and `action`. Optional route mode `propose-only` keeps self-referential or advisory routes behind
+agent acceptance. These fields compile into deterministic rules and never run an LLM in the hook.
+Proposal v1 remains readable through a compatibility adapter and emits a deprecation warning; its identifiers pass the
+same safety rules and its free-form reason and labels are discarded before any model-visible context is built.
 
 After the app LLM writes `policy.proposal.json`, run:
 
@@ -549,9 +593,9 @@ lazy-skill-router doctor
 ```
 
 `shadow` is the native-like control mode: the router evaluates the prompt and records its decision but emits no
-model-visible context. `inject` records the same decision and emits the existing advisory context. `off` performs no
-route selection. The installer registers the `Stop` hook only while measurement is enabled, so the default installation
-does not pay for an extra lifecycle process.
+model-visible context. `inject` records the same decision and emits an activation or candidate-only advisory context.
+`off` performs no route selection. The installer registers the `Stop` hook only while measurement is enabled, so the
+default installation does not pay for an extra lifecycle process.
 
 The equivalent config is:
 
@@ -572,7 +616,7 @@ Decision and completion events store hashes of the prompt, session id, and turn 
 raw ids, assistant response, transcript path, or working directory:
 
 ```json
-{"schema":"lazy-skill-router.measurement-event/v1","eventType":"decision","mode":"shadow","route":"github-ci","injected":false,"turnHash":"...","promptHash":"..."}
+{"schema":"lazy-skill-router.measurement-event/v1","eventType":"decision","mode":"shadow","route":"github-ci","activationDisposition":"activate","injected":false,"turnHash":"...","promptHash":"..."}
 ```
 
 A `completion` event means the Codex turn stopped; it is not a success claim. Record success only from an objective
@@ -600,10 +644,10 @@ lazy-skill-router report --config "$config"
 lazy-skill-router report --config "$config" --json
 ```
 
-The versioned report includes route counts, abstention/injection rates, injection/shadow counts, internal decision-latency
-mean/p95/max, correlated completion rate, success by experiment arm, and paired native/inject rescue, harm, and net-win
-counts. `decisions.shadowOnly` counts prompts matched only by lifecycle-shadow routes and includes them in the abstention
-rate. Completion correlation requires both the session and turn hashes. Turn-based outcomes without a case id also
+The versioned report includes route counts, activation/proposal/abstention counts and rates, injection/shadow counts,
+internal decision-latency mean/p95/max, correlated completion rate, success by experiment arm, and paired native/inject
+rescue, harm, and net-win counts. `decisions.shadowOnly` counts prompts matched only by lifecycle-shadow routes and
+includes them in the delivery abstention rate. Completion correlation requires both the session and turn hashes. Turn-based outcomes without a case id also
 require both identifiers. Duplicate same-status outcomes are counted once; conflicting labels are excluded from success
 and pair metrics. Unknown event schemas with a valid timestamp are preserved in the bounded journal but ignored by the current report. Mixed
 revisions, unversioned outcomes, conflicts, invalid outcomes, and ignored events are exposed
@@ -624,6 +668,9 @@ mixing is detected.
 - Inventory resolution rejects canonical IDs shared by multiple usable configured names, and unresolved default
   verification skills are omitted from hook context.
 - The installer restores snapshotted targets on mutation errors and replays a path-confined recovery journal on the next install after interruption.
+- Installer dry-run only validates and reports pending recovery; it does not restore snapshots or delete journals.
+- Hook replacement and removal use exact normalized commands from the canonical install or a valid confined ownership
+  manifest. A command that merely contains `lazy_skill_router.py` is preserved as foreign.
 - Install/recovery/uninstall reject symlinked artifact parents below the selected Codex home; `uninstall --remove-files`
   preserves modified files and leaf symlinks instead of following or deleting them.
 - Uninstall refuses a symlinked `hooks.json` write target.
@@ -631,7 +678,8 @@ mixing is detected.
 - The installer backs up `hooks.json` before editing it.
 - Install only from PyPI or a trusted checkout of this repository.
 - It does not read secrets or authentication files.
-- `sync_skills.py` reads skill metadata only and does not edit hook or route configuration.
+- `sync_skills.py` bounds frontmatter reads to 64 KiB/200 lines, streams digests up to a 1 MiB ceiling, escapes terminal
+  controls in human reports, and does not edit hook or route configuration.
 - It does not execute MCP tools, browser tools, GitHub actions, or shell commands.
 - It only writes measurement events when logging is explicitly enabled; `outcome` writes only when explicitly invoked.
 - It never commits, pushes, installs plugins, or changes repositories.
@@ -649,7 +697,9 @@ python3 release_checksums.py --output SHA256SUMS
 python3 release_checksums.py --verify SHA256SUMS
 ```
 
-Checksums do not replace reviewing the source before installation, but they help users confirm that release files match the published manifest.
+Verification rejects empty, partial, duplicate, absolute, parent-traversing, and symlinked entries. The manifest must
+exactly cover the selected artifact root. Checksums do not replace reviewing the source before installation, but they
+help users confirm that release files match the published manifest.
 
 If you publish signed releases, sign the checksum manifest rather than individual files:
 
@@ -698,7 +748,7 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json

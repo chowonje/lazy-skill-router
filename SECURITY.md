@@ -13,6 +13,8 @@ or current user instructions.
 
 - The hook does not call external services.
 - Raw prompt text is not written to logs, inventory, install manifests, structured recommendations, or Hook IR.
+- Legacy `route --json` and source `--dry-run` are operator-only diagnostics and may expose local regexes and deferred
+  skill names. Do not forward them to an LLM or treat them as a sanitized wire contract.
 - Optional measurement events contain short prompt/session/turn hashes and route metadata, default to 1,000 entries and
   30 days, and remain local. They exclude raw prompt, assistant response, transcript path, and working directory.
 - Outcome case ids are stored only as hashes. A completion event is never promoted to task success without an explicit
@@ -22,16 +24,20 @@ or current user instructions.
 - Reports accept only the current measurement event schema. Unknown schemas with a valid timestamp remain bounded and
   preserved for forward compatibility but are ignored by the current report; conflicting outcome labels are excluded
   instead of silently selecting one.
-- Generated manifests use relative locator references, content digests, and bounded `name`/`description` frontmatter
-  metadata rather than absolute local paths or full skill bodies.
+- Generated manifests use relative locator references, streaming content digests, and bounded `name`/`description`
+  frontmatter metadata rather than absolute local paths or full skill bodies. Frontmatter parsing is limited to the
+  first 64 KiB and 200 lines; skill documents over 1 MiB are marked `skill_document_too_large` instead of being hashed.
 - Host catalog drafts contain only skill names, descriptions, provenance class, enabled state, and implicit-invocation
   state. Skill descriptions are untrusted metadata and are never executed as instructions.
 - Policy proposals must use synthetic examples rather than copied private prompts. The app LLM emits structured JSON,
   not Python, shell commands, hook registration, or executable code.
 - Policy proposal v2 accepts canonical bindings and identifier-safe route, intent, pattern, and configured skill names,
-  but no free-form route reason or pattern label. The hook emits only validated pattern IDs and a fixed router-owned
-  reason. Proposal v1 remains compatible, but its identifiers pass the same restrictions and its reason and labels are
-  discarded before model-visible context is built.
+  plus identifier-safe activation facets, but no free-form route reason or pattern label. The hook emits only validated
+  pattern IDs and a fixed router-owned reason code. Proposal v1 remains compatible, but its identifiers pass the same
+  restrictions and its reason and labels are discarded before model-visible context is built.
+- Runtime `propose` is candidate-only: it activates no skill. Only strong, non-ambiguous `activate` decisions select the
+  primary skill; supporting and verification roles remain deferred. Router-meta matches hard-abstain without emitting
+  model-visible context, and versioned structured contracts suppress all skill lists for the same abstention.
 - Policy feedback stores route and proposal identifiers, verdict/source metadata, and previously hashed session/turn
   linkage. It does not add raw prompts or responses to the journal.
 - Do not place secrets, tokens, credentials, `.env` values, or private data in route labels, reasons, or skill metadata.
@@ -48,19 +54,25 @@ Missing, invalid, canonical-mismatched, or cross-name duplicate canonical invent
 replacement provider. An unresolved default verification skill is removed before runtime route projection.
 
 Install validates and smoke-tests staged runtime before target mutation. Managed files are recorded in an ownership
-manifest. Mutation snapshots use a path-confined local journal, and the next install recovers a matching interrupted
-transaction before reading current state. Install, recovery, doctor, and uninstall reject artifact paths with symlinked
-parents below the selected Codex home. Doctor reports managed artifact drift and skips executable smoke checks after
-that drift is detected. Uninstall refuses a symlinked `hooks.json` write target. `uninstall --remove-files` does not
-follow or remove leaf symlink targets and preserves modified or user-owned artifacts.
+manifest. Mutation snapshots use a path-confined local journal, and a live install recovers a matching interrupted
+transaction before reading current state; `--dry-run` validates and reports the pending recovery without restoring or
+deleting anything. Install applies path confinement before reading `hooks.json` or the ownership manifest. Hook
+replacement and removal require an exact canonical command or a command recorded by a valid, confined ownership
+manifest; marker substrings do not establish ownership. Install, recovery, doctor, and uninstall reject artifact paths
+with symlinked parents below the selected Codex home. Doctor reports managed artifact drift and skips executable smoke
+checks after that drift is detected. Uninstall refuses a symlinked `hooks.json` write target or ownership-manifest
+parent. `uninstall --remove-files` does not follow or remove leaf symlink targets and preserves modified or user-owned
+artifacts.
 
 Skill inventory scanning refuses a symlinked `SKILL.md`, any symlinked parent below the selected skill root, and any
 metadata file that resolves outside that root. Rejected entries are never read and are reported only with a
 root-relative locator and reason code. An unchanged manifest-owned bundled skill may be upgraded automatically; a
-modified, preserved, symlinked, unsafe, or unowned copy requires explicit `--force` replacement.
+modified, preserved, symlinked, unsafe, or unowned copy requires explicit `--force` replacement. Human sync reports
+escape Unicode control and formatting characters before writing them to a terminal.
 
-Release distributions are built once. The same verified artifact bundle and checksum manifest are passed to PyPI and
-the GitHub Release job under separate least-privilege permissions.
+Release distributions are built once. Checksum verification requires a non-empty manifest whose contained,
+non-symlink paths exactly cover the selected artifact root. The same verified artifact bundle and checksum manifest are
+passed to PyPI and the GitHub Release job under separate least-privilege permissions.
 
 Policy compilation never writes the active route file. Staging verifies the exact base-config revision and that all
 existing routes remain unchanged before adding shadow candidates. Promotion accepts only feedback linked to observed

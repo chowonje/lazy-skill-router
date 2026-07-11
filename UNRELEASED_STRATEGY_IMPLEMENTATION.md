@@ -3,9 +3,12 @@
 Status: released in `0.4.0` as opt-in functionality; not enabled as the default hook wire contract.
 
 This document separates the opt-in strategy implementation from the v1-compatible default behavior in
-[`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md). The default hook still emits the legacy top-1 advisory prose
-block, and `route --json` still returns the existing v1 diagnostics. The filename is retained to preserve links from
-pre-release reviews.
+[`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md). The default hook retains the legacy top-1 advisory prose
+shape for `activate` decisions, while the `0.5.0.dev0` source adds candidate-only and abstention gates plus additive
+activation fields in `route --json`. The filename is retained to preserve links from pre-release reviews.
+
+The `0.5.0.dev0` source line adds the ActivationIR section below. That development behavior is not part of the fixed
+v0.4 public contract.
 
 ## Implemented Opt-In Contracts
 
@@ -28,6 +31,48 @@ lazy-skill-router route --hook-ir-json "GitHub PR에서 CI 실패 고쳐줘"
 All three views exclude raw prompt text, matched prompt substrings, credentials, and absolute local paths. Existing v1
 `confidence` remains a compatibility field. The versioned contracts call the same evidence score `match_strength` and
 mark it as `not_probability`.
+
+## 0.5 Development Activation Contract
+
+The development branch adds a fourth deterministic view:
+
+```bash
+lazy-skill-router route --activation-ir-json "GitHub PR에서 CI 실패 고쳐줘"
+```
+
+`lazy-skill-router.activation-ir/v1` separates route retrieval from skill activation. Its disposition is:
+
+- `activate`: strong, non-ambiguous evidence passed every configured eligibility gate; only the primary skill is active
+- `propose`: a route is relevant but answer-only, weak, ambiguous, fallback, missing required facets, or explicitly
+  `propose-only`; every skill remains deferred until the current agent accepts the primary candidate
+- `abstain`: no candidate passed matching, or a hard meta-context rule rejected an otherwise diagnostic candidate;
+  model-visible context is not emitted
+
+`shouldInject` remains a compatibility indicator that model-visible candidate context will be emitted. `shouldActivate`
+and ActivationIR are the activation authority inside the recommendation-only router. They do not authorize tools or
+side effects.
+
+Pattern objects may add an identifier-safe `facet`, and routes may add:
+
+```json
+{
+  "activation": {
+    "requiredFacets": ["target", "action"],
+    "scope": "turn",
+    "mode": "auto"
+  }
+}
+```
+
+The app LLM may generate these closed fields during explicit policy sync. The validator ensures every required facet is
+bound to a route pattern, and the v1/v2 compilers preserve the original base schema. Runtime evaluation remains local,
+deterministic, and network-free. Set route mode to `propose-only` for advisory or self-referential intents that must
+never cross the automatic gate. Supporting and verification roles are always deferred by the hook.
+
+The bundled baseline does not bind LazyCodex/OMO skills. Generic implementation, debugging, frontend, and refactor
+requests therefore produce no bundled candidate and stay with the host model. Catalog-backed non-OMO domain routes may
+still be proposed in shadow. Requests combining explicit code edits with documentation actions are excluded from the
+docs-only route; prose-only work about code examples or bug reproduction remains eligible.
 
 ## Schema V2 Input
 
