@@ -6,14 +6,30 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from lazy_skill_router_common import backup_file, codex_home, load_hooks, write_json
+from lazy_skill_router_common import (
+    backup_file,
+    canonical_hook_command,
+    codex_home,
+    command_matches_any,
+    load_hooks,
+    registered_hook_command,
+    write_json,
+)
 from lazy_skill_router_install_manifest import artifact_path, artifact_state, confined_path, load_install_manifest
 
 
-def remove_hook_entries(data: dict[str, Any]) -> int:
+def remove_hook_entries(
+    data: dict[str, Any],
+    *,
+    prompt_owned_commands: tuple[str, ...],
+    stop_owned_commands: tuple[str, ...],
+) -> int:
     hooks = data.setdefault("hooks", {})
     removed = 0
-    for event_name in ("UserPromptSubmit", "Stop"):
+    for event_name, owned_commands in (
+        ("UserPromptSubmit", prompt_owned_commands),
+        ("Stop", stop_owned_commands),
+    ):
         groups = hooks.get(event_name)
         if not isinstance(groups, list):
             continue
@@ -25,7 +41,7 @@ def remove_hook_entries(data: dict[str, Any]) -> int:
                 continue
             kept = []
             for item in hook_items:
-                if isinstance(item, dict) and "lazy_skill_router.py" in str(item.get("command", "")):
+                if isinstance(item, dict) and command_matches_any(item.get("command"), owned_commands):
                     removed += 1
                 else:
                     kept.append(item)
@@ -47,7 +63,19 @@ def remove_path(path: Path, *, dry_run: bool) -> str:
     return f"removed {path}"
 
 
+def confined_manifest_path(codex_root: Path, manifest_path: Path) -> Path:
+    try:
+        relative = manifest_path.relative_to(codex_root)
+    except ValueError as exc:
+        raise ValueError("ownership manifest is outside Codex home") from exc
+    return confined_path(codex_root, relative.as_posix(), allow_leaf_symlink=False)
+
+
 def remove_manifest_artifacts(codex_root: Path, manifest_path: Path, *, dry_run: bool) -> list[str]:
+    try:
+        manifest_path = confined_manifest_path(codex_root, manifest_path)
+    except ValueError as exc:
+        return [f"kept installed files because ownership manifest path is unsafe: {exc}"]
     snapshot = load_install_manifest(manifest_path)
     if snapshot.state != "available":
         reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
@@ -99,13 +127,35 @@ def main() -> int:
     args = parser.parse_args()
 
     codex_root = Path(args.codex_home).expanduser()
+    manifest_path = codex_root / "lazy-skill-router" / "install.manifest.json"
     try:
         hooks_json = confined_path(codex_root, "hooks.json", allow_leaf_symlink=False)
         data = load_hooks(hooks_json)
     except (OSError, ValueError) as exc:
         print(f"ERROR: unsafe or unreadable hooks.json: {exc}", file=sys.stderr)
         return 1
-    removed = remove_hook_entries(data)
+    hook_path = codex_root / "hooks" / "lazy_skill_router.py"
+    routes_path = codex_root / "lazy-skill-router" / "routes.json"
+    prompt_owned_commands = [canonical_hook_command(hook_path, routes_path)]
+    stop_owned_commands = [canonical_hook_command(hook_path, routes_path, stop=True)]
+    try:
+        safe_manifest_path = confined_manifest_path(codex_root, manifest_path)
+    except ValueError:
+        manifest_snapshot = None
+    else:
+        manifest_snapshot = load_install_manifest(safe_manifest_path)
+    if manifest_snapshot is not None and manifest_snapshot.state == "available":
+        registered_prompt = registered_hook_command(manifest_snapshot.registration, "UserPromptSubmit")
+        registered_stop = registered_hook_command(manifest_snapshot.registration, "Stop")
+        if registered_prompt is not None:
+            prompt_owned_commands.append(registered_prompt)
+        if registered_stop is not None:
+            stop_owned_commands.append(registered_stop)
+    removed = remove_hook_entries(
+        data,
+        prompt_owned_commands=tuple(dict.fromkeys(prompt_owned_commands)),
+        stop_owned_commands=tuple(dict.fromkeys(stop_owned_commands)),
+    )
 
     actions: list[str] = []
     if removed:
@@ -119,7 +169,6 @@ def main() -> int:
         actions.append("no lazy-skill-router hook entry found")
 
     if args.remove_files:
-        manifest_path = codex_root / "lazy-skill-router" / "install.manifest.json"
         actions.extend(remove_manifest_artifacts(codex_root, manifest_path, dry_run=args.dry_run))
 
     print("lazy-skill-router uninstall summary:")

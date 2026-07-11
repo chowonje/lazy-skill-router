@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HOOK_PATH = ROOT / "lazy_skill_router.py"
 CLI_MODULE = "lazy_skill_router_cli.cli"
 DEFAULT_CONFIG = ROOT / "routes.default.json"
-ROUTED_PROMPT = "Python 코드 고치고 README 문서도 같이 업데이트해줘"
+ROUTED_PROMPT = "GitHub PR에서 CI 실패 고쳐줘"
 
 
 def load_default_config() -> dict[str, Any]:
@@ -30,6 +30,55 @@ def run_json(args: list[str]) -> dict[str, Any]:
 
 
 class RouteResultV2Test(unittest.TestCase):
+    def test_meta_abstention_suppresses_skill_lists_across_structured_contracts(self) -> None:
+        prompt = "스킬을 왜 사용하게 되는지 설명해줘"
+        config = load_default_config()
+
+        route_result = route_result_v2(prompt, config)
+        recommendation = structured_recommendation_v1(prompt, config)
+        hook_ir = hook_ir_v1(prompt, config)
+        encoded = json.dumps(
+            {"routeResult": route_result, "recommendation": recommendation, "hookIr": hook_ir},
+            ensure_ascii=False,
+        )
+
+        self.assertEqual(route_result["status"], "abstained")
+        self.assertEqual(route_result["activation"]["reasonCode"], "meta_context")
+        self.assertEqual(route_result["recommendations"], [])
+        self.assertEqual(recommendation["recommendations"], [])
+        self.assertEqual(hook_ir["routes"], [])
+        self.assertNotIn("personal-skill-router", encoded)
+        self.assertNotIn("superpowers", encoded)
+        self.assertNotIn("verification-gate", encoded)
+
+    def test_activation_ir_is_identical_across_source_and_packaged_cli(self) -> None:
+        source = run_json(
+            [
+                sys.executable,
+                str(HOOK_PATH),
+                "--config",
+                str(DEFAULT_CONFIG),
+                "--activation-ir-json",
+                "PDF 만들어줘",
+            ]
+        )
+        packaged = run_json(
+            [
+                sys.executable,
+                "-m",
+                CLI_MODULE,
+                "route",
+                "--activation-ir-json",
+                "--config",
+                str(DEFAULT_CONFIG),
+                "PDF 만들어줘",
+            ]
+        )
+
+        self.assertEqual(source, packaged)
+        self.assertEqual(source["disposition"], "propose")
+        self.assertEqual(source["reasonCode"], "weak_evidence")
+
     def test_v2_preserves_v1_top1_and_uses_non_probability_strength(self) -> None:
         config = load_default_config()
         legacy = dry_run_output(ROUTED_PROMPT, config)
@@ -41,6 +90,7 @@ class RouteResultV2Test(unittest.TestCase):
         self.assertEqual(result["recommendations"][0]["route_id"], legacy["route"])
         self.assertEqual(result["recommendations"][0]["match_strength"], legacy["confidence"])
         self.assertLessEqual(len(result["recommendations"]), 3)
+        self.assertEqual(result["activation"]["disposition"], "activate")
 
     def test_v2_evidence_ids_are_stable_and_do_not_expose_prompt_or_regex(self) -> None:
         config = load_default_config()
@@ -53,7 +103,7 @@ class RouteResultV2Test(unittest.TestCase):
         self.assertNotIn("(?=.*", encoded)
         evidence_ids = first["recommendations"][0]["matched_pattern_ids"]
         self.assertTrue(evidence_ids)
-        self.assertTrue(all(pattern_id.startswith("code-docs.") for pattern_id in evidence_ids))
+        self.assertTrue(all(pattern_id.startswith("github-ci.") for pattern_id in evidence_ids))
 
     def test_v2_tie_is_deterministic_and_explicitly_ambiguous(self) -> None:
         routes = [
@@ -180,7 +230,7 @@ class StructuredRecommendationV1Test(unittest.TestCase):
 
         self.assertEqual(result["route_result_ref"]["contract_version"], 2)
         self.assertLessEqual(len(result["recommendations"]), 3)
-        self.assertEqual(result["recommendations"][0]["route_id"], "code-docs")
+        self.assertEqual(result["recommendations"][0]["route_id"], "github-ci")
         skills = result["recommendations"][0]["skills"]
         self.assertTrue(skills)
         self.assertTrue(all(skill["availability"]["status"] == "unknown" for skill in skills))
@@ -204,7 +254,7 @@ class StructuredRecommendationV1Test(unittest.TestCase):
 
         self.assertNotIn(ROUTED_PROMPT, encoded)
         self.assertNotIn("(?=.*", encoded)
-        self.assertIn("signal:code-docs.", encoded)
+        self.assertIn("signal:github-ci.", encoded)
 
     def test_no_match_contract_is_empty_and_fail_open(self) -> None:
         result = structured_recommendation_v1("hello", {"routes": []})

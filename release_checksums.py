@@ -19,6 +19,8 @@ def should_include(path: Path, root: Path) -> bool:
     relative = path.relative_to(root)
     if any(part in EXCLUDED_DIRS for part in relative.parts):
         return False
+    if path.is_symlink():
+        raise ValueError(f"checksum root contains symlink: {relative.as_posix()}")
     return path.is_file() and path.name not in EXCLUDED_FILES
 
 
@@ -30,16 +32,27 @@ def digest_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def collect_checksums(root: Path) -> list[Checksum]:
-    checksums: list[Checksum] = []
+def includable_files(root: Path, excluded_paths: tuple[Path, ...] = ()) -> list[Path]:
+    excluded = {path.resolve(strict=False) for path in excluded_paths}
+    files: list[Path] = []
     for path in sorted(root.rglob("*")):
-        if should_include(path, root):
-            checksums.append(Checksum(digest_file(path), path.relative_to(root).as_posix()))
-    return checksums
+        if not should_include(path, root):
+            continue
+        if path.resolve(strict=False) in excluded:
+            continue
+        files.append(path)
+    return files
+
+
+def collect_checksums(root: Path, excluded_paths: tuple[Path, ...] = ()) -> list[Checksum]:
+    return [
+        Checksum(digest_file(path), path.relative_to(root).as_posix())
+        for path in includable_files(root, excluded_paths)
+    ]
 
 
 def write_manifest(root: Path, output: Path) -> None:
-    checksums = collect_checksums(root)
+    checksums = collect_checksums(root, (output,))
     with output.open("w", encoding="utf-8") as handle:
         for item in checksums:
             handle.write(f"{item.digest}  {item.path}\n")
@@ -60,10 +73,64 @@ def parse_manifest(path: Path) -> list[Checksum]:
     return checksums
 
 
+def safe_manifest_path(root: Path, value: str) -> Path:
+    relative = Path(value)
+    if not value or not relative.parts or relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("path must be a nonempty relative path without '..'")
+
+    candidate = root
+    for part in relative.parts:
+        candidate /= part
+        if candidate.is_symlink():
+            raise ValueError("path must not contain a symlink")
+
+    try:
+        candidate.resolve(strict=False).relative_to(root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError("path resolves outside the checksum root") from exc
+    return candidate
+
+
 def verify_manifest(root: Path, manifest: Path) -> int:
     failures: list[str] = []
-    for item in parse_manifest(manifest):
-        path = root / item.path
+    root = root.resolve(strict=False)
+    try:
+        checksums = parse_manifest(manifest)
+    except (OSError, ValueError) as exc:
+        print(f"INVALID MANIFEST: {exc}")
+        return 1
+
+    if not checksums:
+        failures.append("EMPTY manifest has no checksum entries")
+
+    paths: dict[str, Path] = {}
+    for item in checksums:
+        if item.path in paths:
+            failures.append(f"DUPLICATE {item.path}")
+            continue
+        try:
+            paths[item.path] = safe_manifest_path(root, item.path)
+        except ValueError as exc:
+            failures.append(f"UNSAFE {item.path}: {exc}")
+
+    try:
+        expected_paths = {path.relative_to(root).as_posix() for path in includable_files(root, (manifest,))}
+    except ValueError as exc:
+        failures.append(f"UNSAFE ROOT: {exc}")
+        expected_paths = set()
+    listed_paths = set(paths)
+    for path in sorted(expected_paths - listed_paths):
+        failures.append(f"UNLISTED {path}")
+    for path in sorted(listed_paths - expected_paths):
+        failures.append(f"UNEXPECTED {path}")
+
+    if failures:
+        for failure in failures:
+            print(failure)
+        return 1
+
+    for item in checksums:
+        path = paths[item.path]
         if not path.is_file():
             failures.append(f"MISSING {item.path}")
             continue
@@ -74,7 +141,7 @@ def verify_manifest(root: Path, manifest: Path) -> int:
         print(failure)
     if failures:
         return 1
-    print(f"OK: verified {manifest}")
+    print(f"OK: verified {len(checksums)} checksums from {manifest}")
     return 0
 
 

@@ -6,7 +6,6 @@ import difflib
 import hashlib
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -24,7 +23,16 @@ from generate_routes import (
     generated_route_count,
     installed_skill_names,
 )
-from lazy_skill_router_common import backup_file, codex_home, load_hooks, load_json_object, write_json
+from lazy_skill_router_common import (
+    backup_file,
+    canonical_hook_command,
+    codex_home,
+    command_matches_any,
+    load_hooks,
+    load_json_object,
+    registered_hook_command,
+    write_json,
+)
 from lazy_skill_router_host_catalog import load_host_catalog, reconcile_inventory
 from lazy_skill_router_install_manifest import (
     InstallManifestSnapshot,
@@ -48,6 +56,7 @@ SCORING_SOURCE = PROJECT_ROOT / "lazy_skill_router_scoring.py"
 CONTRACTS_SOURCE = PROJECT_ROOT / "lazy_skill_router_contracts.py"
 INVENTORY_SOURCE = PROJECT_ROOT / "lazy_skill_router_inventory.py"
 POLICY_IR_SOURCE = PROJECT_ROOT / "lazy_skill_router_policy_ir.py"
+ACTIVATION_SOURCE = PROJECT_ROOT / "lazy_skill_router_activation.py"
 SKILL_SOURCE = PROJECT_ROOT / "skills" / "personal-skill-router"
 INTERNAL_SMOKE_PROMPT = "lazy-skill-router-internal-probe"
 TRANSACTION_JOURNAL_SCHEMA = "lazy-skill-router.install-transaction/v1"
@@ -296,7 +305,7 @@ def transaction_from_journal(
     return transaction
 
 
-def recover_pending_transactions(codex_root: Path) -> int:
+def recover_pending_transactions(codex_root: Path, *, dry_run: bool = False) -> int:
     parent = codex_root.parent
     if not parent.is_dir():
         return 0
@@ -304,7 +313,9 @@ def recover_pending_transactions(codex_root: Path) -> int:
     fingerprint = codex_root_fingerprint(codex_root)
     for transaction_root in sorted(parent.glob(f"{TRANSACTION_PREFIX}*")):
         journal_path = transaction_root / "journal.json"
-        if not transaction_root.is_dir() or not journal_path.is_file():
+        if transaction_root.is_symlink() or not transaction_root.is_dir():
+            continue
+        if journal_path.is_symlink() or not journal_path.is_file():
             continue
         try:
             journal = json.loads(journal_path.read_text(encoding="utf-8"))
@@ -315,8 +326,9 @@ def recover_pending_transactions(codex_root: Path) -> int:
         if journal.get("root_fingerprint") != fingerprint:
             continue
         transaction = transaction_from_journal(codex_root, transaction_root, journal)
-        transaction.rollback()
-        shutil.rmtree(transaction_root)
+        if not dry_run:
+            transaction.rollback()
+            shutil.rmtree(transaction_root)
         recovered += 1
     return recovered
 
@@ -326,13 +338,19 @@ def ensure_event_hook(
     event_name: str,
     hook_command: str,
     status_message: str,
+    *,
+    owned_commands: tuple[str, ...] = (),
 ) -> str:
     hooks = data.setdefault("hooks", {})
     groups = hooks.setdefault(event_name, [])
     if not isinstance(groups, list):
         raise ValueError(f"hooks.{event_name} must be a list")
 
-    existing_items = lazy_router_hook_items(data, event_name)
+    existing_items = lazy_router_hook_items(
+        data,
+        event_name,
+        owned_commands=(*owned_commands, hook_command),
+    )
     if len(existing_items) > 1:
         raise InstallError(f"multiple lazy-skill-router {event_name} hook entries found; remove duplicates first")
     if existing_items:
@@ -354,25 +372,42 @@ def ensure_event_hook(
     return "added"
 
 
-def ensure_user_prompt_hook(data: dict[str, Any], hook_command: str) -> str:
+def ensure_user_prompt_hook(
+    data: dict[str, Any],
+    hook_command: str,
+    *,
+    owned_commands: tuple[str, ...] = (),
+) -> str:
     return ensure_event_hook(
         data,
         "UserPromptSubmit",
         hook_command,
         "Routing prompt to relevant skills",
+        owned_commands=owned_commands,
     )
 
 
-def ensure_stop_hook(data: dict[str, Any], hook_command: str) -> str:
+def ensure_stop_hook(
+    data: dict[str, Any],
+    hook_command: str,
+    *,
+    owned_commands: tuple[str, ...] = (),
+) -> str:
     return ensure_event_hook(
         data,
         "Stop",
         hook_command,
         "Recording lazy-skill-router turn completion",
+        owned_commands=owned_commands,
     )
 
 
-def remove_event_router_hooks(data: dict[str, Any], event_name: str) -> int:
+def remove_event_router_hooks(
+    data: dict[str, Any],
+    event_name: str,
+    *,
+    owned_commands: tuple[str, ...],
+) -> int:
     hooks = data.get("hooks")
     if not isinstance(hooks, dict):
         return 0
@@ -385,7 +420,7 @@ def remove_event_router_hooks(data: dict[str, Any], event_name: str) -> int:
             continue
         kept = []
         for item in group["hooks"]:
-            if isinstance(item, dict) and "lazy_skill_router.py" in str(item.get("command", "")):
+            if isinstance(item, dict) and command_matches_any(item.get("command"), owned_commands):
                 removed += 1
             else:
                 kept.append(item)
@@ -393,10 +428,17 @@ def remove_event_router_hooks(data: dict[str, Any], event_name: str) -> int:
     return removed
 
 
-def configure_stop_hook(data: dict[str, Any], hook_command: str, *, enabled: bool) -> str:
+def configure_stop_hook(
+    data: dict[str, Any],
+    hook_command: str,
+    *,
+    enabled: bool,
+    owned_commands: tuple[str, ...] = (),
+) -> str:
     if enabled:
-        return ensure_stop_hook(data, hook_command)
-    return "removed" if remove_event_router_hooks(data, "Stop") else "absent"
+        return ensure_stop_hook(data, hook_command, owned_commands=owned_commands)
+    commands = (*owned_commands, hook_command)
+    return "removed" if remove_event_router_hooks(data, "Stop", owned_commands=commands) else "absent"
 
 
 def event_hook_items(data: dict[str, Any], event_name: str) -> Iterator[dict[str, Any]]:
@@ -421,15 +463,27 @@ def user_prompt_hook_items(data: dict[str, Any]) -> Iterator[dict[str, Any]]:
     yield from event_hook_items(data, "UserPromptSubmit")
 
 
-def lazy_router_hook_items(data: dict[str, Any], event_name: str = "UserPromptSubmit") -> tuple[dict[str, Any], ...]:
+def lazy_router_hook_items(
+    data: dict[str, Any],
+    event_name: str = "UserPromptSubmit",
+    *,
+    owned_commands: tuple[str, ...],
+) -> tuple[dict[str, Any], ...]:
     return tuple(
-        item for item in event_hook_items(data, event_name) if "lazy_skill_router.py" in str(item.get("command", ""))
+        item for item in event_hook_items(data, event_name) if command_matches_any(item.get("command"), owned_commands)
     )
 
 
-def reject_duplicate_lazy_router_hooks(data: dict[str, Any]) -> None:
-    for event_name in ("UserPromptSubmit", "Stop"):
-        if len(lazy_router_hook_items(data, event_name)) > 1:
+def reject_duplicate_lazy_router_hooks(
+    data: dict[str, Any],
+    prompt_owned_commands: tuple[str, ...],
+    stop_owned_commands: tuple[str, ...],
+) -> None:
+    for event_name, owned_commands in (
+        ("UserPromptSubmit", prompt_owned_commands),
+        ("Stop", stop_owned_commands),
+    ):
+        if len(lazy_router_hook_items(data, event_name, owned_commands=owned_commands)) > 1:
             raise InstallError(f"multiple lazy-skill-router {event_name} hook entries found; remove duplicates first")
 
 
@@ -455,11 +509,24 @@ def canonical_stop_hook_argv(hook_path: Path, routes_path: Path) -> tuple[str, .
 
 
 def install_hook_command(hook_path: Path, routes_path: Path) -> str:
-    return shlex.join(canonical_hook_argv(hook_path, routes_path))
+    return canonical_hook_command(hook_path, routes_path)
 
 
 def install_stop_hook_command(hook_path: Path, routes_path: Path) -> str:
-    return shlex.join(canonical_stop_hook_argv(hook_path, routes_path))
+    return canonical_hook_command(hook_path, routes_path, stop=True)
+
+
+def owned_hook_commands(
+    manifest: InstallManifestSnapshot,
+    event_name: str,
+    canonical_command: str,
+) -> tuple[str, ...]:
+    commands = [canonical_command]
+    if manifest.state == "available":
+        registered = registered_hook_command(manifest.registration, event_name)
+        if registered is not None:
+            commands.append(registered)
+    return tuple(dict.fromkeys(commands))
 
 
 def planned_hooks_update(
@@ -468,10 +535,17 @@ def planned_hooks_update(
     stop_hook_command: str,
     *,
     measurement_enabled: bool,
+    prompt_owned_commands: tuple[str, ...] = (),
+    stop_owned_commands: tuple[str, ...] = (),
 ) -> tuple[dict[str, Any], str, str]:
     planned: dict[str, Any] = copy.deepcopy(data)
-    prompt_state = ensure_user_prompt_hook(planned, hook_command)
-    stop_state = configure_stop_hook(planned, stop_hook_command, enabled=measurement_enabled)
+    prompt_state = ensure_user_prompt_hook(planned, hook_command, owned_commands=prompt_owned_commands)
+    stop_state = configure_stop_hook(
+        planned,
+        stop_hook_command,
+        enabled=measurement_enabled,
+        owned_commands=stop_owned_commands,
+    )
     return planned, prompt_state, stop_state
 
 
@@ -533,6 +607,12 @@ def copy_hook_runtime(hook_path: Path, *, dry_run: bool, codex_root: Path | None
     copy_file(
         POLICY_IR_SOURCE,
         hook_path.parent / "lazy_skill_router_policy_ir.py",
+        dry_run=dry_run,
+        codex_root=codex_root,
+    )
+    copy_file(
+        ACTIVATION_SOURCE,
+        hook_path.parent / "lazy_skill_router_activation.py",
         dry_run=dry_run,
         codex_root=codex_root,
     )
@@ -614,6 +694,7 @@ def install_artifacts(
         (hook_dir / "lazy_skill_router_contracts.py", "managed"),
         (hook_dir / "lazy_skill_router_inventory.py", "managed"),
         (hook_dir / "lazy_skill_router_policy_ir.py", "managed"),
+        (hook_dir / "lazy_skill_router_activation.py", "managed"),
         (inventory_destination, "generated"),
         (routes_destination, route_ownership),
         (skill_destination, skill_ownership),
@@ -820,7 +901,11 @@ def smoke_config_for_prompt(route_config: dict[str, Any], explicit_prompt: str |
         return smoke_probe_config(route_config), INTERNAL_SMOKE_PROMPT
     staged_config: dict[str, Any] = copy.deepcopy(route_config)
     staged_config["logging"] = {"enabled": False, "path": ""}
-    staged_config["activation"] = {"mode": "inject"}
+    activation = staged_config.get("activation")
+    if not isinstance(activation, dict):
+        activation = {}
+        staged_config["activation"] = activation
+    activation["mode"] = "inject"
     return staged_config, explicit_prompt
 
 
@@ -900,12 +985,17 @@ def main() -> int:
     measurement_setting = True if args.enable_measurement else False if args.disable_measurement else None
 
     try:
-        recovered_transactions = recover_pending_transactions(codex_root)
+        recovered_transactions = recover_pending_transactions(codex_root, dry_run=args.dry_run)
         if recovered_transactions:
-            actions.append(f"recovered {recovered_transactions} interrupted install transaction")
+            verb = "would recover" if args.dry_run else "recovered"
+            actions.append(f"{verb} {recovered_transactions} interrupted install transaction")
+        checked_install_path(codex_root, hooks_json, allow_leaf_symlink=False)
+        checked_install_path(codex_root, install_manifest_destination, allow_leaf_symlink=False)
         current_hooks = load_hooks(hooks_json)
-        reject_duplicate_lazy_router_hooks(current_hooks)
         previous_manifest = load_install_manifest(install_manifest_destination)
+        prompt_owned_commands = owned_hook_commands(previous_manifest, "UserPromptSubmit", hook_command)
+        stop_owned_commands = owned_hook_commands(previous_manifest, "Stop", stop_hook_command)
+        reject_duplicate_lazy_router_hooks(current_hooks, prompt_owned_commands, stop_owned_commands)
 
         if routes_destination.exists() and not args.overwrite_routes:
             route_config = load_json_object(routes_destination, "routes root")
@@ -953,6 +1043,7 @@ def main() -> int:
             actions.append(f"copy hook contracts {hook_destination.parent / 'lazy_skill_router_contracts.py'}")
             actions.append(f"copy hook inventory {hook_destination.parent / 'lazy_skill_router_inventory.py'}")
             actions.append(f"copy hook policy IR {hook_destination.parent / 'lazy_skill_router_policy_ir.py'}")
+            actions.append(f"copy hook activation IR {hook_destination.parent / 'lazy_skill_router_activation.py'}")
 
             auto_upgrade_skill = can_auto_upgrade_skill(previous_manifest, codex_root)
             skill_state = copy_skill(
@@ -1022,6 +1113,8 @@ def main() -> int:
                     hook_command,
                     stop_hook_command,
                     measurement_enabled=measurement_enabled,
+                    prompt_owned_commands=prompt_owned_commands,
+                    stop_owned_commands=stop_owned_commands,
                 )
                 planned_diff = hooks_json_diff(current_hooks, planned_hooks, hooks_json)
                 if hook_state == "unchanged":
@@ -1042,8 +1135,13 @@ def main() -> int:
                 actions.append(f"smoke test hook {hook_destination}")
                 actions.append(f"smoke test Stop hook {hook_destination}")
                 data = load_hooks(hooks_json)
-                hook_state = ensure_user_prompt_hook(data, hook_command)
-                stop_hook_state = configure_stop_hook(data, stop_hook_command, enabled=measurement_enabled)
+                hook_state = ensure_user_prompt_hook(data, hook_command, owned_commands=prompt_owned_commands)
+                stop_hook_state = configure_stop_hook(
+                    data,
+                    stop_hook_command,
+                    enabled=measurement_enabled,
+                    owned_commands=stop_owned_commands,
+                )
                 if hook_state in {"added", "updated"} or stop_hook_state in {"added", "updated", "removed"}:
                     checked_install_path(codex_root, hooks_json, allow_leaf_symlink=False)
                     backup = backup_file(hooks_json)

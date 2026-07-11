@@ -193,6 +193,50 @@ class PolicyProposalTest(unittest.TestCase):
             validation.errors,
         )
 
+    def test_v2_proposal_compiles_activation_facets_without_freeform_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            inventory, snapshot, proposal = policy_v2_fixture(root)
+            route = proposal["routes"][0]
+            route["patterns"] = [
+                {"id": "pdf.target", "regex": "pdf", "weight": 1, "facet": "target"},
+                {"id": "pdf.action", "regex": "(create|만들)", "weight": 1, "facet": "action"},
+            ]
+            route["activation"] = {
+                "requiredFacets": ["target", "action"],
+                "scope": "turn",
+                "mode": "propose-only",
+            }
+            route["positiveExamples"] = ["PDF 만들어줘", "create pdf"]
+            route["negativeExamples"] = ["PDF 스킬이 왜 선택됐어", "create a document"]
+
+            validation = validate_policy_proposal(proposal, inventory, snapshot)
+            compiled = compile_policy({"version": 1, "routes": []}, validation.proposal, validation.revision)
+
+        self.assertTrue(validation.valid, validation.errors)
+        added = compiled["routes"][-1]
+        self.assertEqual(
+            added["activation"],
+            {"requiredFacets": ["target", "action"], "scope": "turn", "mode": "propose-only"},
+        )
+        self.assertEqual([pattern["facet"] for pattern in added["patterns"]], ["target", "action"])
+
+    def test_v2_proposal_reports_non_string_activation_mode_and_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            inventory, snapshot, proposal = policy_v2_fixture(root)
+            proposal["routes"][0]["activation"] = {
+                "requiredFacets": [],
+                "scope": [],
+                "mode": [],
+            }
+
+            validation = validate_policy_proposal(proposal, inventory, snapshot)
+
+        self.assertFalse(validation.valid)
+        self.assertTrue(any("activation.scope" in error for error in validation.errors), validation.errors)
+        self.assertTrue(any("activation.mode" in error for error in validation.errors), validation.errors)
+
     def test_v2_proposal_rejects_unsupported_prose_fields_and_unsafe_ids(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -671,6 +715,16 @@ class PolicyProposalTest(unittest.TestCase):
             context["proposalRules"]["acceptedSchemas"],
             ["lazy-skill-router.policy-proposal/v2", "lazy-skill-router.policy-proposal/v1"],
         )
+        self.assertTrue(context["proposalRules"]["supportsActivationFacets"])
+        self.assertEqual(
+            context["proposalRules"]["activationContract"]["scopes"],
+            ["turn", "phase", "task"],
+        )
+        self.assertEqual(
+            context["proposalRules"]["activationContract"]["modes"],
+            ["auto", "propose-only"],
+        )
+        self.assertEqual(context["proposalRules"]["supportingSkillsDefault"], "deferred")
         encoded = json.dumps(context)
         self.assertNotIn(str(root), encoded)
         self.assertNotIn("private body", encoded)

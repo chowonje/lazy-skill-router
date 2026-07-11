@@ -209,6 +209,11 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
     correlated = len(decision_turns & completion_turns)
     by_mode = Counter(str(event["mode"]) for event in decisions if isinstance(event.get("mode"), str))
     by_route = Counter(str(event.get("route")) for event in decisions if isinstance(event.get("route"), str))
+    by_activation = Counter(
+        str(event["activationDisposition"])
+        for event in decisions
+        if event.get("activationDisposition") in {"activate", "propose", "abstain"}
+    )
     matched = sum(event.get("decisionStatus") == "matched" for event in decisions)
     no_match = sum(event.get("decisionStatus") == "no-match" for event in decisions)
     shadow_only = sum(event.get("decisionStatus") == "shadow-match" for event in decisions)
@@ -216,6 +221,7 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
         event.get("mode") == "shadow" or event.get("decisionStatus") == "shadow-match" for event in decisions
     )
     injected = sum(event.get("injected") is True for event in decisions)
+    activation_coverage = sum(by_activation.values())
     decision_contexts = context_segments(decisions, DECISION_CONTEXT_FIELDS)
     comparable_outcomes = [event for event in outcomes if outcome_identity(event) is not None]
     outcome_contexts = context_segments(comparable_outcomes, OUTCOME_CONTEXT_FIELDS)
@@ -264,6 +270,13 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
             "shadowOnly": shadow_only,
             "abstentionRate": rate(no_match + shadow_only, len(decisions)),
             "injectionRate": rate(injected, len(decisions)),
+            "activated": by_activation["activate"],
+            "proposed": by_activation["propose"],
+            "activationAbstained": by_activation["abstain"],
+            "activationDecisionCoverage": rate(activation_coverage, len(decisions)),
+            "activationRate": rate(by_activation["activate"], activation_coverage),
+            "proposalRate": rate(by_activation["propose"], activation_coverage),
+            "byActivationDisposition": dict(sorted(by_activation.items())),
             "latencyMs": latency_summary(decisions),
             "byMode": dict(sorted(by_mode.items())),
             "byRoute": dict(sorted(by_route.items())),
@@ -375,6 +388,11 @@ def print_text_report(report: dict[str, Any]) -> None:
         f"Decisions: {decisions['total']} "
         f"(matched {decisions['matched']}, no-match {decisions['noMatch']}, injected {decisions['injected']}, "
         f"abstention rate {decisions['abstentionRate']}, injection rate {decisions['injectionRate']})"
+    )
+    print(
+        f"Activation: activate {decisions['activated']}, propose {decisions['proposed']}, "
+        f"abstain {decisions['activationAbstained']} "
+        f"(coverage {decisions['activationDecisionCoverage']}, activation rate {decisions['activationRate']})"
     )
     print(
         f"Decision latency ms: mean {latency['mean']}, p95 {latency['p95']}, "

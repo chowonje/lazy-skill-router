@@ -274,29 +274,21 @@ class InventoryManifestTest(unittest.TestCase):
             codex_home = root / "codex"
             agents_home = root / "agents"
             skill_path = (
-                codex_home
-                / "plugins"
-                / "cache"
-                / "sisyphuslabs"
-                / "omo"
-                / "4.13.0"
-                / "skills"
-                / "programming"
-                / "SKILL.md"
+                codex_home / "plugins" / "cache" / "acme" / "custom" / "4.13.0" / "skills" / "programming" / "SKILL.md"
             )
             write_skill(skill_path, "programming")
 
             manifest = build_inventory_manifest(
-                (SkillRecord("omo:programming", skill_path),),
+                (SkillRecord("custom:programming", skill_path),),
                 codex_home,
                 agents_home,
                 generated_at="2026-07-10T00:00:00Z",
             )
 
         skill = manifest["skills"][0]
-        self.assertEqual(skill["canonical_id"], "plugin/sisyphuslabs/omo/programming")
-        self.assertEqual(skill["provider"], {"type": "plugin", "id": "sisyphuslabs"})
-        self.assertEqual(skill["namespace"], "omo")
+        self.assertEqual(skill["canonical_id"], "plugin/acme/custom/programming")
+        self.assertEqual(skill["provider"], {"type": "plugin", "id": "acme"})
+        self.assertEqual(skill["namespace"], "custom")
         self.assertEqual(skill["revision"], "4.13.0")
 
     def test_duplicate_configured_names_are_ambiguous_not_arbitrarily_selected(self) -> None:

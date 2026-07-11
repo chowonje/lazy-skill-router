@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -61,6 +62,8 @@ BLOCKING_POLICY_FINDING_CODES = frozenset(
         "skill_unavailable_or_ambiguous",
     }
 )
+MAX_SKILL_FRONTMATTER_BYTES = 64 * 1024
+MAX_SKILL_FRONTMATTER_LINES = 200
 
 
 @dataclass(frozen=True)
@@ -126,13 +129,26 @@ def frontmatter_scalar(value: str) -> str:
 
 def frontmatter_metadata(path: Path) -> tuple[str | None, str]:
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with path.open("rb") as handle:
+            prefix = handle.read(MAX_SKILL_FRONTMATTER_BYTES)
     except OSError:
         return None, ""
-    if not lines or lines[0].strip() != "---":
+    raw_lines = prefix.splitlines()
+    if not raw_lines or raw_lines[0].strip() != b"---":
         return None, ""
-    closing_index = next((index for index, line in enumerate(lines[1:200], start=1) if line.strip() == "---"), None)
+    closing_index = next(
+        (
+            index
+            for index, line in enumerate(raw_lines[1:MAX_SKILL_FRONTMATTER_LINES], start=1)
+            if line.strip() == b"---"
+        ),
+        None,
+    )
     if closing_index is None:
+        return None, ""
+    try:
+        lines = [line.decode("utf-8") for line in raw_lines[: closing_index + 1]]
+    except UnicodeDecodeError:
         return None, ""
     frontmatter_lines = lines[1:closing_index]
     name: str | None = None
@@ -368,11 +384,22 @@ def build_report(config: dict[str, Any], installed: tuple[SkillRecord, ...]) -> 
     return build_report_for_names(config, installed, {record.name for record in installed})
 
 
+def human_text(value: Any) -> str:
+    escaped = []
+    for character in str(value):
+        if unicodedata.category(character).startswith("C"):
+            codepoint = ord(character)
+            escaped.append(f"\\u{codepoint:04X}" if codepoint <= 0xFFFF else f"\\U{codepoint:08X}")
+        else:
+            escaped.append(character)
+    return "".join(escaped)
+
+
 def append_section(lines: list[str], title: str, items: tuple[str, ...], empty: str) -> None:
     lines.append("")
     lines.append(title)
     if items:
-        lines.extend(f"- {item}" for item in items)
+        lines.extend(f"- {human_text(item)}" for item in items)
     else:
         lines.append(f"- {empty}")
 
@@ -402,7 +429,9 @@ def append_scan_warning(lines: list[str], issues: tuple[SkillScanIssue, ...]) ->
         return
     lines.append("")
     lines.append("WARNING: Inventory scan issues")
-    lines.extend(f"- {issue.root_alias}:{issue.relative_locator} ({issue.reason_code})" for issue in issues)
+    lines.extend(
+        "- " + human_text(f"{issue.root_alias}:{issue.relative_locator} ({issue.reason_code})") for issue in issues
+    )
 
 
 def has_blocking_policy_findings(report: SkillSyncReport) -> bool:
@@ -419,7 +448,7 @@ def format_report(
 ) -> str:
     lines = [
         "lazy-skill-router skill sync report",
-        f"Routes: {route_path}",
+        f"Routes: {human_text(route_path)}",
         f"Installed skills: {len(report.installed)}",
         f"allowedSkills: {len(report.allowed_skills)}",
         f"Route references: {len(report.route_references)}",
@@ -498,9 +527,9 @@ def format_sync_plan(
 ) -> str:
     lines = [
         "lazy-skill-router sync plan",
-        f"Manifest: {manifest_path}",
-        f"Previous inventory: {diff.previous_revision or diff.previous_state}",
-        f"Current inventory: {diff.current_revision}",
+        f"Manifest: {human_text(manifest_path)}",
+        f"Previous inventory: {human_text(diff.previous_revision or diff.previous_state)}",
+        f"Current inventory: {human_text(diff.current_revision)}",
         (
             f"Changes: {len(diff.added)} added, {len(diff.removed)} removed, "
             f"{len(diff.changed)} changed, {len(diff.ambiguous_names)} ambiguous names"
@@ -677,7 +706,7 @@ def main() -> int:
     if args.manifest_output:
         manifest_path = Path(args.manifest_output).expanduser()
         write_json_atomic(manifest_path, current_manifest)
-        message = f"wrote skill inventory manifest {manifest_path}"
+        message = f"wrote skill inventory manifest {human_text(manifest_path)}"
         print(message, file=sys.stderr if args.json else sys.stdout)
 
     if args.strict and (report.route_references_missing or has_blocking_policy_findings(report)):

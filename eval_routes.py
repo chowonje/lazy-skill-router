@@ -6,15 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lazy_skill_router_core import answer_only_patterns, dry_run_output, text_matches
+from lazy_skill_router_core import dry_run_output
 
 ALLOWED_EXPECTATIONS = {
+    "activationDecision",
+    "activationReason",
     "answerOnly",
     "confidenceLabel",
     "primary",
+    "requestMode",
     "route",
     "score",
     "shouldInject",
+    "shouldActivate",
     "supporting",
     "verification",
 }
@@ -92,9 +96,7 @@ def load_cases(path: Path) -> tuple[EvaluationCase, ...]:
 
 
 def actual_result(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
-    result = dry_run_output(prompt, config)
-    result["answerOnly"] = text_matches(prompt, answer_only_patterns(config))
-    return result
+    return dry_run_output(prompt, config)
 
 
 def compare_case(case: EvaluationCase, config: dict[str, Any]) -> tuple[EvaluationFailure, ...]:

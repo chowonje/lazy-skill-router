@@ -7,16 +7,17 @@ import sys
 import time
 from pathlib import Path
 
+from lazy_skill_router_activation import activation_ir_dict
 from lazy_skill_router_contracts import hook_ir_v1, route_result_v2, structured_recommendation_v1
 from lazy_skill_router_core import (
+    activation_for_matches,
+    activation_for_prompt,
     activation_mode,
-    answer_only_patterns,
     dry_run_output,
     format_context,
     load_config,
     route_matches_with_shadow_competition,
     show_router_notice,
-    text_matches,
 )
 from lazy_skill_router_inventory import inventory_for_config
 from lazy_skill_router_logging import log_completion, log_decision
@@ -84,6 +85,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print the experimental compact Hook IR v1 shadow contract.",
     )
+    output_group.add_argument(
+        "--activation-ir-json",
+        action="store_true",
+        help="Print the runtime Activation IR v1 decision contract.",
+    )
     parser.add_argument("prompt_text", nargs="?", help="Prompt text for --dry-run.")
     args = parser.parse_args(argv)
 
@@ -103,6 +109,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.hook_ir_json:
         print(json.dumps(hook_ir_v1(prompt, config, inventory), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.activation_ir_json:
+        activation = activation_for_prompt(prompt, config, inventory)
+        print(json.dumps(activation_ir_dict(activation), ensure_ascii=False, indent=2))
         return 0
 
     if args.recommendation_json:
@@ -134,27 +145,29 @@ def main(argv: list[str] | None = None) -> int:
 
     matches, shadow_matches, promotion_winners = route_matches_with_shadow_competition(prompt, config, inventory)
     match = matches[0] if matches else None
+    activation = activation_for_matches(prompt, matches, config)
     log_decision(
         prompt,
         match,
         config,
         hook_event=event,
         mode=mode,
-        injected=mode == "inject" and match is not None,
+        injected=mode == "inject" and activation.disposition != "abstain",
         candidates=matches[:3],
         shadow_candidates=shadow_matches[:3],
         shadow_would_win=promotion_winners,
+        activation_disposition=activation.disposition,
+        activation_reason=activation.reason_code,
         decision_status=("matched" if match is not None else "shadow-match" if shadow_matches else "no-match"),
         latency_ms=(time.perf_counter() - started) * 1000,
         catalog_revision=inventory.revision if inventory is not None else None,
         runtime_revision=code_revision,
     )
-    if match is None or mode != "inject":
+    if activation.disposition == "abstain" or mode != "inject":
         return 0
 
     context = format_context(
-        match,
-        text_matches(prompt, answer_only_patterns(config)),
+        activation,
         config.get("_loaded_from") if isinstance(config.get("_loaded_from"), str) else None,
         show_router_notice(config),
     )

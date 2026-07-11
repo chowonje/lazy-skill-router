@@ -9,7 +9,8 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from install import InstallError, install_hook_command, smoke_hook
+from install import InstallError, install_hook_command, install_stop_hook_command, smoke_config_for_prompt, smoke_hook
+from lazy_skill_router_install_manifest import build_install_manifest
 from lazy_skill_router_inventory import load_inventory_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -132,6 +133,26 @@ def write_json_file(path: Path, payload: dict[str, Any]) -> None:
 
 
 class InstallTest(unittest.TestCase):
+    def test_explicit_smoke_preserves_activation_gate_configuration(self) -> None:
+        config = {
+            "activation": {
+                "mode": "shadow",
+                "autoActivateMinStrength": 0.9,
+                "metaPatterns": ["router meta"],
+            },
+            "logging": {"enabled": True, "path": "private-log.jsonl"},
+            "routes": [],
+        }
+
+        staged, prompt = smoke_config_for_prompt(config, "explicit smoke")
+
+        self.assertEqual(prompt, "explicit smoke")
+        self.assertEqual(staged["activation"]["mode"], "inject")
+        self.assertEqual(staged["activation"]["autoActivateMinStrength"], 0.9)
+        self.assertEqual(staged["activation"]["metaPatterns"], ["router meta"])
+        self.assertEqual(staged["logging"], {"enabled": False, "path": ""})
+        self.assertEqual(config["activation"]["mode"], "shadow")
+
     def test_bundled_router_uses_catalog_based_fallback(self) -> None:
         skill_text = (ROOT / "skills" / "personal-skill-router" / "SKILL.md").read_text(encoding="utf-8")
         skill_map = (ROOT / "skills" / "personal-skill-router" / "references" / "skill-map.md").read_text(
@@ -422,25 +443,90 @@ class InstallTest(unittest.TestCase):
 
     def test_install_refuses_duplicate_router_entries_before_mutating_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Given: a hooks.json with multiple lazy-skill-router command entries.
+            # Given: a hooks.json with multiple exact canonical lazy-skill-router command entries.
             root = Path(temp_dir)
             codex_home = root / "codex"
             agents_home = root / "agents"
-            first_marker = root / "first-marker.txt"
-            second_marker = root / "second-marker.txt"
-            write_hooks(codex_home, [lazy_router_command(first_marker), lazy_router_command(second_marker)])
+            command = install_hook_command(
+                codex_home / "hooks" / "lazy_skill_router.py",
+                codex_home / "lazy-skill-router" / "routes.json",
+            )
+            write_hooks(codex_home, [command, command])
 
             # When: install runs against the duplicate pre-existing state.
             completed = run_install(codex_home, agents_home)
 
-            # Then: it fails before copying hook, skill, routes, or executing stored commands.
+            # Then: it fails before copying hook, skill, or routes.
             self.assertEqual(completed.returncode, 1, completed.stdout)
             self.assertIn("multiple lazy-skill-router", completed.stderr)
             self.assertFalse((codex_home / "hooks" / "lazy_skill_router.py").exists())
             self.assertFalse((codex_home / "lazy-skill-router" / "routes.json").exists())
             self.assertFalse((codex_home / "skills" / "personal-skill-router").exists())
-            self.assertFalse(first_marker.exists())
-            self.assertFalse(second_marker.exists())
+
+    def test_install_updates_only_exact_owned_hook_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "workspace with spaces"
+            codex_home = root / "Codex Home"
+            agents_home = root / "Agents Home"
+            hook_path = codex_home / "hooks" / "lazy_skill_router.py"
+            routes_path = codex_home / "lazy-skill-router" / "routes.json"
+            foreign_command = shlex.join(["python3", str(root / "foreign guard.py"), "--note", "lazy_skill_router.py"])
+            previous_command = shlex.join(
+                ["python3", str(hook_path), "--config", str(routes_path), "--legacy-registration"]
+            )
+            write_hooks(codex_home, [foreign_command, previous_command])
+            manifest = build_install_manifest(codex_home, (), previous_command)
+            write_json_file(codex_home / "lazy-skill-router" / "install.manifest.json", manifest)
+
+            completed = run_install(codex_home, agents_home)
+            hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+            commands = [item["command"] for item in hooks["hooks"]["UserPromptSubmit"][0]["hooks"]]
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(commands, [foreign_command, install_hook_command(hook_path, routes_path)])
+
+    def test_disabling_measurement_removes_only_exact_owned_stop_hook(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "workspace with spaces"
+            codex_home = root / "Codex Home"
+            agents_home = root / "Agents Home"
+            hook_path = codex_home / "hooks" / "lazy_skill_router.py"
+            routes_path = codex_home / "lazy-skill-router" / "routes.json"
+            prompt_command = install_hook_command(hook_path, routes_path)
+            stop_command = install_stop_hook_command(hook_path, routes_path)
+            foreign_stop_command = shlex.join(
+                ["python3", str(root / "foreign stop.py"), "--note", "lazy_skill_router.py"]
+            )
+            write_json_file(
+                codex_home / "hooks.json",
+                {
+                    "hooks": {
+                        "UserPromptSubmit": [{"hooks": [{"type": "command", "command": prompt_command}]}],
+                        "Stop": [
+                            {
+                                "hooks": [
+                                    {"type": "command", "command": foreign_stop_command},
+                                    {"type": "command", "command": stop_command},
+                                ]
+                            }
+                        ],
+                    }
+                },
+            )
+            manifest = build_install_manifest(
+                codex_home,
+                (),
+                prompt_command,
+                stop_hook_command=stop_command,
+            )
+            write_json_file(codex_home / "lazy-skill-router" / "install.manifest.json", manifest)
+
+            completed = run_install_with_args(codex_home, agents_home, ["--disable-measurement"])
+            hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+            stop_commands = [item["command"] for item in hooks["hooks"]["Stop"][0]["hooks"]]
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(stop_commands, [foreign_stop_command])
 
     def test_doctor_fails_duplicate_router_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

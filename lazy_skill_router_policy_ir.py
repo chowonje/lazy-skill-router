@@ -5,11 +5,14 @@ import re
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
-from lazy_skill_router_scoring import CapabilityRequirements, Route, RoutePattern
+from lazy_skill_router_scoring import CapabilityRequirements, Route, RouteActivation, RoutePattern
 
 SUPPORTED_POLICY_SCHEMAS = frozenset({1, 2})
 ROUTE_LIFECYCLE_STATES = frozenset({"active", "disabled", "shadow"})
 BASE_PATTERN_ID_PATTERN = re.compile(r"^[^\s\x00-\x1f\x7f<>]+$")
+FACET_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+ACTIVATION_SCOPES = frozenset({"turn", "phase", "task"})
+ROUTE_ACTIVATION_MODES = frozenset({"auto", "propose-only"})
 
 
 class InventoryResolver(Protocol):
@@ -35,11 +38,19 @@ class SkillRef:
 
 
 @dataclass(frozen=True)
+class ActivationRuleIR:
+    required_facets: tuple[str, ...] = ()
+    scope: str = "turn"
+    mode: str = "auto"
+
+
+@dataclass(frozen=True)
 class PatternIR:
     pattern_id: str
     regex: str
     diagnostic_label: str
     weight: float = 1.0
+    facet: str = "signal"
 
 
 @dataclass(frozen=True)
@@ -58,6 +69,7 @@ class RouteIR:
     proposal_revision: str | None
     reason: str
     capability_requirements: CapabilityRequirements
+    activation: ActivationRuleIR = ActivationRuleIR()
 
 
 @dataclass(frozen=True)
@@ -146,14 +158,88 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
     activation = config.get("activation")
     if activation is not None and not isinstance(activation, dict):
         findings.append(PolicyFinding("ERROR", "activation_invalid", "activation must be an object when present"))
-    elif isinstance(activation, dict) and activation.get("mode") not in {"inject", "off", "shadow"}:
-        findings.append(
-            PolicyFinding(
-                "ERROR",
-                "activation_mode_invalid",
-                "activation.mode must be one of: inject, off, shadow",
+    elif isinstance(activation, dict):
+        activation_mode = activation.get("mode")
+        if not isinstance(activation_mode, str) or activation_mode not in {"inject", "off", "shadow"}:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "activation_mode_invalid",
+                    "activation.mode must be one of: inject, off, shadow",
+                )
             )
-        )
+        auto_strength = activation.get("autoActivateMinStrength")
+        if auto_strength is not None and (not is_number(auto_strength) or not 0 <= float(auto_strength) <= 1):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "activation_auto_strength_invalid",
+                    "activation.autoActivateMinStrength must be a number between 0 and 1",
+                )
+            )
+        meta_value = activation.get("metaPatterns")
+        meta_patterns = strings(meta_value)
+        if meta_value is not None and not meta_patterns:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "activation_meta_patterns_invalid",
+                    "activation.metaPatterns must contain strings when present",
+                )
+            )
+        for pattern in meta_patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        "activation_meta_pattern_regex_invalid",
+                        f"activation.metaPatterns has invalid regex {pattern!r}: {exc}",
+                    )
+                )
+        action_value = activation.get("actionPatterns")
+        action_patterns = strings(action_value)
+        if action_value is not None and not action_patterns:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "activation_action_patterns_invalid",
+                    "activation.actionPatterns must contain strings when present",
+                )
+            )
+        for pattern in action_patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        "activation_action_pattern_regex_invalid",
+                        f"activation.actionPatterns has invalid regex {pattern!r}: {exc}",
+                    )
+                )
+        no_action_value = activation.get("noActionPatterns")
+        no_action_patterns = strings(no_action_value)
+        if no_action_value is not None and not no_action_patterns:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "activation_no_action_patterns_invalid",
+                    "activation.noActionPatterns must contain strings when present",
+                )
+            )
+        for pattern in no_action_patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        "activation_no_action_pattern_regex_invalid",
+                        f"activation.noActionPatterns has invalid regex {pattern!r}: {exc}",
+                    )
+                )
 
     logging_config = config.get("logging", {})
     if logging_config and not isinstance(logging_config, dict):
@@ -422,11 +508,13 @@ def pattern_ir(
         pattern_id = stable_pattern_id(route_id, regex)
         label = regex
         weight = 1.0
+        facet = "signal"
     elif isinstance(value, dict):
         regex = value.get("regex")
         configured_id = value.get("id", value.get("pattern_id"))
         label_value = value.get("label")
         weight_value = value.get("weight", 1.0)
+        facet_value = value.get("facet", "signal")
         if not isinstance(regex, str) or not regex:
             findings.append(
                 PolicyFinding(
@@ -486,6 +574,19 @@ def pattern_ir(
             weight = 1.0
         else:
             weight = float(weight_value)
+        if not isinstance(facet_value, str) or not FACET_ID_PATTERN.fullmatch(facet_value):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_pattern_facet_invalid",
+                    f"route {route_id} {field} pattern facet contains unsupported characters: {facet_value}",
+                    route_id,
+                    field,
+                )
+            )
+            facet = "signal"
+        else:
+            facet = facet_value
     else:
         findings.append(
             PolicyFinding(
@@ -515,7 +616,7 @@ def pattern_ir(
             )
         )
         return None
-    return PatternIR(pattern_id, regex, label, weight)
+    return PatternIR(pattern_id, regex, label, weight, facet)
 
 
 def pattern_list(
@@ -545,6 +646,91 @@ def pattern_list(
         )
         is not None
     )
+
+
+def route_activation_rule(
+    raw_route: dict[str, Any],
+    route_id: str,
+    patterns: tuple[PatternIR, ...],
+    findings: list[PolicyFinding],
+) -> ActivationRuleIR:
+    value = raw_route.get("activation")
+    if value is None:
+        return ActivationRuleIR()
+    if not isinstance(value, dict):
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_activation_invalid",
+                f"route {route_id} activation must be an object when present",
+                route_id,
+                "activation",
+            )
+        )
+        return ActivationRuleIR()
+    unknown = set(value) - {"requiredFacets", "scope", "mode"}
+    if unknown:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_activation_fields_invalid",
+                f"route {route_id} activation contains unsupported fields: {', '.join(sorted(unknown))}",
+                route_id,
+                "activation",
+            )
+        )
+    required_value = value.get("requiredFacets", [])
+    required = strings(required_value)
+    if not isinstance(required_value, list) or any(not FACET_ID_PATTERN.fullmatch(facet) for facet in required):
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_activation_facets_invalid",
+                f"route {route_id} activation.requiredFacets must contain safe identifiers",
+                route_id,
+                "activation.requiredFacets",
+            )
+        )
+        required = ()
+    required = tuple(dict.fromkeys(required))
+    available_facets = {pattern.facet for pattern in patterns}
+    unavailable = tuple(facet for facet in required if facet not in available_facets)
+    if unavailable:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_activation_facets_unbound",
+                f"route {route_id} activation.requiredFacets are not present in route patterns: "
+                f"{', '.join(unavailable)}",
+                route_id,
+                "activation.requiredFacets",
+            )
+        )
+    scope = value.get("scope", "turn")
+    if not isinstance(scope, str) or scope not in ACTIVATION_SCOPES:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_activation_scope_invalid",
+                f"route {route_id} activation.scope must be one of: phase, task, turn",
+                route_id,
+                "activation.scope",
+            )
+        )
+        scope = "turn"
+    mode = value.get("mode", "auto")
+    if not isinstance(mode, str) or mode not in ROUTE_ACTIVATION_MODES:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_activation_mode_invalid",
+                f"route {route_id} activation.mode must be one of: auto, propose-only",
+                route_id,
+                "activation.mode",
+            )
+        )
+        mode = "auto"
+    return ActivationRuleIR(required, scope, mode)
 
 
 def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[RouteIR, ...]:
@@ -649,6 +835,7 @@ def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                     tuple(ref.capability or "" for ref in supporting),
                     tuple(ref.capability or "" for ref in verification),
                 ),
+                route_activation_rule(raw_route, route_id, patterns, findings),
             )
         )
     return tuple(routes)
@@ -869,6 +1056,7 @@ def parse_v2(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 proposal_revision,
                 reason_value,
                 CapabilityRequirements(primary_capabilities, supporting_capabilities, verification_capabilities),
+                route_activation_rule(raw_route, route_id, patterns, findings),
             )
         )
     if isinstance(fallback_route_id, str) and fallback_route_id not in seen:
@@ -1167,7 +1355,13 @@ def runtime_routes(policy: PolicyIR) -> list[Route]:
                 verification,
                 route.reason,
                 tuple(
-                    RoutePattern(pattern.regex, pattern.diagnostic_label, pattern.pattern_id, pattern.weight)
+                    RoutePattern(
+                        pattern.regex,
+                        pattern.diagnostic_label,
+                        pattern.pattern_id,
+                        pattern.weight,
+                        pattern.facet,
+                    )
                     for pattern in route.patterns
                 ),
                 tuple(pattern.regex for pattern in route.exclude_patterns),
@@ -1178,6 +1372,7 @@ def runtime_routes(policy: PolicyIR) -> list[Route]:
                 route.capability_requirements,
                 route.lifecycle_state,
                 route.proposal_revision,
+                RouteActivation(route.activation.required_facets, route.activation.scope, route.activation.mode),
             )
         )
     return routes

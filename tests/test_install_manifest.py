@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -302,6 +303,87 @@ class InstallManifestTest(unittest.TestCase):
         self.assertIn("unsafe or unreadable hooks.json", uninstall.stderr)
         self.assertEqual(outside_after, original_bytes)
 
+    def test_install_rejects_symlinked_hooks_json_without_disclosure_in_dry_and_live_modes(self) -> None:
+        for extra_args in (("--dry-run",), ()):
+            with self.subTest(extra_args=extra_args), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir) / "workspace with spaces"
+                codex_home = root / "Codex Home"
+                agents_home = root / "Agents Home"
+                codex_home.mkdir(parents=True)
+                outside = root / "outside-hooks.json"
+                sentinel = "BENIGN_PRIVATE_SENTINEL"
+                original_bytes = (json.dumps({"hooks": {}, "api_token": sentinel}, indent=2) + "\n").encode()
+                outside.write_bytes(original_bytes)
+                os.symlink(outside, codex_home / "hooks.json")
+
+                completed = run_install_main(codex_home, agents_home, *extra_args)
+
+                self.assertEqual(completed.returncode, 1)
+                self.assertIn("unsafe install target path", completed.stderr)
+                self.assertNotIn(sentinel, completed.stdout)
+                self.assertNotIn(sentinel, completed.stderr)
+                self.assertEqual(outside.read_bytes(), original_bytes)
+
+    def test_uninstall_removes_only_exact_owned_hook_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "workspace with spaces"
+            codex_home = root / "Codex Home"
+            hook_path = codex_home / "hooks" / "lazy_skill_router.py"
+            routes_path = codex_home / "lazy-skill-router" / "routes.json"
+            owned_prompt = shlex.join(["python3", str(hook_path), "--config", str(routes_path), "--legacy"])
+            owned_stop = shlex.join(
+                ["python3", str(hook_path), "--config", str(routes_path), "--legacy", "--hook-event", "stop"]
+            )
+            foreign_prompt = shlex.join(["python3", "foreign guard.py", "--note", "lazy_skill_router.py"])
+            foreign_stop = shlex.join(["python3", "foreign stop.py", "--note", "lazy_skill_router.py"])
+            hooks_path = codex_home / "hooks.json"
+            hooks_path.parent.mkdir(parents=True)
+            hooks_path.write_text(
+                json.dumps(
+                    {
+                        "hooks": {
+                            "UserPromptSubmit": [
+                                {
+                                    "hooks": [
+                                        {"type": "command", "command": foreign_prompt},
+                                        {"type": "command", "command": owned_prompt},
+                                    ]
+                                }
+                            ],
+                            "Stop": [
+                                {
+                                    "hooks": [
+                                        {"type": "command", "command": foreign_stop},
+                                        {"type": "command", "command": owned_stop},
+                                    ]
+                                }
+                            ],
+                        }
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            manifest = build_install_manifest(
+                codex_home,
+                (),
+                owned_prompt,
+                stop_hook_command=owned_stop,
+            )
+            manifest_path = codex_home / "lazy-skill-router" / "install.manifest.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+            completed = run_command(UNINSTALL_PATH, codex_home)
+            hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
+            prompt_commands = [item["command"] for item in hooks["hooks"]["UserPromptSubmit"][0]["hooks"]]
+            stop_commands = [item["command"] for item in hooks["hooks"]["Stop"][0]["hooks"]]
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(prompt_commands, [foreign_prompt])
+        self.assertEqual(stop_commands, [foreign_stop])
+
     def test_uninstall_preserves_modified_file_and_symlink_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -376,6 +458,40 @@ class InstallManifestTest(unittest.TestCase):
         self.assertIn("kept unsafe artifact path hooks/lazy_skill_router.py", uninstall.stdout)
         self.assertTrue(parent_is_symlink)
         self.assertEqual(outside_after, outside_bytes)
+
+    def test_uninstall_rejects_manifest_reached_through_symlinked_parent_or_leaf(self) -> None:
+        for symlink_kind in ("parent", "leaf"):
+            with self.subTest(symlink_kind=symlink_kind), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir) / "workspace with spaces"
+                codex_home = root / "Codex Home"
+                victim = codex_home / "hooks" / "owned.py"
+                victim.parent.mkdir(parents=True)
+                victim.write_text("owned\n", encoding="utf-8")
+                external_manifest_dir = root / "external manifest"
+                external_manifest_dir.mkdir(parents=True)
+                manifest = build_install_manifest(
+                    codex_home,
+                    ((victim, "managed"),),
+                    "python3 old-hook.py",
+                )
+                external_manifest = external_manifest_dir / "install.manifest.json"
+                external_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+                manifest_parent = codex_home / "lazy-skill-router"
+                if symlink_kind == "parent":
+                    os.symlink(external_manifest_dir, manifest_parent)
+                    active_link = manifest_parent
+                else:
+                    manifest_parent.mkdir()
+                    active_link = manifest_parent / "install.manifest.json"
+                    os.symlink(external_manifest, active_link)
+
+                completed = run_command(UNINSTALL_PATH, codex_home, "--remove-files")
+
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertIn("ownership manifest path is unsafe", completed.stdout)
+                self.assertTrue(victim.exists())
+                self.assertTrue(external_manifest.exists())
+                self.assertTrue(active_link.is_symlink())
 
 
 if __name__ == "__main__":

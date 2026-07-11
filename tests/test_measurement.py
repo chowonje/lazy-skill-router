@@ -27,6 +27,22 @@ def measurement_event(event_type: str, **values: object) -> dict[str, object]:
 
 
 class MeasurementTest(unittest.TestCase):
+    def test_activation_dispositions_are_accumulated_separately_from_delivery(self) -> None:
+        report = build_measurement_report(
+            [
+                measurement_event("decision", decisionStatus="matched", activationDisposition="activate"),
+                measurement_event("decision", decisionStatus="matched", activationDisposition="propose"),
+                measurement_event("decision", decisionStatus="no-match", activationDisposition="abstain"),
+            ]
+        )
+
+        decisions = report["decisions"]
+        self.assertEqual(decisions["activated"], 1)
+        self.assertEqual(decisions["proposed"], 1)
+        self.assertEqual(decisions["activationAbstained"], 1)
+        self.assertEqual(decisions["activationDecisionCoverage"], 1.0)
+        self.assertEqual(decisions["activationRate"], 0.3333)
+
     def test_shadow_only_decision_counts_as_an_abstention(self) -> None:
         report = build_measurement_report(
             [
@@ -403,6 +419,9 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual(events[0]["schema"], "lazy-skill-router.measurement-event/v1")
         self.assertEqual(events[0]["mode"], "shadow")
         self.assertEqual(events[0]["decisionStatus"], "matched")
+        self.assertEqual(events[0]["activationDisposition"], "propose")
+        self.assertEqual(events[0]["activationReason"], "weak_evidence")
+        self.assertFalse(events[0]["shouldActivate"])
         self.assertFalse(events[0]["injected"])
         self.assertEqual(events[0]["route"], "pdf")
         self.assertEqual(events[0]["turnHash"], events[1]["turnHash"])
@@ -488,7 +507,7 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual(payload["pairedNativeInject"]["netWin"], 1)
         self.assertTrue(payload["comparability"]["outcomeAggregateComparable"])
         self.assertFalse(payload["comparability"]["unversionedOutcomes"])
-        self.assertEqual({event["policyVersion"] for event in events}, {"2026-07-10.1"})
+        self.assertEqual({event["policyVersion"] for event in events}, {"2026-07-11.1"})
         self.assertEqual(len({event["configRevision"] for event in events}), 1)
         self.assertEqual(text_report.returncode, 0, text_report.stderr)
         self.assertIn("Decision latency ms:", text_report.stdout)

@@ -20,6 +20,7 @@ py-modules = [
     "generate_routes",
     "install",
     "lazy_skill_router",
+    "lazy_skill_router_activation",
     "lazy_skill_router_common",
     "lazy_skill_router_contracts",
     "lazy_skill_router_core",
@@ -40,6 +41,7 @@ py-modules = [
 [tool.setuptools.data-files]
 "share/lazy-skill-router" = [
     "lazy_skill_router.py",
+    "lazy_skill_router_activation.py",
     "lazy_skill_router_core.py",
     "lazy_skill_router_common.py",
     "lazy_skill_router_contracts.py",

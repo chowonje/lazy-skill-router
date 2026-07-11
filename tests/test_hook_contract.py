@@ -70,12 +70,24 @@ class HookContractTest(unittest.TestCase):
 
         self.assert_routed_envelope(completed, route="pdf", primary="pdf")
         context = json.loads(completed.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Activation disposition: propose", context)
+        self.assertIn("no skill is activated", context)
+        self.assertNotIn("writing-polish", context)
         self.assertNotIn("dangerous-skill", context)
 
     def test_hook_accepts_minimal_prompt_event(self) -> None:
-        completed = self.run_hook({"prompt": "Python 코드 고치고 README 문서도 같이 업데이트해줘"})
+        completed = self.run_hook({"prompt": "PDF 만들어줘"})
 
-        self.assert_routed_envelope(completed, route="code-docs", primary="omo:programming")
+        self.assert_routed_envelope(completed, route="pdf", primary="pdf")
+
+    def test_answer_only_candidate_forbids_actions_and_side_effects(self) -> None:
+        completed = self.run_hook({"prompt": "GitHub PR에서 CI 실패 원인을 설명해줘"})
+
+        self.assert_routed_envelope(completed, route="github-ci", primary="github:gh-fix-ci")
+        context = json.loads(completed.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Activation disposition: propose", context)
+        self.assertIn("Answer-only request detected", context)
+        self.assertIn("do not perform edits, tool actions, or side effects", context)
 
     def test_hook_fails_open_for_invalid_json(self) -> None:
         self.assert_quiet_fail_open("{")
@@ -94,6 +106,9 @@ class HookContractTest(unittest.TestCase):
 
     def test_hook_fails_open_for_valid_no_route_prompt(self) -> None:
         self.assert_quiet_fail_open({"prompt": "hello"}, "hello")
+
+    def test_hook_hard_abstains_for_router_meta_discussion(self) -> None:
+        self.assert_quiet_fail_open({"prompt": "스킬을 왜 사용하게 되는지 설명해줘"})
 
 
 if __name__ == "__main__":

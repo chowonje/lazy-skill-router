@@ -128,6 +128,7 @@ class CliTest(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("Route: github-ci", completed.stdout)
+        self.assertIn("Activation: activate (eligible)", completed.stdout)
         self.assertIn("Primary skill: github:gh-fix-ci", completed.stdout)
         self.assertIn("Confidence:", completed.stdout)
 
@@ -154,7 +155,57 @@ class CliTest(unittest.TestCase):
         self.assertTrue(result["shouldInject"])
         self.assertEqual(result["route"], "pdf")
         self.assertEqual(result["primary"], "pdf")
+        self.assertFalse(result["shouldActivate"])
+        self.assertEqual(result["activationDecision"], "propose")
         self.assertIn("candidates", result)
+
+    def test_cli_route_exposes_activation_ir_contract(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                CLI_MODULE,
+                "route",
+                "--activation-ir-json",
+                "--config",
+                "routes.default.json",
+                "스킬을 왜 사용하게 되는지 설명해줘",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["schema"], "lazy-skill-router.activation-ir/v1")
+        self.assertEqual(result["disposition"], "abstain")
+        self.assertEqual(result["reasonCode"], "meta_context")
+        self.assertEqual(result["activatedSkills"], [])
+
+    def test_cli_route_explains_meta_abstention_without_recommending_a_skill(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                CLI_MODULE,
+                "route",
+                "--config",
+                "routes.default.json",
+                "스킬을 왜 사용하게 되는지 설명해줘",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("No route", completed.stdout)
+        self.assertIn("Activation: abstain (meta_context)", completed.stdout)
+        self.assertIn("Diagnostic route: skill-routing", completed.stdout)
+        self.assertNotIn("Primary skill:", completed.stdout)
 
 
 if __name__ == "__main__":
