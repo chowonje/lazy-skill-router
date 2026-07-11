@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
+from lazy_skill_router_policy_ir import (
+    ACTIVATION_REGEX_ERRORS,
+    SHIPPED_ACTIVATION_PATTERN_BUNDLES,
+    activation_pattern_risk,
+)
 from lazy_skill_router_scoring import RouteMatch, matched_patterns, tuple_of_strings
 
 ACTIVATION_IR_SCHEMA = "lazy-skill-router.activation-ir/v1"
@@ -28,6 +34,18 @@ DEFAULT_NO_ACTION_PATTERNS: tuple[str, ...] = (
     r"(수정|구현|추가|생성|변경|설치|삭제|업데이트)하지\s*마",
     r"(고치|만들)지\s*마",
     r"(?:수정|구현|추가|생성|변경|설치|삭제|업데이트|고치|만들)(?:하는|할)?\s*방법(?:만)?\s*(?:을|를)?\s*설명",
+)
+DEFAULT_META_TOKEN_PATTERN = re.compile(
+    r"(?P<subject>skill|스킬|route|라우트|router|라우터|hook|훅)"
+    r"|(?P<action>select|recommend|use|activat|match|선택|추천|사용|활성|매치)"
+    r"|(?P<reason>why|problem|wrong|explain|왜|문제|잘못|설명)",
+    re.IGNORECASE,
+)
+DEFAULT_META_TOKEN_ORDERS = (
+    ("subject", "action", "reason"),
+    ("subject", "reason", "action"),
+    ("reason", "subject", "action"),
+    ("action", "subject", "reason"),
 )
 
 
@@ -85,29 +103,62 @@ def configured_number(value: Any, default: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
+def validated_activation_patterns(value: Any, defaults: tuple[str, ...]) -> tuple[str, ...]:
+    def validated(patterns: tuple[str, ...], *, trusted_bundle: bool) -> tuple[str, ...]:
+        for pattern in patterns:
+            if not trusted_bundle and activation_pattern_risk(pattern) is not None:
+                return ()
+            try:
+                compiled = re.compile(pattern)
+            except ACTIVATION_REGEX_ERRORS:
+                return ()
+            if not trusted_bundle and activation_pattern_risk(pattern, compiled) is not None:
+                return ()
+        return patterns
+
+    trusted_defaults = defaults in SHIPPED_ACTIVATION_PATTERN_BUNDLES.values()
+    safe_defaults = validated(defaults, trusted_bundle=trusted_defaults)
+    configured = tuple_of_strings(value)
+    if not configured or configured == defaults:
+        return safe_defaults
+    return validated(configured, trusted_bundle=False) or safe_defaults
+
+
 def activation_policy(config: dict[str, Any]) -> ActivationPolicyIR:
     activation = config.get("activation")
     activation = activation if isinstance(activation, dict) else {}
     selection = config.get("selection")
     selection = selection if isinstance(selection, dict) else {}
-    configured_meta_patterns = tuple_of_strings(activation.get("metaPatterns"))
-    configured_action_patterns = tuple_of_strings(activation.get("actionPatterns"))
-    configured_no_action_patterns = tuple_of_strings(activation.get("noActionPatterns"))
     return ActivationPolicyIR(
         configured_number(
             activation.get("autoActivateMinStrength"),
             DEFAULT_AUTO_ACTIVATE_MIN_STRENGTH,
         ),
         configured_number(selection.get("minScoreMargin"), DEFAULT_MIN_SCORE_MARGIN),
-        configured_meta_patterns or DEFAULT_META_PATTERNS,
-        configured_action_patterns or DEFAULT_ACTION_PATTERNS,
-        configured_no_action_patterns or DEFAULT_NO_ACTION_PATTERNS,
+        validated_activation_patterns(activation.get("metaPatterns"), DEFAULT_META_PATTERNS),
+        validated_activation_patterns(activation.get("actionPatterns"), DEFAULT_ACTION_PATTERNS),
+        validated_activation_patterns(activation.get("noActionPatterns"), DEFAULT_NO_ACTION_PATTERNS),
     )
 
 
 def matched_facets(match: RouteMatch) -> tuple[str, ...]:
     matched_ids = set(match.matched_pattern_ids)
     return tuple(dict.fromkeys(pattern.facet for pattern in match.route.patterns if pattern.pattern_id in matched_ids))
+
+
+def default_meta_prompt_matches(prompt: str) -> bool:
+    for line in prompt.split("\n"):
+        positions = [0] * len(DEFAULT_META_TOKEN_ORDERS)
+        for token_match in DEFAULT_META_TOKEN_PATTERN.finditer(line):
+            category = token_match.lastgroup
+            for index, order in enumerate(DEFAULT_META_TOKEN_ORDERS):
+                position = positions[index]
+                if position < len(order) and category == order[position]:
+                    position += 1
+                    if position == len(order):
+                        return True
+                    positions[index] = position
+    return False
 
 
 def score_is_ambiguous(matches: tuple[RouteMatch, ...], min_score_margin: float) -> bool:
@@ -117,7 +168,11 @@ def score_is_ambiguous(matches: tuple[RouteMatch, ...], min_score_margin: float)
 
 
 def request_mode(prompt: str, answer_only: bool, policy: ActivationPolicyIR) -> str:
-    meta = bool(matched_patterns(prompt, policy.meta_patterns))
+    meta = (
+        default_meta_prompt_matches(prompt)
+        if policy.meta_patterns == DEFAULT_META_PATTERNS
+        else bool(matched_patterns(prompt, policy.meta_patterns))
+    )
     explicit_action = bool(matched_patterns(prompt, policy.action_patterns))
     hard_no_action = bool(matched_patterns(prompt, policy.no_action_patterns))
     if meta and (hard_no_action or not explicit_action):

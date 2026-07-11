@@ -384,6 +384,8 @@ Important fields:
 - `activation.metaPatterns`: trusted local selection-rationale regexes that force a diagnostic candidate into `abstain`
 - `activation.actionPatterns`: explicit implementation/action regexes that override soft explanation wording
 - `activation.noActionPatterns`: hard no-side-effect regexes that take precedence over action wording
+- custom activation patterns must pass the conservative regex safety subset; the audited bundled defaults are the only
+  exact allowlisted exceptions
 - `defaultVerification`: used when a route omits `verification`
 - `allowedSkills`: only these skills may be recommended
 - `logging.enabled`: off by default
@@ -693,8 +695,8 @@ mixing is detected.
 For public releases, generate a checksum manifest and attach it to the GitHub release:
 
 ```bash
-python3 release_checksums.py --output SHA256SUMS
-python3 release_checksums.py --verify SHA256SUMS
+python3 release_checksums.py --root dist --output SHA256SUMS
+python3 release_checksums.py --root dist --verify SHA256SUMS
 ```
 
 Verification rejects empty, partial, duplicate, absolute, parent-traversing, and symlinked entries. The manifest must

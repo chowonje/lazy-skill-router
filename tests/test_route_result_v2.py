@@ -310,6 +310,27 @@ class HookIrV1Test(unittest.TestCase):
         self.assertTrue(result["routes"])
         self.assertTrue(all(route["phase"] == "explain" for route in result["routes"] if route["rank"] == 1))
 
+    def test_activation_no_action_pattern_drives_hook_ir_explain_phase(self) -> None:
+        prompt = "explain how to fix pdf"
+        config = {
+            "answerOnlyPatterns": ["legacy-answer-only-never-match"],
+            "activation": {
+                "mode": "inject",
+                "metaPatterns": ["router meta only"],
+                "actionPatterns": [r"\bfix\b"],
+                "noActionPatterns": [r"\bexplain how to fix\b"],
+            },
+            "routes": [{"name": "pdf", "primary": "pdf", "patterns": ["pdf"]}],
+        }
+
+        result = hook_ir_v1(prompt, config)
+        structured = structured_recommendation_v1(prompt, config)
+
+        self.assertEqual(structured["route_result_ref"]["activation_reason_code"], "answer_only")
+        self.assertEqual(structured["route_result_ref"]["activation_request_mode"], "answer-only")
+        self.assertTrue(result["routes"])
+        self.assertTrue(all(route["phase"] == "explain" for route in result["routes"] if route["rank"] == 1))
+
     def test_hook_ir_no_match_is_fail_open_and_contains_no_prompt(self) -> None:
         prompt = "private-no-route-value"
         result = hook_ir_v1(prompt, {"routes": []})

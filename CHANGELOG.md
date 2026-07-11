@@ -56,6 +56,7 @@
   exact config revision and only counts shadow decisions that would win after activation.
 - App-generated regexes use a restricted, bounded subset; unbounded quantifiers, quantified alternation, lookaround,
   and backreferences are rejected.
+- Custom activation regexes use a conservative subset, with only the exact audited bundled defaults allowlisted.
 - Sync apply writes only the inventory manifest. Policy compilation writes a separate candidate file, and stage and
   promotion back up the active route config before mutation.
 - Skill scanning rejects leaf symlinks, symlinked parents, and metadata outside the selected root before reading it;
@@ -77,9 +78,9 @@
   of marker substrings; unsafe manifest parents and foreign lookalike hooks are preserved.
 - Release checksum verification rejects empty, incomplete, duplicate, escaping, and symlinked manifests and requires
   exact artifact-root coverage before hashing.
-- Skill metadata parsing is limited to 64 KiB/200 lines, document hashing is streamed with a 1 MiB ceiling, terminal
-  controls are escaped in human sync output, and the shipped composite docs exclusion is anchored against superlinear
-  rescanning.
+- Skill metadata parsing is limited to 64 KiB/200 lines, document hashing is streamed with a 1 MiB ceiling, and terminal
+  controls are escaped in human sync output. The shipped composite docs exclusion uses a start-anchored scan, while
+  activation meta detection uses a linear token scan that preserves the legacy order and single-line boundaries.
 
 ## 0.4.0 (2026-07-10)
 

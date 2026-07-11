@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from lazy_skill_router_activation import DEFAULT_META_PATTERNS
 from lazy_skill_router_inventory import (
     MAX_SKILL_DOCUMENT_BYTES,
     InventoryDiff,
@@ -38,6 +39,11 @@ def docs_exclusion(path: Path) -> str:
     routes = load_routes(path)["routes"]
     docs_route = next(route for route in routes if route["name"] == "docs")
     return docs_route["excludePatterns"][0]
+
+
+def activation_meta_patterns(path: Path) -> list[str]:
+    activation = load_routes(path)["activation"]
+    return activation["metaPatterns"]
 
 
 class RegexAndInputSafetyTest(unittest.TestCase):
@@ -83,6 +89,34 @@ class RegexAndInputSafetyTest(unittest.TestCase):
                     self.assertIsNone(re.search(pattern, prompt, re.IGNORECASE), prompt)
                 for prompt in action_prompts:
                     self.assertIsNotNone(re.search(pattern, prompt, re.IGNORECASE), prompt)
+
+    def test_shipped_activation_meta_patterns_match_runtime_defaults(self) -> None:
+        for path in ROUTE_PATHS:
+            with self.subTest(path=path.name):
+                patterns = activation_meta_patterns(path)
+                self.assertEqual(tuple(patterns), DEFAULT_META_PATTERNS)
+                self.assertEqual(len(patterns), 4)
+
+    def test_shipped_activation_meta_patterns_preserve_legacy_order_and_line_boundaries(self) -> None:
+        matched_prompts = (
+            "skill select why",
+            "skill why select",
+            "why skill select",
+            "select skill why",
+        )
+        unmatched_prompts = (
+            "why select skill",
+            "select why skill",
+            "skill\nselect\nwhy",
+            "ordinary prompt",
+        )
+        for path in ROUTE_PATHS:
+            patterns = activation_meta_patterns(path)
+            with self.subTest(path=path.name):
+                for prompt in matched_prompts:
+                    self.assertTrue(any(re.search(pattern, prompt, re.IGNORECASE) for pattern in patterns), prompt)
+                for prompt in unmatched_prompts:
+                    self.assertFalse(any(re.search(pattern, prompt, re.IGNORECASE) for pattern in patterns), prompt)
 
     def test_frontmatter_metadata_reads_only_a_bounded_prefix(self) -> None:
         class GuardedReader(io.BytesIO):

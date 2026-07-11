@@ -299,6 +299,7 @@ def structured_recommendation_v1(
             "ambiguous": route_result["ambiguous"],
             "activation_disposition": activation["disposition"],
             "activation_reason_code": activation["reasonCode"],
+            "activation_request_mode": activation["intentFrame"]["requestMode"],
         },
         "recommendations": recommendations,
         "selection_notes": {
@@ -330,7 +331,7 @@ def hook_ir_v1(
     recommendation_contract = structured_recommendation_v1(prompt, config, inventory)
     recommendations = recommendation_contract["recommendations"]
     route_ref = recommendation_contract["route_result_ref"]
-    answer_only = text_matches(prompt, answer_only_patterns(config))
+    answer_only = route_ref["activation_request_mode"] == "answer-only"
     ir_routes: list[dict[str, Any]] = []
     for recommendation_item in recommendations:
         for skill in recommendation_item["skills"]:

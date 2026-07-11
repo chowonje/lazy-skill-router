@@ -3,7 +3,16 @@ from __future__ import annotations
 import json
 import unittest
 
-from lazy_skill_router_activation import ACTIVATION_IR_SCHEMA, activation_ir_dict, decide_activation
+from lazy_skill_router_activation import (
+    ACTIVATION_IR_SCHEMA,
+    DEFAULT_ACTION_PATTERNS,
+    DEFAULT_META_PATTERNS,
+    DEFAULT_NO_ACTION_PATTERNS,
+    activation_ir_dict,
+    activation_policy,
+    decide_activation,
+    default_meta_prompt_matches,
+)
 from lazy_skill_router_policy_ir import parse_policy_config, runtime_routes
 from lazy_skill_router_scoring import CapabilityRequirements, Route, RouteActivation, RouteMatch, RoutePattern
 
@@ -66,6 +75,46 @@ def match(
 
 
 class ActivationIRTest(unittest.TestCase):
+    def test_default_meta_detection_preserves_legacy_order_and_line_boundaries(self) -> None:
+        for prompt in (
+            "skill select why",
+            "skill why select",
+            "why skill select",
+            "select skill why",
+        ):
+            with self.subTest(prompt=prompt):
+                self.assertTrue(default_meta_prompt_matches(prompt))
+
+        for prompt in (
+            "why select skill",
+            "select why skill",
+            "skill\nselect\nwhy",
+            "skill select " + ("x" * 100_000),
+        ):
+            with self.subTest(prompt=prompt[:40]):
+                self.assertFalse(default_meta_prompt_matches(prompt))
+
+    def test_unsafe_custom_activation_patterns_never_reach_runtime_matching(self) -> None:
+        for unsafe in (
+            r"(a+)+$",
+            ("(" * 2_000) + "a" + (")" * 2_000),
+            r"a{999999999999999999999999999999999999}",
+        ):
+            with self.subTest(pattern=unsafe[:40]):
+                policy = activation_policy(
+                    {
+                        "activation": {
+                            "metaPatterns": [unsafe],
+                            "actionPatterns": [unsafe],
+                            "noActionPatterns": [unsafe],
+                        }
+                    }
+                )
+
+                self.assertEqual(policy.meta_patterns, DEFAULT_META_PATTERNS)
+                self.assertEqual(policy.action_patterns, DEFAULT_ACTION_PATTERNS)
+                self.assertEqual(policy.no_action_patterns, DEFAULT_NO_ACTION_PATTERNS)
+
     def test_no_match_abstains(self) -> None:
         activation = decide_activation("no routed skill here", (), {}, answer_only=False)
 

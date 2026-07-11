@@ -13,6 +13,38 @@ BASE_PATTERN_ID_PATTERN = re.compile(r"^[^\s\x00-\x1f\x7f<>]+$")
 FACET_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ACTIVATION_SCOPES = frozenset({"turn", "phase", "task"})
 ROUTE_ACTIVATION_MODES = frozenset({"auto", "propose-only"})
+MAX_ACTIVATION_PATTERN_LENGTH = 300
+# Deliberately duplicated instead of importing the runtime defaults: changing a
+# trusted exception must also cross this validation boundary in review.
+SHIPPED_ACTIVATION_PATTERN_BUNDLES = {
+    "activation.metaPatterns": (
+        r"(skill|스킬|route|라우트|router|라우터|hook|훅).*(select|recommend|use|activat|match|선택|추천|사용|활성|매치).*(why|problem|wrong|explain|왜|문제|잘못|설명)",
+        r"(skill|스킬|route|라우트|router|라우터|hook|훅).*(why|problem|wrong|explain|왜|문제|잘못|설명).*(select|recommend|use|activat|match|선택|추천|사용|활성|매치)",
+        r"(why|problem|wrong|explain|왜|문제|잘못|설명).*(skill|스킬|route|라우트|router|라우터|hook|훅).*(select|recommend|use|activat|match|선택|추천|사용|활성|매치)",
+        r"(select|recommend|use|activat|match|선택|추천|사용|활성|매치).*(skill|스킬|route|라우트|router|라우터|hook|훅).*(why|problem|wrong|explain|왜|문제|잘못|설명)",
+    ),
+    "activation.actionPatterns": (
+        r"\b(fix|implement|update|change|add|create|install|remove|delete)\b",
+        r"(수정|구현|추가|생성|변경|설치|삭제|업데이트)(해|하고|해서|하자|하라|해라)",
+        r"(고치|만들)(고|거나|면)|고쳐|만들어",
+    ),
+    "activation.noActionPatterns": (
+        r"(?:don't|do\s+not)\s+(?:change|edit|modify|fix|install|remove|delete)",
+        r"\bno\s+(?:edits?|changes?)\b",
+        r"\b(?:explain|describe)\b[^.!?\n]{0,160}\bhow(?:\s+(?:i|we|you|one|someone)\s+(?:should|could|can|would))?\s+(?:to\s+)?(?:fix|implement|update|change|add|create|install|remove|delete)\b",
+        r"(수정|구현|추가|생성|변경|설치|삭제|업데이트)하지\s*마",
+        r"(고치|만들)지\s*마",
+        r"(?:수정|구현|추가|생성|변경|설치|삭제|업데이트|고치|만들)(?:하는|할)?\s*방법(?:만)?\s*(?:을|를)?\s*설명",
+    ),
+}
+ACTIVATION_REGEX_ERRORS = (re.error, RecursionError, OverflowError)
+ACTIVATION_NESTED_QUANTIFIER_PATTERN = re.compile(r"\([^)]*[+*][^)]*\)[+*{]")
+ACTIVATION_QUANTIFIED_ALTERNATION_PATTERN = re.compile(r"\([^)]*\|[^)]*\)[+*{]")
+ACTIVATION_BACKREFERENCE_PATTERN = re.compile(r"\\[1-9]")
+ACTIVATION_LOOKAROUND_TOKENS = ("(?=", "(?!", "(?<=", "(?<!")
+ACTIVATION_CHARACTER_CLASS_PATTERN = re.compile(r"\[(?:\\.|[^\]])*\]")
+ACTIVATION_ESCAPED_TOKEN_PATTERN = re.compile(r"\\.")
+ACTIVATION_UNSUPPORTED_QUANTIFIER_PATTERN = re.compile(r"[*+?{}]")
 
 
 class InventoryResolver(Protocol):
@@ -140,6 +172,75 @@ def is_number(value: Any) -> bool:
     return not isinstance(value, bool) and isinstance(value, (int, float))
 
 
+def activation_pattern_risk(pattern: str, compiled: re.Pattern[str] | None = None) -> str | None:
+    if len(pattern) > MAX_ACTIVATION_PATTERN_LENGTH:
+        return f"pattern exceeds {MAX_ACTIVATION_PATTERN_LENGTH} characters"
+    if any(ord(character) < 32 or ord(character) == 127 for character in pattern):
+        return "pattern contains a control character"
+    if ACTIVATION_NESTED_QUANTIFIER_PATTERN.search(pattern):
+        return "nested repetition is unsupported"
+    if ACTIVATION_QUANTIFIED_ALTERNATION_PATTERN.search(pattern):
+        return "repeated alternation is unsupported"
+    if ACTIVATION_BACKREFERENCE_PATTERN.search(pattern):
+        return "backreferences are unsupported"
+    if any(token in pattern for token in ACTIVATION_LOOKAROUND_TOKENS):
+        return "lookaround is unsupported"
+    quantifier_probe = pattern.replace("(?:", "(")
+    quantifier_probe = ACTIVATION_CHARACTER_CLASS_PATTERN.sub("", quantifier_probe)
+    quantifier_probe = ACTIVATION_ESCAPED_TOKEN_PATTERN.sub("", quantifier_probe)
+    if ACTIVATION_UNSUPPORTED_QUANTIFIER_PATTERN.search(quantifier_probe):
+        return "pattern contains an unsupported quantifier"
+    if compiled is not None:
+        try:
+            matches_empty = compiled.search("") is not None
+        except ACTIVATION_REGEX_ERRORS:
+            return "pattern evaluation failed"
+        if matches_empty:
+            return "pattern must not match an empty string"
+    return None
+
+
+def validate_activation_patterns(
+    patterns: tuple[str, ...],
+    field: str,
+    finding_prefix: str,
+    findings: list[PolicyFinding],
+) -> None:
+    trusted_bundle = patterns == SHIPPED_ACTIVATION_PATTERN_BUNDLES.get(field)
+    for pattern in patterns:
+        if not trusted_bundle:
+            risk = activation_pattern_risk(pattern)
+            if risk is not None:
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        f"{finding_prefix}_regex_unsafe",
+                        f"{field} has unsafe regex {pattern!r}: {risk}",
+                    )
+                )
+                continue
+        try:
+            compiled = re.compile(pattern)
+        except ACTIVATION_REGEX_ERRORS as exc:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    f"{finding_prefix}_regex_invalid",
+                    f"{field} has invalid regex {pattern!r}: {exc}",
+                )
+            )
+            continue
+        risk = None if trusted_bundle else activation_pattern_risk(pattern, compiled)
+        if risk is not None:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    f"{finding_prefix}_regex_unsafe",
+                    f"{field} has unsafe regex {pattern!r}: {risk}",
+                )
+            )
+
+
 def validate_common_config(config: dict[str, Any], schema_version: int, findings: list[PolicyFinding]) -> None:
     display = config.get("display", {})
     if display and not isinstance(display, dict):
@@ -187,17 +288,12 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                     "activation.metaPatterns must contain strings when present",
                 )
             )
-        for pattern in meta_patterns:
-            try:
-                re.compile(pattern)
-            except re.error as exc:
-                findings.append(
-                    PolicyFinding(
-                        "ERROR",
-                        "activation_meta_pattern_regex_invalid",
-                        f"activation.metaPatterns has invalid regex {pattern!r}: {exc}",
-                    )
-                )
+        validate_activation_patterns(
+            meta_patterns,
+            "activation.metaPatterns",
+            "activation_meta_pattern",
+            findings,
+        )
         action_value = activation.get("actionPatterns")
         action_patterns = strings(action_value)
         if action_value is not None and not action_patterns:
@@ -208,17 +304,12 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                     "activation.actionPatterns must contain strings when present",
                 )
             )
-        for pattern in action_patterns:
-            try:
-                re.compile(pattern)
-            except re.error as exc:
-                findings.append(
-                    PolicyFinding(
-                        "ERROR",
-                        "activation_action_pattern_regex_invalid",
-                        f"activation.actionPatterns has invalid regex {pattern!r}: {exc}",
-                    )
-                )
+        validate_activation_patterns(
+            action_patterns,
+            "activation.actionPatterns",
+            "activation_action_pattern",
+            findings,
+        )
         no_action_value = activation.get("noActionPatterns")
         no_action_patterns = strings(no_action_value)
         if no_action_value is not None and not no_action_patterns:
@@ -229,17 +320,12 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                     "activation.noActionPatterns must contain strings when present",
                 )
             )
-        for pattern in no_action_patterns:
-            try:
-                re.compile(pattern)
-            except re.error as exc:
-                findings.append(
-                    PolicyFinding(
-                        "ERROR",
-                        "activation_no_action_pattern_regex_invalid",
-                        f"activation.noActionPatterns has invalid regex {pattern!r}: {exc}",
-                    )
-                )
+        validate_activation_patterns(
+            no_action_patterns,
+            "activation.noActionPatterns",
+            "activation_no_action_pattern",
+            findings,
+        )
 
     logging_config = config.get("logging", {})
     if logging_config and not isinstance(logging_config, dict):

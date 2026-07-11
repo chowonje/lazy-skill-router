@@ -79,6 +79,8 @@ existing routes remain unchanged before adding shadow candidates. Promotion acce
 shadow decisions from the same config revision that would win after activation, requires current inventory and host
 catalog revisions, requires explicit approval, and creates a backup before activating a route. App-generated patterns
 use a restricted regex subset without general unbounded quantifiers, lookaround, or backreferences.
+Custom activation patterns use a conservative regex subset; only the exact audited bundled activation patterns are
+allowlisted outside it.
 Policy stage/promotion and host-catalog build reject leaf symlinks and every symlinked parent below the selected trusted
 write root before backup or atomic replacement.
 
