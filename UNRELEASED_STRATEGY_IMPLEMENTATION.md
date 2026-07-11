@@ -89,7 +89,7 @@ python3 sync_skills.py \
 ```
 
 The installer generates the same manifest automatically. Entries include canonical provider identity, configured name,
-relative locator reference, content digest, revision when observable, aliases, and an availability snapshot. Duplicate
+bounded frontmatter description, relative locator reference, content digest, revision when observable, aliases, and an availability snapshot. Duplicate
 configured names remain ambiguous. Runtime dependency, connector auth, MCP enablement, and managed allowlist states stay
 `unknown` until a trusted runtime source can verify them; availability is never treated as authorization.
 

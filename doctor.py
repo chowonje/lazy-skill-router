@@ -17,9 +17,15 @@ from install import (
     smoke_stop_hook,
 )
 from lazy_skill_router_common import codex_home, load_hooks, load_json_object, write_json
+from lazy_skill_router_host_catalog import effective_skill_names, load_host_catalog, reconcile_inventory
 from lazy_skill_router_install_manifest import artifact_state, load_install_manifest
-from lazy_skill_router_inventory import load_inventory_manifest
-from sync_skills import build_report, scan_installed_skills
+from lazy_skill_router_inventory import InventorySnapshot, build_inventory_manifest, load_inventory_manifest
+from sync_skills import (
+    build_report_for_names,
+    has_blocking_policy_findings,
+    scan_installed_skills,
+    scan_installed_skills_with_issues,
+)
 from validate_routes import validate_config
 
 HOOK_FILES = (
@@ -28,6 +34,7 @@ HOOK_FILES = (
     "lazy_skill_router_common.py",
     "lazy_skill_router_contracts.py",
     "lazy_skill_router_inventory.py",
+    "lazy_skill_router_policy_ir.py",
     "lazy_skill_router_logging.py",
     "lazy_skill_router_scoring.py",
 )
@@ -184,13 +191,49 @@ def duplicate_skill_examples(duplicates: tuple[tuple[str, tuple[Path, ...]], ...
     return "; ".join(examples)
 
 
-def check_skill_sync(config: dict[str, Any] | None, codex_root: Path, agents_root: Path) -> CheckResult:
+def check_skill_sync(
+    config: dict[str, Any] | None,
+    codex_root: Path,
+    agents_root: Path,
+    inventory_path: Path,
+) -> CheckResult:
     if config is None:
         return fail("skill sync checked: routes unavailable")
-    report = build_report(config, scan_installed_skills(codex_root, agents_root))
-    missing = len(report.allowed_missing) + len(report.route_references_missing)
-    if missing:
-        return fail(f"skill sync checked: {missing} configured skills missing")
+    scan_result = scan_installed_skills_with_issues(codex_root, agents_root)
+    installed = scan_result.records
+    filesystem_manifest = build_inventory_manifest(installed, codex_root, agents_root)
+    host_catalog = load_host_catalog(inventory_path.with_name("host-catalog.json"))
+    if host_catalog.state == "available":
+        current_manifest = reconcile_inventory(filesystem_manifest, host_catalog)
+        installed_names = effective_skill_names(current_manifest)
+        policy_inventory = InventorySnapshot(
+            "available",
+            str(current_manifest["revision"]),
+            tuple(current_manifest["skills"]),
+        )
+    else:
+        snapshot = load_inventory_manifest(inventory_path)
+        installed_names = {record.name for record in installed}
+        if snapshot.state == "available":
+            installed_names.update(host_available_skill_names(snapshot))
+            policy_inventory = snapshot
+        else:
+            policy_inventory = InventorySnapshot(
+                "available",
+                str(filesystem_manifest["revision"]),
+                tuple(filesystem_manifest["skills"]),
+            )
+    report = build_report_for_names(config, installed, installed_names, policy_inventory)
+    missing_names = {reference.skill for reference in report.route_references_missing}
+    if missing_names:
+        return fail(f"skill sync checked: {len(missing_names)} active route skills missing")
+    if has_blocking_policy_findings(report):
+        return fail("skill sync checked: active route bindings are unresolved")
+    if report.allowed_missing:
+        return warn(
+            f"skill sync checked: {len(report.allowed_missing)} unused allowlisted skills missing; "
+            "active route references are available"
+        )
     if report.duplicate_installed:
         duplicate_count = len(report.duplicate_installed)
         return warn(
@@ -198,6 +241,8 @@ def check_skill_sync(config: dict[str, Any] | None, codex_root: Path, agents_roo
             f"not an install failure; examples: {duplicate_skill_examples(report.duplicate_installed)}; "
             "run sync_skills.py --json for full paths"
         )
+    if scan_result.issues:
+        return warn(f"skill sync checked: {len(scan_result.issues)} unsafe skill paths ignored")
     return ok("skill sync checked")
 
 
@@ -207,6 +252,83 @@ def check_inventory_manifest(path: Path) -> CheckResult:
         return ok(f"skill inventory manifest validates: {snapshot.revision}")
     reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
     return fail(f"skill inventory manifest validates: {reason}")
+
+
+def filesystem_inventory_snapshot(snapshot: InventorySnapshot) -> InventorySnapshot:
+    skills = tuple(
+        skill
+        for skill in snapshot.skills
+        if isinstance(skill.get("provider"), dict) and skill["provider"].get("type") in {"plugin", "user", "configured"}
+    )
+    return InventorySnapshot(snapshot.state, snapshot.revision, skills, snapshot.reason_codes)
+
+
+def host_available_skill_names(snapshot: InventorySnapshot) -> set[str]:
+    names: set[str] = set()
+    for skill in snapshot.skills:
+        provider = skill.get("provider")
+        availability = skill.get("availability")
+        configured_name = skill.get("configured_name")
+        if (
+            isinstance(provider, dict)
+            and provider.get("type") == "host"
+            and isinstance(availability, dict)
+            and availability.get("status") == "available"
+            and isinstance(configured_name, str)
+        ):
+            names.add(configured_name)
+    return names
+
+
+def check_inventory_freshness(path: Path, codex_root: Path, agents_root: Path) -> CheckResult:
+    snapshot = load_inventory_manifest(path)
+    if snapshot.state != "available":
+        return fail("skill inventory freshness checked: manifest unavailable")
+    filesystem_manifest = build_inventory_manifest(
+        scan_installed_skills(codex_root, agents_root), codex_root, agents_root
+    )
+    host_catalog = load_host_catalog(path.with_name("host-catalog.json"))
+    if host_catalog.state == "invalid":
+        reason = ", ".join(host_catalog.reason_codes) or "invalid"
+        return fail(f"skill inventory freshness checked: invalid host catalog: {reason}")
+    current = (
+        reconcile_inventory(filesystem_manifest, host_catalog)
+        if host_catalog.state == "available"
+        else filesystem_manifest
+    )
+    if current["revision"] == snapshot.revision:
+        return ok("skill inventory freshness checked")
+    previous_skills = filesystem_inventory_snapshot(snapshot).skills
+    current_skills = filesystem_manifest["skills"]
+
+    def states(skills: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> dict[tuple[str, str], tuple[Any, ...]]:
+        return {
+            (str(skill.get("canonical_id")), str(skill.get("locator_ref"))): (
+                skill.get("configured_name"),
+                skill.get("revision"),
+                skill.get("content_digest"),
+            )
+            for skill in skills
+        }
+
+    previous_state = states(previous_skills)
+    current_state = states(current_skills)
+    added = len(set(current_state) - set(previous_state))
+    removed = len(set(previous_state) - set(current_state))
+    changed = sum(previous_state[key] != current_state[key] for key in set(previous_state) & set(current_state))
+    try:
+        previous_data = load_json_object(path, "inventory root")
+    except (OSError, ValueError):
+        previous_data = {}
+    previous_sources = previous_data.get("sources")
+    previous_host_revision = previous_sources.get("hostCatalogRevision") if isinstance(previous_sources, dict) else None
+    host_changed = previous_host_revision != host_catalog.revision
+    host_detail = "; host catalog changed" if host_changed else ""
+    return warn(
+        "skill inventory freshness checked: "
+        f"{added} added, {removed} removed, {changed} changed; "
+        f"run lazy-skill-router sync --plan{host_detail}"
+    )
 
 
 def check_install_manifest(path: Path, codex_root: Path) -> CheckResult:
@@ -284,11 +406,12 @@ def main() -> int:
         core_hooks,
         *route_checks,
         check_inventory_manifest(inventory_path),
+        check_inventory_freshness(inventory_path, codex_root, agents_root),
         install_manifest_check,
         check_hook_registration(hooks_path, expected_command),
         check_stop_registration(hooks_path, expected_stop_command, route_config),
         smoke_check,
-        check_skill_sync(route_config, codex_root, agents_root),
+        check_skill_sync(route_config, codex_root, agents_root, inventory_path),
     )
 
     print("lazy-skill-router doctor")

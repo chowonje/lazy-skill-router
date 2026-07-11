@@ -11,12 +11,15 @@ from typing import Final
 import doctor
 import install
 import measurement
+import sync_skills
 import uninstall
 from lazy_skill_router_contracts import hook_ir_v1, route_result_v2, structured_recommendation_v1
 from lazy_skill_router_core import dry_run_output, load_config
+from lazy_skill_router_host_catalog import catalog_main
 from lazy_skill_router_inventory import inventory_for_config
+from lazy_skill_router_policy import policy_main
 
-COMMANDS: Final = ("install", "doctor", "uninstall", "route", "outcome", "report")
+COMMANDS: Final = ("install", "doctor", "uninstall", "catalog", "sync", "policy", "route", "outcome", "report")
 DATA_ROOT_NAME: Final = "lazy-skill-router"
 PACKAGE_NAME: Final = "lazy-skill-router"
 UNKNOWN_VERSION: Final = "0.0.0"
@@ -74,6 +77,7 @@ def configure_install_sources(root: Path) -> None:
     install.SCORING_SOURCE = root / "lazy_skill_router_scoring.py"
     install.CONTRACTS_SOURCE = root / "lazy_skill_router_contracts.py"
     install.INVENTORY_SOURCE = root / "lazy_skill_router_inventory.py"
+    install.POLICY_IR_SOURCE = root / "lazy_skill_router_policy_ir.py"
     install.SKILL_SOURCE = root / "skills" / "personal-skill-router"
     install.TEMPLATE_SOURCE = root / "routes.template.json"
 
@@ -118,21 +122,20 @@ def route_prompt(args: list[str]) -> int:
     parsed = parser.parse_args(args)
 
     config = load_config(resource_root() / "lazy_skill_router.py", parsed.config)
+    inventory = inventory_for_config(config, parsed.inventory)
     if parsed.hook_ir_json:
-        inventory = inventory_for_config(config, parsed.inventory)
         print(json.dumps(hook_ir_v1(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
     if parsed.recommendation_json:
-        inventory = inventory_for_config(config, parsed.inventory)
         print(json.dumps(structured_recommendation_v1(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
     if parsed.route_result_v2:
-        print(json.dumps(route_result_v2(parsed.prompt, config), ensure_ascii=False, indent=2))
+        print(json.dumps(route_result_v2(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
 
-    result = dry_run_output(parsed.prompt, config)
+    result = dry_run_output(parsed.prompt, config, inventory)
     if parsed.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
@@ -177,6 +180,13 @@ def run_command(command: str, args: list[str]) -> int:
         return run_main(doctor.main, command, args)
     if command == "uninstall":
         return run_main(uninstall.main, command, args)
+    if command == "sync":
+        sync_args = args if any(value in {"--plan", "--apply"} for value in args) else ["--plan", *args]
+        return run_main(sync_skills.main, command, sync_args)
+    if command == "catalog":
+        return catalog_main(args)
+    if command == "policy":
+        return policy_main(args)
     if command == "route":
         return route_prompt(args)
     if command == "outcome":

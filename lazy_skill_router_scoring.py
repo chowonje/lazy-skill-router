@@ -11,7 +11,6 @@ from lazy_skill_router_common import debug
 MIN_CONFIDENCE = 0.55
 NORMAL_CONFIDENCE = 0.75
 MAX_MATCHED_SIGNALS = 5
-DEFAULT_VERIFICATION = "verification-gate"
 PRIORITY_SCORE_STEP = 0.05
 
 
@@ -44,6 +43,8 @@ class Route:
     fallback: bool
     intent: str
     capability_requirements: CapabilityRequirements
+    lifecycle_state: str = "active"
+    proposal_revision: str | None = None
 
 
 @dataclass(frozen=True)
@@ -180,11 +181,6 @@ def allowed_skills(config: dict[str, Any]) -> set[str]:
     return set(tuple_of_strings(config.get("allowedSkills")))
 
 
-def default_verification(config: dict[str, Any]) -> str:
-    value = config.get("defaultVerification", DEFAULT_VERIFICATION)
-    return value if isinstance(value, str) else DEFAULT_VERIFICATION
-
-
 def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
     skills = allowed_skills(config)
     if not skills:
@@ -194,7 +190,7 @@ def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
         return None
 
     supporting = tuple(skill for skill in route.supporting if skill in skills)
-    verification = route.verification or default_verification(config)
+    verification = route.verification
     if verification not in skills:
         verification = ""
 
@@ -211,6 +207,8 @@ def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
         route.fallback,
         route.intent,
         route.capability_requirements,
+        route.lifecycle_state,
+        route.proposal_revision,
     )
 
 

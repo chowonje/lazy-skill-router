@@ -27,6 +27,37 @@ def measurement_event(event_type: str, **values: object) -> dict[str, object]:
 
 
 class MeasurementTest(unittest.TestCase):
+    def test_shadow_only_decision_counts_as_an_abstention(self) -> None:
+        report = build_measurement_report(
+            [
+                measurement_event(
+                    "decision",
+                    decisionStatus="shadow-match",
+                    mode="inject",
+                    injected=False,
+                )
+            ]
+        )
+
+        self.assertEqual(report["decisions"]["matched"], 0)
+        self.assertEqual(report["decisions"]["noMatch"], 0)
+        self.assertEqual(report["decisions"]["shadowOnly"], 1)
+        self.assertEqual(report["decisions"]["shadowed"], 1)
+        self.assertEqual(report["decisions"]["abstentionRate"], 1.0)
+
+    def test_policy_feedback_is_accumulated_by_verdict_and_route(self) -> None:
+        report = build_measurement_report(
+            [
+                measurement_event("policy-feedback", route="pdf", verdict="helpful"),
+                measurement_event("policy-feedback", route="pdf", verdict="irrelevant"),
+                measurement_event("policy-feedback", route="code", verdict="helpful"),
+            ]
+        )
+
+        self.assertEqual(report["policyFeedback"]["total"], 3)
+        self.assertEqual(report["policyFeedback"]["byVerdict"], {"helpful": 2, "irrelevant": 1})
+        self.assertEqual(report["policyFeedback"]["byRoute"], {"code": 1, "pdf": 2})
+
     def test_completion_correlation_requires_same_session_and_turn(self) -> None:
         report = build_measurement_report(
             [

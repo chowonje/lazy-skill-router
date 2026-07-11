@@ -132,6 +132,17 @@ def write_json_file(path: Path, payload: dict[str, Any]) -> None:
 
 
 class InstallTest(unittest.TestCase):
+    def test_bundled_router_uses_catalog_based_fallback(self) -> None:
+        skill_text = (ROOT / "skills" / "personal-skill-router" / "SKILL.md").read_text(encoding="utf-8")
+        skill_map = (ROOT / "skills" / "personal-skill-router" / "references" / "skill-map.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("## Catalog-Based Fallback", skill_text)
+        self.assertNotIn("## Bootstrap Routes", skill_text)
+        self.assertIn("no installation-specific skill map", skill_map)
+        self.assertNotIn("static skill map remains", (ROOT / "README.md").read_text(encoding="utf-8"))
+
     def test_install_hook_command_uses_standalone_python3_with_spaced_paths(self) -> None:
         # Given: hook and route paths that require shell quoting.
         hook_path = Path("/tmp/Codex Home/hooks/lazy_skill_router.py")
@@ -647,6 +658,22 @@ class InstallTest(unittest.TestCase):
             self.assertIn("[OK] hook smoke test passed", doctor.stdout)
             self.assertIn("[OK] skill sync checked", doctor.stdout)
             self.assertIn("[OK] skill inventory manifest validates", doctor.stdout)
+            self.assertIn("[OK] skill inventory freshness checked", doctor.stdout)
+
+    def test_doctor_warns_when_inventory_is_stale_after_a_skill_is_added(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            install = run_install(codex_home, agents_home)
+            self.assertEqual(install.returncode, 0, install.stderr)
+            write_skill(codex_home / "skills" / "new-skill" / "SKILL.md", "new-skill")
+
+            doctor = run_doctor(codex_home, agents_home)
+
+        self.assertEqual(doctor.returncode, 0, doctor.stderr)
+        self.assertIn("[WARN] skill inventory freshness checked: 1 added, 0 removed, 0 changed", doctor.stdout)
+        self.assertIn("run lazy-skill-router sync --plan", doctor.stdout)
 
     def test_doctor_fails_when_inventory_manifest_revision_is_tampered(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

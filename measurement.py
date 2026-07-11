@@ -202,6 +202,7 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
     decisions = [event for event in accepted_events if event.get("eventType") == "decision"]
     completions = [event for event in accepted_events if event.get("eventType") == "completion"]
     outcomes = [event for event in accepted_events if event.get("eventType") == "outcome"]
+    policy_feedback = [event for event in accepted_events if event.get("eventType") == "policy-feedback"]
     usable_outcomes, outcome_quality = normalize_outcomes(outcomes)
     decision_turns = {key for event in decisions if (key := lifecycle_key(event)) is not None}
     completion_turns = {key for event in completions if (key := lifecycle_key(event)) is not None}
@@ -210,6 +211,10 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
     by_route = Counter(str(event.get("route")) for event in decisions if isinstance(event.get("route"), str))
     matched = sum(event.get("decisionStatus") == "matched" for event in decisions)
     no_match = sum(event.get("decisionStatus") == "no-match" for event in decisions)
+    shadow_only = sum(event.get("decisionStatus") == "shadow-match" for event in decisions)
+    shadowed = sum(
+        event.get("mode") == "shadow" or event.get("decisionStatus") == "shadow-match" for event in decisions
+    )
     injected = sum(event.get("injected") is True for event in decisions)
     decision_contexts = context_segments(decisions, DECISION_CONTEXT_FIELDS)
     comparable_outcomes = [event for event in outcomes if outcome_identity(event) is not None]
@@ -255,8 +260,9 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
             "matched": matched,
             "noMatch": no_match,
             "injected": injected,
-            "shadowed": by_mode.get("shadow", 0),
-            "abstentionRate": rate(no_match, len(decisions)),
+            "shadowed": shadowed,
+            "shadowOnly": shadow_only,
+            "abstentionRate": rate(no_match + shadow_only, len(decisions)),
             "injectionRate": rate(injected, len(decisions)),
             "latencyMs": latency_summary(decisions),
             "byMode": dict(sorted(by_mode.items())),
@@ -272,6 +278,23 @@ def build_measurement_report(events: list[dict[str, Any]]) -> dict[str, Any]:
             "completionRate": rate(correlated, len(decision_turns)),
         },
         "outcomes": outcome_report,
+        "policyFeedback": {
+            "total": len(policy_feedback),
+            "byVerdict": dict(
+                sorted(
+                    Counter(
+                        str(event["verdict"]) for event in policy_feedback if isinstance(event.get("verdict"), str)
+                    ).items()
+                )
+            ),
+            "byRoute": dict(
+                sorted(
+                    Counter(
+                        str(event["route"]) for event in policy_feedback if isinstance(event.get("route"), str)
+                    ).items()
+                )
+            ),
+        },
         "pairedNativeInject": paired_native_inject(usable_outcomes),
         "comparability": {
             "decisionContexts": decision_contexts,
@@ -341,6 +364,7 @@ def print_text_report(report: dict[str, Any]) -> None:
     completions = report["completions"]
     outcomes = report["outcomes"]
     paired = report["pairedNativeInject"]
+    policy_feedback = report["policyFeedback"]
     comparability = report["comparability"]
     latency = decisions["latencyMs"]
     print("lazy-skill-router measurement report")
@@ -372,6 +396,10 @@ def print_text_report(report: dict[str, Any]) -> None:
     print(
         f"Native/inject pairs: {paired['pairs']} "
         f"(rescues {paired['rescues']}, harms {paired['harms']}, net win {paired['netWin']})"
+    )
+    print(
+        f"Policy feedback: {policy_feedback['total']} "
+        f"(by verdict {policy_feedback['byVerdict']}, by route {policy_feedback['byRoute']})"
     )
     print(
         f"Comparable outcome aggregate: {str(comparability['outcomeAggregateComparable']).lower()} "

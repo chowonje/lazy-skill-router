@@ -17,6 +17,7 @@ NO_MATCH_FIELDS = {
     "candidates",
     "confidence",
     "matchedPatterns",
+    "matchedPatternIds",
     "matchedSignals",
     "reason",
     "score",

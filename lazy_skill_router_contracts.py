@@ -82,8 +82,21 @@ def recommendation(match: RouteMatch, matches: tuple[RouteMatch, ...], index: in
     }
 
 
-def route_result_v2(prompt: str, config: dict[str, Any]) -> dict[str, Any]:
-    matches = ranked_route_matches_v2(prompt, parse_routes(config), config)
+def contract_matches(
+    prompt: str,
+    config: dict[str, Any],
+    inventory: InventorySnapshot | None = None,
+) -> tuple[RouteMatch, ...]:
+    routes = [route for route in parse_routes(config, inventory) if route.lifecycle_state == "active"]
+    return ranked_route_matches_v2(prompt, routes, config)
+
+
+def route_result_v2(
+    prompt: str,
+    config: dict[str, Any],
+    inventory: InventorySnapshot | None = None,
+) -> dict[str, Any]:
+    matches = contract_matches(prompt, config, inventory)
     fallback_used = bool(matches and matches[0].route.fallback)
     top_margin = score_margin(matches, 0)
     ambiguous = bool(len(matches) > 1 and top_margin is not None and top_margin < min_score_margin(config))
@@ -201,8 +214,8 @@ def structured_recommendation_v1(
     config: dict[str, Any],
     inventory: InventorySnapshot | None = None,
 ) -> dict[str, Any]:
-    route_result = route_result_v2(prompt, config)
-    matches = ranked_route_matches_v2(prompt, parse_routes(config), config)[: max_recommendations(config)]
+    route_result = route_result_v2(prompt, config, inventory)
+    matches = contract_matches(prompt, config, inventory)[: max_recommendations(config)]
     route_recommendations = route_result["recommendations"]
     recommendations = []
     for index, match in enumerate(matches):
