@@ -1,0 +1,13 @@
+{
+  "schema": "lazy-skill-router.router-ab-manifest-overlay/v1",
+  "baseManifestRevision": "sha256:70e2ea29f6e065e37f998583c100a426a197b64df3665ded65cf591208b63c76",
+  "patch": {
+    "frozen": {
+      "inventoryRevision": "sha256:70e2d9b6f579b1f741252e151e8aa95697c08b20385d33f717cd83104b7a96b5",
+      "indexRevision": "sha256:971627493bdf7cd20d5fe9853a085f692d718a6e5a7c4d397b4320e665bbdfd1"
+    },
+    "evidence": {
+      "metadataProvenance": "corpus-informed-calibration"
+    }
+  }
+}

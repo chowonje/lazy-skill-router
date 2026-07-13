@@ -1,0 +1,4346 @@
+{
+  "schema": "lazy-skill-router.router-ab-manifest/v1",
+  "frozen": {
+    "configRevision": "sha256:61ce736541d8dd03642d634f618f56f4c6106d837963a6ca1b6fbca8e5d7b939",
+    "inventoryRevision": "sha256:18288ad816bfd373d0bb7986f4efe3ecd06f2242ba21ccf073493bf697f1140b",
+    "indexRevision": "sha256:51aadd022302fa49d8f86ded79d27997e8130fe22d90bc80f72497c42f4fbe9f",
+    "retrievalAlgorithm": "lexical-bm25-char3/v1",
+    "experimentCodeRevision": "sha256:b2f8117eb7511e6ced62d544bd75af4dec931ad570b92322cb305ce46edfc2bf",
+    "maxCandidates": 3
+  },
+  "evidence": {
+    "schema": "lazy-skill-router.experiment-evidence/v1",
+    "corpusProvenance": "synthetic-calibration",
+    "metadataProvenance": "active-catalog",
+    "independentHoldoutRevision": null,
+    "independentAdjudicationRevision": null,
+    "ownershipObservationRevision": null,
+    "activationObservationRevision": null,
+    "outcomeObservationRevision": null
+  },
+  "cases": [
+    {
+      "id": "explicit-001",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use the ponytail skill to implement the smallest working patch without adding dependencies.",
+      "gold": {
+        "primary": "ponytail",
+        "acceptableCandidates": [
+          "ponytail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "personal-skill-router",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "explicit-002",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Apply ponytail-lite while reviewing this helper for unnecessary abstractions.",
+      "gold": {
+        "primary": "ponytail-lite",
+        "acceptableCandidates": [
+          "ponytail-lite"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "explicit-003",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Use security-threat-model to enumerate trust boundaries, assets, attacker capabilities, and abuse paths for this repository.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-best-practices"
+        ]
+      }
+    },
+    {
+      "id": "explicit-004",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Run codex-security:security-scan as a standard single-pass audit of the repository.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "security-threat-model",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "explicit-005",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use code-review to inspect this pull request diff for regressions and correctness risks.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "explicit-006",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use agent-config-audit to review AGENTS.md and hooks.json without exposing local secrets.",
+      "gold": {
+        "primary": "agent-config-audit",
+        "acceptableCandidates": [
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agents-md",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "explicit-007",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use writing-polish to tighten the wording of this README section.",
+      "gold": {
+        "primary": "writing-polish",
+        "acceptableCandidates": [
+          "writing-polish"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "docs-sync",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "explicit-008",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use pdf to render and visually inspect the attached PDF layout.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "screenshot"
+        ]
+      }
+    },
+    {
+      "id": "explicit-009",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use playwright to open the local web app, submit the form, and capture the result.",
+      "gold": {
+        "primary": "playwright",
+        "acceptableCandidates": [
+          "playwright"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "browser:control-in-app-browser",
+          "chrome:control-chrome"
+        ]
+      }
+    },
+    {
+      "id": "explicit-010",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use release-notes to draft a changelog from commits between v1.2.0 and v1.3.0.",
+      "gold": {
+        "primary": "release-notes",
+        "acceptableCandidates": [
+          "release-notes"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "docs-sync"
+        ]
+      }
+    },
+    {
+      "id": "explicit-011",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Use privacy-release-check before this dataset is shared outside the company.",
+      "gold": {
+        "primary": "privacy-release-check",
+        "acceptableCandidates": [
+          "privacy-release-check"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "explicit-012",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use project-bootstrap to prepare this empty repository for Codex work.",
+      "gold": {
+        "primary": "project-bootstrap",
+        "acceptableCandidates": [
+          "project-bootstrap"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agents-md",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "explicit-013",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Use db-migration-reviewer to assess this schema migration and its rollback plan.",
+      "gold": {
+        "primary": "db-migration-reviewer",
+        "acceptableCandidates": [
+          "db-migration-reviewer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "explicit-014",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Use api-contract-checker to determine whether this response schema change breaks clients.",
+      "gold": {
+        "primary": "api-contract-checker",
+        "acceptableCandidates": [
+          "api-contract-checker"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "explicit-015",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use verification-gate to decide whether the completed implementation is actually ready.",
+      "gold": {
+        "primary": "verification-gate",
+        "acceptableCandidates": [
+          "verification-gate"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "goal-loop"
+        ]
+      }
+    },
+    {
+      "id": "explicit-016",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use diagnosing-bugs to reproduce the crash and isolate its root cause.",
+      "gold": {
+        "primary": "diagnosing-bugs",
+        "acceptableCandidates": [
+          "diagnosing-bugs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agent-introspection-debugging",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "explicit-017",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use docs-sync to align the README and runbook with the code change already made.",
+      "gold": {
+        "primary": "docs-sync",
+        "acceptableCandidates": [
+          "docs-sync"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "explicit-018",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use github:gh-fix-ci to diagnose and fix the failing GitHub Actions check.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "explicit-019",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use screenshot to capture the full macOS desktop exactly as it appears now.",
+      "gold": {
+        "primary": "screenshot",
+        "acceptableCandidates": [
+          "screenshot"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "explicit-020",
+      "category": "explicit_skill_action",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use spreadsheets to create and verify a standalone XLSX budget workbook.",
+      "gold": {
+        "primary": "spreadsheets:Spreadsheets",
+        "acceptableCandidates": [
+          "spreadsheets:Spreadsheets"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-drive:google-sheets",
+          "documents:documents"
+        ]
+      }
+    },
+    {
+      "id": "meta-001",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Which installed skill should own this task? Inspect the inventory and explain the choice.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "ponytail"
+        ]
+      }
+    },
+    {
+      "id": "meta-002",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "현재 설치된 스킬 중에서 이 요청을 맡을 스킬을 골라줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "ponytail-lite"
+        ]
+      }
+    },
+    {
+      "id": "meta-003",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Inspect why the router selected ponytail instead of ponytail-lite for the last request.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "ponytail-lite"
+        ]
+      }
+    },
+    {
+      "id": "meta-004",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "라우터가 보안 스캔과 위협 모델 스킬을 어떻게 구분하는지 점검해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-threat-model"
+        ]
+      }
+    },
+    {
+      "id": "meta-005",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Compare overlapping skill descriptions and propose the smallest candidate set for this task.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "meta-006",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "설치된 스킬 목록과 라우트 정책이 서로 어긋나는지 확인해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router",
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "skill-creator"
+        ]
+      }
+    },
+    {
+      "id": "meta-007",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Tell me whether code-review or gh-address-comments is the proper owner, without doing the PR work.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:gh-address-comments"
+        ]
+      }
+    },
+    {
+      "id": "meta-008",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "왜 이 요청에서 범용 GitHub 스킬이 아니라 전용 CI 스킬이 선택되어야 하는지 설명해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "meta-009",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Audit the semantic routing policy for broad routes that steal prompts from specialist skills.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agent-config-audit",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "meta-010",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "이 작업에 스킬이 아예 필요 없는지까지 포함해서 라우팅 판단만 해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "meta-011",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Reconcile duplicate installed skill names before deciding which capability should be routed.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "agent-config-audit"
+        ]
+      }
+    },
+    {
+      "id": "meta-012",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "스킬 인벤토리를 읽고 전용 스킬이 Top-3 후보에 남는지 평가해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "meta-013",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Explain the distinction between route candidacy and actual skill activation for this request.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agent-config-audit",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "meta-014",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "스킬 훅이 왜 abstain했는지 라우팅 관점에서 분석해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "diagnosing-bugs",
+          "agent-introspection-debugging"
+        ]
+      }
+    },
+    {
+      "id": "meta-015",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Check whether the generated capability index still represents every installed skill.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router",
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "meta-016",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "라우트 정규식이 아니라 요청 의미를 기준으로 스킬 후보를 비교해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "meta-017",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Classify this as primary, supporting, verification, or no-skill before any action is taken.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "goal-loop"
+        ]
+      }
+    },
+    {
+      "id": "meta-018",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "포니테일과 슈퍼파워즈가 겹칠 때 어느 쪽이 주 소유자인지 판단해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "meta-019",
+      "category": "meta_routing",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Evaluate whether the router is over-recommending skills for ordinary coding prompts.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "ponytail-lite"
+        ]
+      }
+    },
+    {
+      "id": "meta-020",
+      "category": "meta_routing",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "스킬 라우터의 후보 선택 결과와 현재 설치 상태를 동기화할 방법을 판단해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "agent-config-audit"
+        ]
+      }
+    },
+    {
+      "id": "specialist-001",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Build a repository-grounded threat model with trust boundaries and abuse paths.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-best-practices"
+        ]
+      }
+    },
+    {
+      "id": "specialist-002",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Perform a standard single-pass security audit of the whole repository.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "security-threat-model",
+          "codex-security:deep-security-scan"
+        ]
+      }
+    },
+    {
+      "id": "specialist-003",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Review this Python service against framework-specific secure coding practices; do not run a full vulnerability scan.",
+      "gold": {
+        "primary": "security-best-practices",
+        "acceptableCandidates": [
+          "security-best-practices"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-threat-model"
+        ]
+      }
+    },
+    {
+      "id": "specialist-004",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Find the cause of the failing GitHub Actions workflow and fix it.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "specialist-005",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Inspect and address the unresolved inline review comments on the pull request.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "specialist-006",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Summarize the repository and open pull request status before I choose a workflow.",
+      "gold": {
+        "primary": "github:github",
+        "acceptableCandidates": [
+          "github:github"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "specialist-007",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Prepare a concise brief of all meetings on my calendar today.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-daily-brief",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-daily-brief"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-meeting-prep"
+        ]
+      }
+    },
+    {
+      "id": "specialist-008",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Prepare me for the design review meeting using its calendar context.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-meeting-prep",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-meeting-prep"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-daily-brief"
+        ]
+      }
+    },
+    {
+      "id": "specialist-009",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Find and rank meeting times that work for all four attendees.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-group-scheduler",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-group-scheduler"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-free-up-time"
+        ]
+      }
+    },
+    {
+      "id": "specialist-010",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Find ways to clear a two-hour focus block from my calendar this week.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-free-up-time",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-free-up-time"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-group-scheduler"
+        ]
+      }
+    },
+    {
+      "id": "specialist-011",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Show the events on my calendar tomorrow.",
+      "gold": {
+        "primary": "google-calendar:google-calendar",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar-daily-brief",
+          "google-calendar:google-calendar-meeting-prep"
+        ]
+      }
+    },
+    {
+      "id": "specialist-012",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Triage my Gmail inbox into urgent, needs reply, waiting, and FYI buckets.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail"
+        ]
+      }
+    },
+    {
+      "id": "specialist-013",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Search Gmail for the thread from Alex and summarize it.",
+      "gold": {
+        "primary": "gmail:gmail",
+        "acceptableCandidates": [
+          "gmail:gmail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail-inbox-triage"
+        ]
+      }
+    },
+    {
+      "id": "specialist-014",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Reply to the unresolved comment attached to a paragraph in this Google Doc.",
+      "gold": {
+        "primary": "google-drive:google-drive-comments",
+        "acceptableCandidates": [
+          "google-drive:google-drive-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-drive:google-docs",
+          "google-drive:google-drive"
+        ]
+      }
+    },
+    {
+      "id": "specialist-015",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Create a native Google Doc from this outline.",
+      "gold": {
+        "primary": "google-drive:google-docs",
+        "acceptableCandidates": [
+          "google-drive:google-docs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-drive:google-drive",
+          "documents:documents"
+        ]
+      }
+    },
+    {
+      "id": "specialist-016",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Find the quarterly plan file anywhere in Google Drive.",
+      "gold": {
+        "primary": "google-drive:google-drive",
+        "acceptableCandidates": [
+          "google-drive:google-drive"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-drive:google-docs",
+          "google-drive:google-drive-comments"
+        ]
+      }
+    },
+    {
+      "id": "specialist-017",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use my existing signed-in Chrome tab to inspect the current dashboard state.",
+      "gold": {
+        "primary": "chrome:control-chrome",
+        "acceptableCandidates": [
+          "chrome:control-chrome"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "specialist-018",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Automate the local website from the terminal and verify the checkout flow.",
+      "gold": {
+        "primary": "playwright",
+        "acceptableCandidates": [
+          "playwright"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "chrome:control-chrome",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "specialist-019",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Control the in-app browser and inspect the page that is already open there.",
+      "gold": {
+        "primary": "browser:control-in-app-browser",
+        "acceptableCandidates": [
+          "browser:control-in-app-browser"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "chrome:control-chrome"
+        ]
+      }
+    },
+    {
+      "id": "specialist-020",
+      "category": "generic_vs_specialist",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Capture the entire desktop, not a web page, in a system screenshot.",
+      "gold": {
+        "primary": "screenshot",
+        "acceptableCandidates": [
+          "screenshot"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "github-001",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Inspect the unresolved inline review threads on PR 42 and address the requested changes.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "github-002",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Review the PR diff for correctness regressions, edge cases, and missing tests; do not respond to review threads.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:github",
+          "github:yeet"
+        ]
+      }
+    },
+    {
+      "id": "github-003",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The GitHub Actions check on this pull request is red; diagnose the log and fix the failure.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review",
+          "github:gh-address-comments"
+        ]
+      }
+    },
+    {
+      "id": "github-004",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Publish the local changes by committing intentionally, pushing the branch, and opening a draft pull request.",
+      "gold": {
+        "primary": "github:yeet",
+        "acceptableCandidates": [
+          "github:yeet"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "github-005",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "low",
+      "prompt": "List the open issues and summarize the repository's current pull request context.",
+      "gold": {
+        "primary": "github:github",
+        "acceptableCandidates": [
+          "github:github"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:gh-fix-ci",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "github-006",
+      "category": "github_boundaries",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "PR에 아직 해결되지 않은 인라인 리뷰 댓글을 확인하고 요청된 수정을 반영해줘.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "github-007",
+      "category": "github_boundaries",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "이 PR의 변경 diff를 읽고 회귀와 정확성 문제를 코드 리뷰해줘.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:github",
+          "github:yeet"
+        ]
+      }
+    },
+    {
+      "id": "github-008",
+      "category": "github_boundaries",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "GitHub Actions 테스트가 실패했어. 로그에서 원인을 찾아서 고쳐줘.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review",
+          "github:gh-address-comments"
+        ]
+      }
+    },
+    {
+      "id": "github-009",
+      "category": "github_boundaries",
+      "language": "ko",
+      "risk": "high",
+      "prompt": "현재 로컬 변경을 커밋하고 브랜치를 푸시한 다음 draft PR을 열어줘.",
+      "gold": {
+        "primary": "github:yeet",
+        "acceptableCandidates": [
+          "github:yeet"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "github-010",
+      "category": "github_boundaries",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "이 저장소의 열린 이슈와 PR 상태를 읽어서 요약해줘.",
+      "gold": {
+        "primary": "github:github",
+        "acceptableCandidates": [
+          "github:github"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:gh-fix-ci",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "github-011",
+      "category": "github_boundaries",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "PR review thread 중 unresolved comment만 찾아서 address 해줘.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "github-012",
+      "category": "github_boundaries",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "GitHub PR diff를 review해서 regression risk를 보고해줘. 댓글 처리는 하지 마.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:github",
+          "github:yeet"
+        ]
+      }
+    },
+    {
+      "id": "github-013",
+      "category": "github_boundaries",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "CI check가 latest push 이후 fail했으니 Actions 로그를 진단하고 fix해줘.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review",
+          "github:gh-address-comments"
+        ]
+      }
+    },
+    {
+      "id": "github-014",
+      "category": "github_boundaries",
+      "language": "mixed",
+      "risk": "high",
+      "prompt": "변경 범위를 확인한 뒤 commit, push, draft PR 생성까지 publish workflow로 진행해줘.",
+      "gold": {
+        "primary": "github:yeet",
+        "acceptableCandidates": [
+          "github:yeet"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review",
+          "github:gh-fix-ci"
+        ]
+      }
+    },
+    {
+      "id": "github-015",
+      "category": "github_boundaries",
+      "language": "mixed",
+      "risk": "low",
+      "prompt": "GitHub repo context와 open issue 상태만 triage해줘.",
+      "gold": {
+        "primary": "github:github",
+        "acceptableCandidates": [
+          "github:github"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:gh-fix-ci",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "github-016",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "A reviewer left three actionable comments. Apply those requested edits and report which threads remain unresolved.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "github-017",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Assess the working-tree patch as if it were a PR and report defects, but make no GitHub changes.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "github:yeet",
+          "github:gh-address-comments"
+        ]
+      }
+    },
+    {
+      "id": "github-018",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Only the lint job fails in GitHub Actions; repair that CI failure and rerun the relevant check.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "github-019",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "The work is verified and I explicitly want it published as a draft PR from the current branch.",
+      "gold": {
+        "primary": "github:yeet",
+        "acceptableCandidates": [
+          "github:yeet"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "verification-gate",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "github-020",
+      "category": "github_boundaries",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Find issue 108 and tell me whether it is open, assigned, or linked to a pull request.",
+      "gold": {
+        "primary": "github:github",
+        "acceptableCandidates": [
+          "github:github"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:gh-fix-ci",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-001",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Create a new reusable Codex skill with a focused SKILL.md and a testable workflow.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "plugin-creator",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-002",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "기존 포니테일 스킬의 설명과 실행 지침을 최신 요구사항에 맞게 수정해줘.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-003",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Install the curated skill named example-skill into CODEX_HOME from the approved catalog.",
+      "gold": {
+        "primary": "skill-installer",
+        "acceptableCandidates": [
+          "skill-installer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "plugin-creator"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-004",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "지정한 GitHub 저장소 경로의 스킬을 로컬 CODEX_HOME에 설치해줘.",
+      "gold": {
+        "primary": "skill-installer",
+        "acceptableCandidates": [
+          "skill-installer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-005",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Build a Codex plugin bundle that packages a skill and its MCP server configuration.",
+      "gold": {
+        "primary": "plugin-creator",
+        "acceptableCandidates": [
+          "plugin-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "skill-installer"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-006",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "사용자의 반복 작업을 녹화해서 재사용 가능한 ChatGPT 스킬로 만들어줘.",
+      "gold": {
+        "primary": "record-and-replay:record-and-replay",
+        "acceptableCandidates": [
+          "record-and-replay:record-and-replay"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "template-creator:template-creator"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-007",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Create a reusable personal artifact-template skill for recurring status reports.",
+      "gold": {
+        "primary": "template-creator:template-creator",
+        "acceptableCandidates": [
+          "template-creator:template-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "record-and-replay:record-and-replay"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-008",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Update this existing skill's trigger rules and examples, but do not install it yet.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-009",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Fetch and install a skill from a repository path without changing its contents.",
+      "gold": {
+        "primary": "skill-installer",
+        "acceptableCandidates": [
+          "skill-installer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "github:yeet"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-010",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "새로운 MCP 도구와 스킬을 하나의 배포 가능한 플러그인으로 묶어줘.",
+      "gold": {
+        "primary": "plugin-creator",
+        "acceptableCandidates": [
+          "plugin-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "skill-installer"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-011",
+      "category": "skill_lifecycle",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "기존 SKILL.md의 workflow를 update하고 trigger가 명확한지 검증해줘.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-012",
+      "category": "skill_lifecycle",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "curated skill을 CODEX_HOME/skills에 install만 해줘. 내용 수정은 하지 마.",
+      "gold": {
+        "primary": "skill-installer",
+        "acceptableCandidates": [
+          "skill-installer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-013",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Turn the workflow I perform in the desktop app into a replayable skill from captured events.",
+      "gold": {
+        "primary": "record-and-replay:record-and-replay",
+        "acceptableCandidates": [
+          "record-and-replay:record-and-replay"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "computer-use:computer-use"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-014",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Revise the existing skill so it no longer triggers on ordinary documentation edits.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "personal-skill-router",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-015",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "스킬 소스는 건드리지 말고 승인된 저장소에서 최신 버전을 다시 설치해줘.",
+      "gold": {
+        "primary": "skill-installer",
+        "acceptableCandidates": [
+          "skill-installer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-016",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Scaffold a new plugin with one connector-facing skill and a documented install surface.",
+      "gold": {
+        "primary": "plugin-creator",
+        "acceptableCandidates": [
+          "plugin-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "project-bootstrap"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-017",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "새 스킬을 만들고 설명, 트리거, 검증 절차까지 작성해줘. 설치는 나중에 할게.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-018",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The skill already exists; add a reference guide and tighten its safety boundaries.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-019",
+      "category": "skill_lifecycle",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Inspect installed skills and decide which one should handle lifecycle updates; do not modify or install anything.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "skill-installer"
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-020",
+      "category": "skill_lifecycle",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "새로 설치된 스킬이 라우터 인벤토리에 반영됐는지 동기화 상태를 점검해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router",
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "skill-creator"
+        ]
+      }
+    },
+    {
+      "id": "composite-001",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Fix the Python bug and update the README example at the same priority.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "docs-sync",
+          "ponytail"
+        ]
+      }
+    },
+    {
+      "id": "composite-002",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Reproduce the crash, isolate the root cause, apply the fix, and then document the resolution.",
+      "gold": {
+        "primary": "diagnosing-bugs",
+        "acceptableCandidates": [
+          "diagnosing-bugs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "docs-sync",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "composite-003",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Turn this polished copy into a PDF and visually verify the final page layout.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "composite-004",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Polish these notes and create the result as a native Google Doc.",
+      "gold": {
+        "primary": "google-drive:google-docs",
+        "acceptableCandidates": [
+          "google-drive:google-docs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "google-drive:google-drive"
+        ]
+      }
+    },
+    {
+      "id": "composite-005",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Review both the database migration rollback and the unrelated public API compatibility change.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "db-migration-reviewer",
+          "api-contract-checker",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "composite-006",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Run a repository security audit and write the final findings report from that scan.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "codex-security:vulnerability-writeup"
+        ]
+      }
+    },
+    {
+      "id": "composite-007",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Inspect the open PR review comments, implement the requested edits, and resolve the addressed threads.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "composite-008",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Review the pull request for defects and also publish my unrelated local changes as a new PR.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:yeet",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "composite-009",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Create a new Codex skill, verify its workflow, and then install that same skill from its repository path.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "verification-gate",
+          "plugin-creator"
+        ]
+      }
+    },
+    {
+      "id": "composite-010",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Compare implementation options briefly, then implement the smallest correct patch with no new dependency.",
+      "gold": {
+        "primary": "ponytail",
+        "acceptableCandidates": [
+          "ponytail",
+          "ponytail-lite"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "composite-011",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Brainstorm three implementation approaches and compare their tradeoffs, but do not write code.",
+      "gold": {
+        "primary": "superpowers",
+        "acceptableCandidates": [
+          "superpowers"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "ponytail-lite"
+        ]
+      }
+    },
+    {
+      "id": "composite-012",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Synchronize all user documentation with the completed code change, including the release-note section.",
+      "gold": {
+        "primary": "docs-sync",
+        "acceptableCandidates": [
+          "docs-sync"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "composite-013",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Inspect the signed-in Chrome dashboard and separately capture the entire macOS desktop.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "chrome:control-chrome",
+          "screenshot",
+          "playwright"
+        ]
+      }
+    },
+    {
+      "id": "composite-014",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Triage the Gmail inbox into action buckets and draft replies for the urgent messages.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage",
+          "gmail:gmail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "composite-015",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Prepare for the calendar meeting, then create a Google Doc containing that preparation brief.",
+      "gold": {
+        "primary": "google-drive:google-docs",
+        "acceptableCandidates": [
+          "google-drive:google-docs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar-meeting-prep",
+          "google-drive:google-drive"
+        ]
+      }
+    },
+    {
+      "id": "composite-016",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Create a full threat model and run an independent repository-wide security scan, with neither task secondary.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "security-threat-model",
+          "codex-security:security-scan",
+          "security-best-practices"
+        ]
+      }
+    },
+    {
+      "id": "composite-017",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Review the PR diff for context, then fix the failing GitHub Actions job that blocks it.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "composite-018",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Bootstrap this empty project and include a scoped AGENTS.md as part of that setup.",
+      "gold": {
+        "primary": "project-bootstrap",
+        "acceptableCandidates": [
+          "project-bootstrap"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agents-md",
+          "agent-config-audit"
+        ]
+      }
+    },
+    {
+      "id": "composite-019",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Create an XLSX workbook and an unrelated slide deck from two separate datasets.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "presentations:Presentations",
+          "google-drive:google-slides"
+        ]
+      }
+    },
+    {
+      "id": "composite-020",
+      "category": "composite_intents",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Diagnose both an application crash and an unrelated failure in the agent's own reasoning trace.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "diagnosing-bugs",
+          "agent-introspection-debugging",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "abstain-001",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "What is 17 percent of 480?",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "superpowers",
+          "spreadsheets:Spreadsheets",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "abstain-002",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "대한민국의 수도가 어디인지 한 문장으로 답해줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "personal-skill-router",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "abstain-003",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Translate 'good morning' into Korean.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "documents:documents",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "abstain-004",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "사과 두 개로 만들 수 있는 간단한 간식을 추천해줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "superpowers",
+          "personal-skill-router",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "abstain-005",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Return the numbers 9, 2, and 5 in ascending order.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "ponytail",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "abstain-006",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Explain binary search in two sentences.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "superpowers",
+          "writing-polish",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "abstain-007",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "이 JSON 문자열의 들여쓰기만 보기 좋게 바꿔줘: {\"a\":1,\"b\":2}",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "ponytail-lite",
+          "documents:documents"
+        ]
+      }
+    },
+    {
+      "id": "abstain-008",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Give me a one-line Python expression that reverses a list.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "ponytail",
+          "ponytail-lite",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "abstain-009",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "'오늘은 맑다'를 영어로 번역해줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "documents:documents",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "abstain-010",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Write a four-line poem about rain.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "superpowers",
+          "documents:documents"
+        ]
+      }
+    },
+    {
+      "id": "abstain-011",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "What does HTTP status 404 mean?",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "diagnosing-bugs",
+          "api-contract-checker",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "abstain-012",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "1시간 45분은 총 몇 분이야?",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "superpowers",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "abstain-013",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Suggest a clearer variable name than x for a user count.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "code-review",
+          "ponytail-lite"
+        ]
+      }
+    },
+    {
+      "id": "abstain-014",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "리스트와 튜플의 차이를 간단히 설명해줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "superpowers",
+          "code-review",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "abstain-015",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Convert 2026-07-13 09:00 UTC to UTC+9.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "spreadsheets:Spreadsheets",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "abstain-016",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Show a Bash command that prints the current directory.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "cli-creator",
+          "ponytail",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "abstain-017",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "3, 7, 11의 평균을 계산해줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "superpowers",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "abstain-018",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Summarize this sentence in five words: The build completed successfully after the cache was cleared.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "release-notes",
+          "diagnosing-bugs"
+        ]
+      }
+    },
+    {
+      "id": "abstain-019",
+      "category": "no_relevant_skill",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "참과 거짓의 논리 AND 결과표를 텍스트로 보여줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "superpowers",
+          "documents:documents"
+        ]
+      }
+    },
+    {
+      "id": "abstain-020",
+      "category": "no_relevant_skill",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Give me three hexadecimal color values for neutral gray.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "apple-design",
+          "design-taste-frontend",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-001",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Implement the laziest solution that actually works, using the explicitly named ponytail workflow.",
+      "gold": {
+        "primary": "ponytail",
+        "acceptableCandidates": [
+          "ponytail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail-lite",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-002",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Review this implementation for over-engineering using the minimal-correctness guardrail, without demanding the laziest possible patch.",
+      "gold": {
+        "primary": "ponytail-lite",
+        "acceptableCandidates": [
+          "ponytail-lite"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-003",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Create a standalone repository-grounded threat model before any security scan has begun.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:threat-model",
+          "codex-security:security-scan"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-004",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "high",
+      "prompt": "We are already in the Codex Security threat-modeling phase; produce the phase artifact for the active scan.",
+      "gold": {
+        "primary": "codex-security:threat-model",
+        "acceptableCandidates": [
+          "codex-security:threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "security-threat-model",
+          "codex-security:security-scan"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-005",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "A production command crashes at runtime; reproduce the behavior and find the code-level root cause.",
+      "gold": {
+        "primary": "diagnosing-bugs",
+        "acceptableCandidates": [
+          "diagnosing-bugs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agent-introspection-debugging",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-006",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The agent itself stopped following instructions; capture its failure, contain recovery, and write an introspection report.",
+      "gold": {
+        "primary": "agent-introspection-debugging",
+        "acceptableCandidates": [
+          "agent-introspection-debugging"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "diagnosing-bugs",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-007",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Polish the tone and grammar of this README paragraph; the code and facts are already aligned.",
+      "gold": {
+        "primary": "writing-polish",
+        "acceptableCandidates": [
+          "writing-polish"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "docs-sync",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-008",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "The implementation changed three commands; synchronize README, API docs, and runbook content with it.",
+      "gold": {
+        "primary": "docs-sync",
+        "acceptableCandidates": [
+          "docs-sync"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-009",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Draft release notes from the commits between the two supplied tags.",
+      "gold": {
+        "primary": "release-notes",
+        "acceptableCandidates": [
+          "release-notes"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "docs-sync"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-010",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Capture a screenshot of the entire macOS desktop, including the menu bar.",
+      "gold": {
+        "primary": "screenshot",
+        "acceptableCandidates": [
+          "screenshot"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-011",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Open the local page with browser automation and take a screenshot after clicking Submit.",
+      "gold": {
+        "primary": "playwright",
+        "acceptableCandidates": [
+          "playwright"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "screenshot",
+          "chrome:control-chrome"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-012",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Search Gmail for one specific invoice thread and summarize it.",
+      "gold": {
+        "primary": "gmail:gmail",
+        "acceptableCandidates": [
+          "gmail:gmail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail-inbox-triage"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-013",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Classify the whole Gmail inbox into urgent, reply soon, waiting, and FYI.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-014",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "List tomorrow's calendar events without creating a narrative brief.",
+      "gold": {
+        "primary": "google-calendar:google-calendar",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar-daily-brief"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-015",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Create a polished one-day agenda brief for tomorrow from my calendar.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-daily-brief",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-daily-brief"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-016",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Build and run this SwiftPM macOS executable, then diagnose why the app will not launch.",
+      "gold": {
+        "primary": "build-macos-apps:build-run-debug",
+        "acceptableCandidates": [
+          "build-macos-apps:build-run-debug"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "build-macos-apps:test-triage",
+          "build-macos-apps:swiftpm-macos"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-017",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Triage the failing macOS test suite and separate assertion failures from test setup problems.",
+      "gold": {
+        "primary": "build-macos-apps:test-triage",
+        "acceptableCandidates": [
+          "build-macos-apps:test-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "build-macos-apps:build-run-debug",
+          "diagnosing-bugs"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-018",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Run one standard repository security audit pass with no repeated independent discovery workers.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:deep-security-scan",
+          "security-threat-model"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-019",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Run an exhaustive multi-pass repository security scan with independent discovery passes and variance reduction.",
+      "gold": {
+        "primary": "codex-security:deep-security-scan",
+        "acceptableCandidates": [
+          "codex-security:deep-security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-threat-model"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-020",
+      "category": "near_duplicates",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Validate whether this already reported security finding is actually exploitable; do not search the repository for new findings.",
+      "gold": {
+        "primary": "codex-security:validation",
+        "acceptableCandidates": [
+          "codex-security:validation"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:finding-discovery",
+          "codex-security:security-scan"
+        ]
+      }
+    },
+    {
+      "id": "long-001",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The team has discussed GitHub Actions failures, review comments, and a possible release for two weeks. Those are background only. My final request is to review the current PR diff for correctness regressions without changing GitHub state.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-fix-ci",
+          "github:gh-address-comments",
+          "github:yeet"
+        ]
+      }
+    },
+    {
+      "id": "long-002",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "We previously compared ponytail, superpowers, and several security skills while discussing router architecture. Ignore those earlier tasks. Now inspect the installed inventory and decide which skill should own this request.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "superpowers",
+          "codex-security:security-scan"
+        ]
+      }
+    },
+    {
+      "id": "long-003",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The source data began in a spreadsheet and the report text was polished in a document. A PDF has already been generated. Only inspect the PDF's rendered page layout and clipping now.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "writing-polish",
+          "documents:documents"
+        ]
+      }
+    },
+    {
+      "id": "long-004",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "low",
+      "prompt": "A crash was fixed last week and the README is already synchronized. The remaining task is editorial: draft release notes from commits between v2.0.0 and v2.1.0.",
+      "gold": {
+        "primary": "release-notes",
+        "acceptableCandidates": [
+          "release-notes"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "diagnosing-bugs",
+          "docs-sync",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "long-005",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "low",
+      "prompt": "The meeting is visible on my calendar and the preparation notes have been gathered. Do not reschedule anything. Create a native Google Doc containing those supplied notes.",
+      "gold": {
+        "primary": "google-drive:google-docs",
+        "acceptableCandidates": [
+          "google-drive:google-docs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar-meeting-prep",
+          "google-calendar:google-calendar"
+        ]
+      }
+    },
+    {
+      "id": "long-006",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "high",
+      "prompt": "We have historical scan reports and a list of old vulnerabilities, but no current modeling artifact. Before running any scan, create a repository-grounded threat model with assets, boundaries, and abuse paths.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "codex-security:validation"
+        ]
+      }
+    },
+    {
+      "id": "long-007",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "high",
+      "prompt": "A threat model already exists and a prior scan is out of date. The final request is not to revise the model; run a fresh standard single-pass security audit of the repository.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "security-threat-model",
+          "codex-security:deep-security-scan"
+        ]
+      }
+    },
+    {
+      "id": "long-008",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The pull request also contains unanswered review comments and a design discussion. The blocker is the red unit-test job in GitHub Actions. Diagnose and fix that CI failure now.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "code-review",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "long-009",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "A skill was authored and reviewed earlier; its SKILL.md must remain unchanged. The only remaining action is to install that existing skill from the provided repository path.",
+      "gold": {
+        "primary": "skill-installer",
+        "acceptableCandidates": [
+          "skill-installer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-creator",
+          "github:github",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "long-010",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "We inspected a local page, a Chrome tab, and a generated chart during the debugging session. None of those views should be changed. Capture the full macOS desktop as it appears now.",
+      "gold": {
+        "primary": "screenshot",
+        "acceptableCandidates": [
+          "screenshot"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "chrome:control-chrome",
+          "diagnosing-bugs"
+        ]
+      }
+    },
+    {
+      "id": "long-011",
+      "category": "long_context_final_ask",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "지난 회의에서는 훅 설정, 라우터 정책, 포니테일 스킬을 모두 이야기했어. 그 내용은 배경이야. 지금 마지막 요청은 AGENTS.md와 hooks.json 설정이 안전한지 감사하는 거야.",
+      "gold": {
+        "primary": "agent-config-audit",
+        "acceptableCandidates": [
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "personal-skill-router",
+          "ponytail",
+          "agents-md"
+        ]
+      }
+    },
+    {
+      "id": "long-012",
+      "category": "long_context_final_ask",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "이전에 README 문구와 릴리스 노트를 여러 번 수정했지만 현재는 코드와 문서가 불일치해. 마지막으로 코드 변경을 기준으로 README와 runbook을 동기화해줘.",
+      "gold": {
+        "primary": "docs-sync",
+        "acceptableCandidates": [
+          "docs-sync"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "long-013",
+      "category": "long_context_final_ask",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "캘린더에는 여러 일정이 있고 다음 주 시간 조정 이야기도 있었어. 하지만 지금 필요한 것은 오늘 하루 회의를 보기 좋은 브리프로 정리하는 일이야.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-daily-brief",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-daily-brief"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-free-up-time"
+        ]
+      }
+    },
+    {
+      "id": "long-014",
+      "category": "long_context_final_ask",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "받은편지함에는 특정 계약서 메일도 있고 예전 검색 기록도 있어. 개별 스레드 검색은 하지 말고 전체 메일을 긴급, 답장 필요, 대기, 참고로 분류해줘.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail"
+        ]
+      }
+    },
+    {
+      "id": "long-015",
+      "category": "long_context_final_ask",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "Earlier we used Playwright on a local page and discussed Chrome extensions. 지금은 기존 signed-in Chrome tab의 상태만 읽어야 해. 그 탭을 직접 inspect해줘.",
+      "gold": {
+        "primary": "chrome:control-chrome",
+        "acceptableCandidates": [
+          "chrome:control-chrome"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "long-016",
+      "category": "long_context_final_ask",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "The migration was written after an API redesign and several code reviews. 마지막 요청은 schema migration과 rollback 안전성만 검토하는 거야.",
+      "gold": {
+        "primary": "db-migration-reviewer",
+        "acceptableCandidates": [
+          "db-migration-reviewer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "api-contract-checker",
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "long-017",
+      "category": "long_context_final_ask",
+      "language": "mixed",
+      "risk": "high",
+      "prompt": "Security scan과 threat model 얘기가 길었지만 배포 직전 상태야. 외부 공유 전에 개인정보, 토큰, 로컬 경로가 남았는지 privacy preflight만 실행해줘.",
+      "gold": {
+        "primary": "privacy-release-check",
+        "acceptableCandidates": [
+          "privacy-release-check"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-threat-model",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "long-018",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The project uses SwiftPM, AppKit interop, and custom window chrome, and the app itself launches correctly. The unresolved problem is a group of failing macOS tests; triage only those test failures.",
+      "gold": {
+        "primary": "build-macos-apps:test-triage",
+        "acceptableCandidates": [
+          "build-macos-apps:test-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "build-macos-apps:build-run-debug",
+          "build-macos-apps:swiftpm-macos",
+          "diagnosing-bugs"
+        ]
+      }
+    },
+    {
+      "id": "long-019",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "low",
+      "prompt": "We considered a large refactor and several architecture patterns. The user has rejected all of that. Implement only the smallest correct change using the explicitly requested ponytail approach.",
+      "gold": {
+        "primary": "ponytail",
+        "acceptableCandidates": [
+          "ponytail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "ponytail-lite",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "long-020",
+      "category": "long_context_final_ask",
+      "language": "en",
+      "risk": "low",
+      "prompt": "This message mentions PDFs, GitHub, CI, calendars, and release notes as examples of prior work. None is an active request. What is 12 multiplied by 9?",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "pdf",
+          "github:gh-fix-ci",
+          "google-calendar:google-calendar",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "korean-001",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "high",
+      "prompt": "저장소의 자산, 신뢰 경계, 공격자 능력, 악용 경로를 포함한 위협 모델을 만들어줘.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-best-practices"
+        ]
+      }
+    },
+    {
+      "id": "korean-002",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "깃허브 액션 테스트가 실패한 원인을 로그에서 찾아서 고쳐줘.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "korean-003",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "지메일 받은편지함을 긴급, 빠른 답장, 대기, 참고 항목으로 분류해줘.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail"
+        ]
+      }
+    },
+    {
+      "id": "korean-004",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "다음 제품 회의를 준비할 수 있도록 캘린더 일정과 주변 맥락을 브리프로 정리해줘.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-meeting-prep",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-meeting-prep"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-daily-brief"
+        ]
+      }
+    },
+    {
+      "id": "korean-005",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "전역 에이전트 지침과 훅 설정이 올바르게 적용됐는지 비밀값을 노출하지 말고 감사해줘.",
+      "gold": {
+        "primary": "agent-config-audit",
+        "acceptableCandidates": [
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agents-md",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "korean-006",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "첨부된 피디에프를 렌더링해서 표가 잘리거나 페이지가 겹치는지 확인해줘.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "screenshot"
+        ]
+      }
+    },
+    {
+      "id": "korean-007",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "리드미의 이 문단을 더 자연스럽고 간결한 문장으로 다듬어줘.",
+      "gold": {
+        "primary": "writing-polish",
+        "acceptableCandidates": [
+          "writing-polish"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "docs-sync",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "korean-008",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "high",
+      "prompt": "외부에 배포하기 전에 개인정보, 토큰, 내부 경로가 포함됐는지 사전 점검해줘.",
+      "gold": {
+        "primary": "privacy-release-check",
+        "acceptableCandidates": [
+          "privacy-release-check"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "korean-009",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "medium",
+      "prompt": "현재 설치된 스킬 중에서 이 작업을 맡아야 할 주 소유자를 판단해줘.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "ponytail"
+        ]
+      }
+    },
+    {
+      "id": "korean-010",
+      "category": "korean_only_mixed",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "열둘에 여덟을 곱하면 얼마인지 답해줘.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "superpowers",
+          "spreadsheets:Spreadsheets",
+          "task-brief-normalizer"
+        ]
+      }
+    },
+    {
+      "id": "korean-011",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "high",
+      "prompt": "이 DB migration의 rollback safety와 lock risk를 review해줘.",
+      "gold": {
+        "primary": "db-migration-reviewer",
+        "acceptableCandidates": [
+          "db-migration-reviewer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "korean-012",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "high",
+      "prompt": "response schema 변경이 existing client의 API contract를 break하는지 check해줘.",
+      "gold": {
+        "primary": "api-contract-checker",
+        "acceptableCandidates": [
+          "api-contract-checker"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "korean-013",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "현재 signed-in 상태인 Chrome tab을 그대로 사용해서 dashboard를 inspect해줘.",
+      "gold": {
+        "primary": "chrome:control-chrome",
+        "acceptableCandidates": [
+          "chrome:control-chrome"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "playwright",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "korean-014",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "low",
+      "prompt": "Google Doc의 특정 문단에 달린 unresolved comment에 reply하고 resolve해줘.",
+      "gold": {
+        "primary": "google-drive:google-drive-comments",
+        "acceptableCandidates": [
+          "google-drive:google-drive-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-drive:google-docs",
+          "google-drive:google-drive"
+        ]
+      }
+    },
+    {
+      "id": "korean-015",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "macOS test failure를 triage해서 assertion 문제와 setup 문제를 구분해줘.",
+      "gold": {
+        "primary": "build-macos-apps:test-triage",
+        "acceptableCandidates": [
+          "build-macos-apps:test-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "build-macos-apps:build-run-debug",
+          "diagnosing-bugs"
+        ]
+      }
+    },
+    {
+      "id": "korean-016",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "low",
+      "prompt": "v3.0.0부터 v3.1.0까지 commit history로 release notes를 작성해줘.",
+      "gold": {
+        "primary": "release-notes",
+        "acceptableCandidates": [
+          "release-notes"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "docs-sync"
+        ]
+      }
+    },
+    {
+      "id": "korean-017",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "새 reusable Codex skill을 만들고 SKILL.md trigger와 workflow를 정의해줘.",
+      "gold": {
+        "primary": "skill-creator",
+        "acceptableCandidates": [
+          "skill-creator"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "skill-installer",
+          "plugin-creator"
+        ]
+      }
+    },
+    {
+      "id": "korean-018",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "PR의 unresolved inline review comment를 확인하고 requested change를 반영해줘.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "korean-019",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "low",
+      "prompt": "이 작은 patch가 over-engineered되지 않도록 ponytail-lite guardrail로 review해줘.",
+      "gold": {
+        "primary": "ponytail-lite",
+        "acceptableCandidates": [
+          "ponytail-lite"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "korean-020",
+      "category": "korean_only_mixed",
+      "language": "mixed",
+      "risk": "low",
+      "prompt": "Google Sheets budget tracker에 이번 달 표를 추가하고 range를 verify해줘.",
+      "gold": {
+        "primary": "google-drive:google-sheets",
+        "acceptableCandidates": [
+          "google-drive:google-sheets"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "spreadsheets:Spreadsheets",
+          "google-drive:google-drive"
+        ]
+      }
+    },
+    {
+      "id": "typo-001",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "GH Actons CI is red after the push; find the failing job and fix it.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "typo-002",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Handle the unresloved PR reveiw threds and apply each requested edit.",
+      "gold": {
+        "primary": "github:gh-address-comments",
+        "acceptableCandidates": [
+          "github:gh-address-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "github:github"
+        ]
+      }
+    },
+    {
+      "id": "typo-003",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Run a std vuln scn across this repo in one pass.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "security-threat-model",
+          "codex-security:deep-security-scan"
+        ]
+      }
+    },
+    {
+      "id": "typo-004",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Make a repo thret mdl with trust bndries, assets, attackers, and abuse paths.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "codex-security:threat-model"
+        ]
+      }
+    },
+    {
+      "id": "typo-005",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Check skill routng and say which installed capability owns this ask.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "superpowers",
+          "ponytail"
+        ]
+      }
+    },
+    {
+      "id": "typo-006",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Use pony tail: ship the laziest tiny fix that actually works.",
+      "gold": {
+        "primary": "ponytail",
+        "acceptableCandidates": [
+          "ponytail"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail-lite",
+          "superpowers"
+        ]
+      }
+    },
+    {
+      "id": "typo-007",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Apply ponytal lite to flag needless abstractions in this patch.",
+      "gold": {
+        "primary": "ponytail-lite",
+        "acceptableCandidates": [
+          "ponytail-lite"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "typo-008",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Draft rel notes from commits v1.8..v1.9.",
+      "gold": {
+        "primary": "release-notes",
+        "acceptableCandidates": [
+          "release-notes"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "docs-sync"
+        ]
+      }
+    },
+    {
+      "id": "typo-009",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Audit the Codex hooks cfg and AGENTS md config.",
+      "gold": {
+        "primary": "agent-config-audit",
+        "acceptableCandidates": [
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agents-md",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "typo-010",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Render the PDF and check its page layot for clipped tables.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "screenshot",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "typo-011",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Make a GCal daily brif for tmrw's meetings.",
+      "gold": {
+        "primary": "google-calendar:google-calendar-daily-brief",
+        "acceptableCandidates": [
+          "google-calendar:google-calendar-daily-brief"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-calendar:google-calendar",
+          "google-calendar:google-calendar-meeting-prep"
+        ]
+      }
+    },
+    {
+      "id": "typo-012",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Do an inbx triage: urgent, reply, waiting, FYI.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail"
+        ]
+      }
+    },
+    {
+      "id": "typo-013",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Reply to the GDrive doc coments on paragraph three and resolve them.",
+      "gold": {
+        "primary": "google-drive:google-drive-comments",
+        "acceptableCandidates": [
+          "google-drive:google-drive-comments"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "google-drive:google-docs",
+          "google-drive:google-drive"
+        ]
+      }
+    },
+    {
+      "id": "typo-014",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Use playwrite for an E2E pass through the local signup form.",
+      "gold": {
+        "primary": "playwright",
+        "acceptableCandidates": [
+          "playwright"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "chrome:control-chrome",
+          "browser:control-in-app-browser"
+        ]
+      }
+    },
+    {
+      "id": "typo-015",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Review this DB mig for rbk safety and long table locks.",
+      "gold": {
+        "primary": "db-migration-reviewer",
+        "acceptableCandidates": [
+          "db-migration-reviewer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "typo-016",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Do an API compat chck for this renamed response field.",
+      "gold": {
+        "primary": "api-contract-checker",
+        "acceptableCandidates": [
+          "api-contract-checker"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "typo-017",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Run a privacy pre-flite before the public data export.",
+      "gold": {
+        "primary": "privacy-release-check",
+        "acceptableCandidates": [
+          "privacy-release-check"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "typo-018",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Create a scoped AGENTS md module map for this monorepo.",
+      "gold": {
+        "primary": "agents-md",
+        "acceptableCandidates": [
+          "agents-md"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agent-config-audit",
+          "project-bootstrap"
+        ]
+      }
+    },
+    {
+      "id": "typo-019",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The app crshes on login; repro it and find the root cuz.",
+      "gold": {
+        "primary": "diagnosing-bugs",
+        "acceptableCandidates": [
+          "diagnosing-bugs"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agent-introspection-debugging",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "typo-020",
+      "category": "typo_abbreviation_paraphrase",
+      "language": "mixed",
+      "risk": "medium",
+      "prompt": "깃헙 Actions 빌드가 빨간색이야. failing chk 로그 보고 고쳐줘.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "boundary-001",
+      "category": "activation_and_verification_boundaries",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "PDF를 만드는 방법만 설명해줘. 파일을 생성하거나 수정하지 마.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "writing-polish",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "boundary-002",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Explain how the skill router distinguishes ponytail from ponytail-lite; take no routing action.",
+      "gold": {
+        "primary": "personal-skill-router",
+        "acceptableCandidates": [
+          "personal-skill-router"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "ponytail",
+          "ponytail-lite"
+        ]
+      }
+    },
+    {
+      "id": "boundary-003",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Do not edit anything. Review the supplied AGENTS.md and hooks.json and explain any configuration risks.",
+      "gold": {
+        "primary": "agent-config-audit",
+        "acceptableCandidates": [
+          "agent-config-audit"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "agents-md",
+          "personal-skill-router"
+        ]
+      }
+    },
+    {
+      "id": "boundary-004",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Explain the correctness risks visible in this PR diff, but do not comment, edit, or change GitHub state.",
+      "gold": {
+        "primary": "code-review",
+        "acceptableCandidates": [
+          "code-review"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:gh-address-comments",
+          "github:github",
+          "github:yeet"
+        ]
+      }
+    },
+    {
+      "id": "boundary-005",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Explain how a force push rewrites branch history; do not run commands or modify GitHub.",
+      "gold": {
+        "primary": "github:github",
+        "acceptableCandidates": [
+          "github:github"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "github:yeet",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "boundary-006",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Describe how to construct repository trust boundaries and abuse paths, but do not scan or modify the repository.",
+      "gold": {
+        "primary": "security-threat-model",
+        "acceptableCandidates": [
+          "security-threat-model"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "security-best-practices"
+        ]
+      }
+    },
+    {
+      "id": "boundary-007",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Before this release is shared externally, inspect the prepared artifacts for secrets, private data, and local paths.",
+      "gold": {
+        "primary": "privacy-release-check",
+        "acceptableCandidates": [
+          "privacy-release-check"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "boundary-008",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Check whether a secret token was accidentally committed anywhere in this repository.",
+      "gold": {
+        "primary": "codex-security:security-scan",
+        "acceptableCandidates": [
+          "codex-security:security-scan"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "privacy-release-check",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "boundary-009",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Delete the production database immediately and skip all backups and confirmation.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "db-migration-reviewer",
+          "ponytail",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "boundary-010",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Rotate every production credential right now, even though no systems or approved procedure were provided.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "security-best-practices",
+          "codex-security:security-scan",
+          "ponytail"
+        ]
+      }
+    },
+    {
+      "id": "boundary-011",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Rewrite the shared branch history and force-push it without asking anyone.",
+      "gold": {
+        "primary": null,
+        "acceptableCandidates": [],
+        "expectedAbstain": true,
+        "forbiddenCandidates": [
+          "github:yeet",
+          "github:github",
+          "ponytail"
+        ]
+      }
+    },
+    {
+      "id": "boundary-012",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "The implementation is complete. Run the relevant checks and decide whether it is genuinely ready to hand off.",
+      "gold": {
+        "primary": "verification-gate",
+        "acceptableCandidates": [
+          "verification-gate"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "goal-loop"
+        ]
+      }
+    },
+    {
+      "id": "boundary-013",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Fix the failing GitHub Actions test and verify the repaired check afterward.",
+      "gold": {
+        "primary": "github:gh-fix-ci",
+        "acceptableCandidates": [
+          "github:gh-fix-ci"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "boundary-014",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Create the PDF and then verify its rendered layout for clipping.",
+      "gold": {
+        "primary": "pdf",
+        "acceptableCandidates": [
+          "pdf"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "writing-polish"
+        ]
+      }
+    },
+    {
+      "id": "boundary-015",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "low",
+      "prompt": "Synchronize the documentation with the completed code change and verify that no documented command is stale.",
+      "gold": {
+        "primary": "docs-sync",
+        "acceptableCandidates": [
+          "docs-sync"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "writing-polish",
+          "release-notes"
+        ]
+      }
+    },
+    {
+      "id": "boundary-016",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Take this supplied vulnerability report and validate whether the claimed issue is actually exploitable; do not discover new findings.",
+      "gold": {
+        "primary": "codex-security:validation",
+        "acceptableCandidates": [
+          "codex-security:validation"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "codex-security:security-scan",
+          "codex-security:finding-discovery",
+          "verification-gate"
+        ]
+      }
+    },
+    {
+      "id": "boundary-017",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "Review the migration's rollback safety and confirm the verification plan is adequate before deployment.",
+      "gold": {
+        "primary": "db-migration-reviewer",
+        "acceptableCandidates": [
+          "db-migration-reviewer"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "boundary-018",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "high",
+      "prompt": "All checks are already complete, and I explicitly authorize publishing the current branch as a draft pull request.",
+      "gold": {
+        "primary": "github:yeet",
+        "acceptableCandidates": [
+          "github:yeet"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "verification-gate",
+          "github:github",
+          "code-review"
+        ]
+      }
+    },
+    {
+      "id": "boundary-019",
+      "category": "activation_and_verification_boundaries",
+      "language": "en",
+      "risk": "medium",
+      "prompt": "Do not change the implementation. Run its existing test, lint, and build checks and report readiness.",
+      "gold": {
+        "primary": "verification-gate",
+        "acceptableCandidates": [
+          "verification-gate"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "code-review",
+          "ponytail",
+          "goal-loop"
+        ]
+      }
+    },
+    {
+      "id": "boundary-020",
+      "category": "activation_and_verification_boundaries",
+      "language": "ko",
+      "risk": "low",
+      "prompt": "받은편지함을 실제로 열지는 말고 지메일 분류 작업이 어떤 기준으로 진행되는지만 설명해줘.",
+      "gold": {
+        "primary": "gmail:gmail-inbox-triage",
+        "acceptableCandidates": [
+          "gmail:gmail-inbox-triage"
+        ],
+        "expectedAbstain": false,
+        "forbiddenCandidates": [
+          "gmail:gmail",
+          "personal-skill-router"
+        ]
+      }
+    }
+  ]
+}
