@@ -53,13 +53,16 @@ jobs:
           python3 -m py_compile
           lazy_skill_router.py
           lazy_skill_router_activation.py
+          lazy_skill_router_capability_index.py
           lazy_skill_router_contracts.py
           lazy_skill_router_core.py
           lazy_skill_router_common.py
+          lazy_skill_router_host_catalog.py
           lazy_skill_router_install_manifest.py
           lazy_skill_router_inventory.py
           lazy_skill_router_logging.py
           lazy_skill_router_policy_ir.py
+          lazy_skill_router_retrieval.py
           lazy_skill_router_scoring.py
           measurement.py
           generate_routes.py
@@ -70,10 +73,21 @@ jobs:
           release_checksums.py
           sync_skills.py
           eval_routes.py
+          eval_capability_retrieval.py
+          eval_router_ab.py
+          materialize_router_ab_manifest.py
+          preserve_router_ab_bundle.py
           lazy_skill_router_cli/cli.py
           tests/test_cli.py
           tests/test_activation_ir.py
+          tests/test_capability_cli.py
           tests/test_config_trust.py
+          tests/test_capability_index.py
+          tests/test_capability_retrieval.py
+          tests/test_capability_retrieval_eval.py
+          tests/test_router_ab_eval.py
+          tests/test_automated_shadow_evidence.py
+          tests/test_preserve_router_ab_bundle.py
           tests/test_eval_routes.py
           tests/test_fail_open_matrix.py
           tests/test_generate_routes.py
@@ -93,6 +107,11 @@ jobs:
         run: |
           python3 -m json.tool routes.default.json >/dev/null
           python3 -m json.tool routes.template.json >/dev/null
+          python3 -m json.tool eval/router_ab_manifest.json >/dev/null
+          python3 -m json.tool eval/capability_metadata_ko_pilot.json >/dev/null
+          python3 -m json.tool eval/results/router_ab_2026-07-13_corrected-control.json >/dev/null
+          python3 -m json.tool eval/results/router_ab_2026-07-13_bilingual-pilot.json >/dev/null
+          python3 -m json.tool eval/results/automated_shadow_evidence_2026-07-13.json >/dev/null
           python3 validate_routes.py routes.default.json
           python3 eval_routes.py eval/prompts.jsonl
 

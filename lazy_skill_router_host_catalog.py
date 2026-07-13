@@ -18,6 +18,9 @@ HOST_CATALOG_SCHEMA = "lazy-skill-router.host-skill-catalog/v1"
 HOST_SKILL_SOURCES = frozenset({"admin", "plugin", "repository", "system", "user", "unknown"})
 MAX_SKILL_NAME_LENGTH = 200
 MAX_DESCRIPTION_LENGTH = 4000
+MAX_ALIAS_COUNT = 8
+MAX_CAPABILITY_COUNT = 16
+MAX_METADATA_VALUE_LENGTH = 160
 
 
 @dataclass(frozen=True)
@@ -34,8 +37,32 @@ def canonical_segment(value: str) -> str:
     return quote(value, safe="-._~")
 
 
+def normalized_metadata_values(value: Any, field: str, *, limit: int) -> list[str]:
+    if not isinstance(value, list) or len(value) > limit:
+        raise ValueError(f"host catalog skill {field} is invalid")
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"host catalog skill {field} is invalid")
+        stripped = item.strip()
+        if not stripped or len(stripped) > MAX_METADATA_VALUE_LENGTH:
+            raise ValueError(f"host catalog skill {field} is invalid")
+        normalized.append(stripped)
+    if len(normalized) != len(set(normalized)):
+        raise ValueError(f"host catalog skill {field} contains duplicates")
+    return normalized
+
+
 def normalized_host_skill(value: dict[str, Any]) -> dict[str, Any]:
-    unknown = set(value) - {"name", "description", "source", "enabled", "allowImplicitInvocation"}
+    unknown = set(value) - {
+        "name",
+        "description",
+        "source",
+        "enabled",
+        "allowImplicitInvocation",
+        "aliases",
+        "capabilities",
+    }
     if unknown:
         raise ValueError("host catalog skill contains unsupported fields: " + ", ".join(sorted(unknown)))
     name = value.get("name")
@@ -60,6 +87,14 @@ def normalized_host_skill(value: dict[str, Any]) -> dict[str, Any]:
         "enabled": enabled,
         "allowImplicitInvocation": allow_implicit,
     }
+    if "aliases" in value:
+        normalized["aliases"] = normalized_metadata_values(value["aliases"], "aliases", limit=MAX_ALIAS_COUNT)
+    if "capabilities" in value:
+        normalized["capabilities"] = normalized_metadata_values(
+            value["capabilities"],
+            "capabilities",
+            limit=MAX_CAPABILITY_COUNT,
+        )
     return normalized
 
 
@@ -188,8 +223,8 @@ def host_inventory_skill(host: str, host_revision: str, skill: dict[str, Any]) -
         "description": description,
         "description_digest": description_digest,
         "host_source": skill["source"],
-        "aliases": [],
-        "capabilities": [],
+        "aliases": list(skill.get("aliases", [])),
+        "capabilities": list(skill.get("capabilities", [])),
         "phases": [],
         "availability": availability_for_host(skill, host_revision),
     }
@@ -205,6 +240,9 @@ def update_filesystem_skill(
         updated["description"] = host_skill.get("description", "")
         updated["description_digest"] = "sha256:" + hashlib.sha256(updated["description"].encode()).hexdigest()
         updated["host_source"] = host_skill["source"]
+        for field in ("aliases", "capabilities"):
+            if field in host_skill:
+                updated[field] = list(host_skill[field])
         updated["availability"] = availability_for_host(host_skill, str(catalog.revision))
         updated["availability"]["checks"]["skill_document"] = (
             "loadable" if updated.get("content_digest") is not None else "invalid"

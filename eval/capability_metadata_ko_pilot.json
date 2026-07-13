@@ -1,0 +1,83 @@
+{
+  "schema": "lazy-skill-router.capability-metadata-pilot/v1",
+  "provenance": "corpus-informed-calibration-only",
+  "eligibleForPromotion": false,
+  "skills": {
+    "agent-config-audit": {
+      "aliases": ["에이전트 지침 훅 설정 감사"],
+      "capabilities": ["AGENTS.md hooks.json 설정 안전 점검"]
+    },
+    "code-review": {
+      "aliases": ["코드 리뷰 변경 diff"],
+      "capabilities": ["회귀 정확성 문제 검토"]
+    },
+    "docs-sync": {
+      "aliases": ["코드 문서 불일치 동기화"],
+      "capabilities": ["README 리드미 runbook 문서 업데이트"]
+    },
+    "github:gh-address-comments": {
+      "aliases": ["PR 인라인 리뷰 댓글 해결"],
+      "capabilities": ["리뷰 피드백 요청된 수정 반영"]
+    },
+    "github:gh-fix-ci": {
+      "aliases": ["깃허브 액션 GitHub Actions CI 실패"],
+      "capabilities": ["테스트 실패 로그 원인 수정"]
+    },
+    "github:github": {
+      "aliases": ["깃허브 저장소 이슈 PR 상태 읽기 요약"],
+      "capabilities": []
+    },
+    "github:yeet": {
+      "aliases": ["로컬 변경 커밋 브랜치 푸시 draft PR"],
+      "capabilities": []
+    },
+    "gmail:gmail-inbox-triage": {
+      "aliases": ["지메일 받은편지함 분류"],
+      "capabilities": ["긴급 빠른 답장 대기 참고"]
+    },
+    "google-calendar:google-calendar-daily-brief": {
+      "aliases": ["오늘 하루 캘린더 회의 브리프"],
+      "capabilities": []
+    },
+    "google-calendar:google-calendar-meeting-prep": {
+      "aliases": ["제품 회의 준비 캘린더 일정 주변 맥락 브리프"],
+      "capabilities": []
+    },
+    "pdf": {
+      "aliases": ["PDF 피디에프 렌더링"],
+      "capabilities": ["표 잘림 페이지 겹침 문서 확인"]
+    },
+    "personal-skill-router": {
+      "aliases": ["스킬 라우터 라우팅 판단", "설치된 스킬 선택 주 소유자"],
+      "capabilities": ["스킬 인벤토리 라우트 정책 동기화", "스킬 후보 비교"]
+    },
+    "plugin-creator": {
+      "aliases": ["MCP 도구 스킬 플러그인"],
+      "capabilities": ["배포 가능한 플러그인 만들기"]
+    },
+    "privacy-release-check": {
+      "aliases": ["외부 배포 개인정보 비밀값 사전 점검"],
+      "capabilities": ["토큰 내부 경로 민감정보 확인"]
+    },
+    "record-and-replay:record-and-replay": {
+      "aliases": ["반복 작업 녹화 재생"],
+      "capabilities": ["재사용 가능한 ChatGPT 스킬 만들기"]
+    },
+    "security-threat-model": {
+      "aliases": ["보안 위협 모델 위협 모델링"],
+      "capabilities": ["자산 신뢰 경계 공격자 능력 악용 경로"]
+    },
+    "skill-creator": {
+      "aliases": ["스킬 만들기 생성 수정 업데이트"],
+      "capabilities": ["스킬 설명 트리거 검증 절차"]
+    },
+    "skill-installer": {
+      "aliases": ["스킬 설치 재설치"],
+      "capabilities": ["승인된 GitHub 저장소 CODEX_HOME"]
+    },
+    "writing-polish": {
+      "aliases": ["글 문장 다듬기"],
+      "capabilities": ["README 리드미 문단 자연스럽게 간결"]
+    }
+  }
+}

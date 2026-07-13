@@ -57,6 +57,8 @@ CONTRACTS_SOURCE = PROJECT_ROOT / "lazy_skill_router_contracts.py"
 INVENTORY_SOURCE = PROJECT_ROOT / "lazy_skill_router_inventory.py"
 POLICY_IR_SOURCE = PROJECT_ROOT / "lazy_skill_router_policy_ir.py"
 ACTIVATION_SOURCE = PROJECT_ROOT / "lazy_skill_router_activation.py"
+CAPABILITY_INDEX_SOURCE = PROJECT_ROOT / "lazy_skill_router_capability_index.py"
+RETRIEVAL_SOURCE = PROJECT_ROOT / "lazy_skill_router_retrieval.py"
 SKILL_SOURCE = PROJECT_ROOT / "skills" / "personal-skill-router"
 INTERNAL_SMOKE_PROMPT = "lazy-skill-router-internal-probe"
 TRANSACTION_JOURNAL_SCHEMA = "lazy-skill-router.install-transaction/v1"
@@ -616,6 +618,18 @@ def copy_hook_runtime(hook_path: Path, *, dry_run: bool, codex_root: Path | None
         dry_run=dry_run,
         codex_root=codex_root,
     )
+    copy_file(
+        CAPABILITY_INDEX_SOURCE,
+        hook_path.parent / "lazy_skill_router_capability_index.py",
+        dry_run=dry_run,
+        codex_root=codex_root,
+    )
+    copy_file(
+        RETRIEVAL_SOURCE,
+        hook_path.parent / "lazy_skill_router_retrieval.py",
+        dry_run=dry_run,
+        codex_root=codex_root,
+    )
 
 
 def copy_skill(destination: Path, *, force: bool, dry_run: bool, codex_root: Path | None = None) -> str:
@@ -695,6 +709,8 @@ def install_artifacts(
         (hook_dir / "lazy_skill_router_inventory.py", "managed"),
         (hook_dir / "lazy_skill_router_policy_ir.py", "managed"),
         (hook_dir / "lazy_skill_router_activation.py", "managed"),
+        (hook_dir / "lazy_skill_router_capability_index.py", "managed"),
+        (hook_dir / "lazy_skill_router_retrieval.py", "managed"),
         (inventory_destination, "generated"),
         (routes_destination, route_ownership),
         (skill_destination, skill_ownership),
@@ -1044,6 +1060,10 @@ def main() -> int:
             actions.append(f"copy hook inventory {hook_destination.parent / 'lazy_skill_router_inventory.py'}")
             actions.append(f"copy hook policy IR {hook_destination.parent / 'lazy_skill_router_policy_ir.py'}")
             actions.append(f"copy hook activation IR {hook_destination.parent / 'lazy_skill_router_activation.py'}")
+            actions.append(
+                f"copy hook capability index {hook_destination.parent / 'lazy_skill_router_capability_index.py'}"
+            )
+            actions.append(f"copy hook retrieval {hook_destination.parent / 'lazy_skill_router_retrieval.py'}")
 
             auto_upgrade_skill = can_auto_upgrade_skill(previous_manifest, codex_root)
             skill_state = copy_skill(

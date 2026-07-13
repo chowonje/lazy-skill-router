@@ -327,6 +327,46 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
             findings,
         )
 
+    capability_retrieval = config.get("capabilityRetrieval")
+    if capability_retrieval is not None and not isinstance(capability_retrieval, dict):
+        findings.append(
+            PolicyFinding(
+                "WARN",
+                "capability_retrieval_invalid",
+                "capabilityRetrieval must be an object; legacy routing will continue",
+            )
+        )
+    elif isinstance(capability_retrieval, dict):
+        unknown_fields = sorted(set(capability_retrieval) - {"mode", "maxCandidates"})
+        if unknown_fields:
+            findings.append(
+                PolicyFinding(
+                    "WARN",
+                    "capability_retrieval_fields_unknown",
+                    "capabilityRetrieval has unknown fields; legacy routing will continue: "
+                    + ", ".join(unknown_fields),
+                )
+            )
+        retrieval_mode = capability_retrieval.get("mode", "off")
+        if retrieval_mode not in {"off", "shadow"}:
+            findings.append(
+                PolicyFinding(
+                    "WARN",
+                    "capability_retrieval_mode_invalid",
+                    "capabilityRetrieval.mode must be one of: off, shadow; legacy routing will continue",
+                )
+            )
+        max_candidates = capability_retrieval.get("maxCandidates", 3)
+        if isinstance(max_candidates, bool) or not isinstance(max_candidates, int) or not 1 <= max_candidates <= 3:
+            findings.append(
+                PolicyFinding(
+                    "WARN",
+                    "capability_retrieval_max_candidates_invalid",
+                    "capabilityRetrieval.maxCandidates must be an integer between 1 and 3; "
+                    "legacy routing will continue",
+                )
+            )
+
     logging_config = config.get("logging", {})
     if logging_config and not isinstance(logging_config, dict):
         findings.append(PolicyFinding("ERROR", "logging_invalid", "logging must be an object when present"))

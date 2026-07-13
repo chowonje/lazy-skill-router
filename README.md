@@ -63,7 +63,9 @@ On each user prompt, the hook:
 5. Activates only the primary skill for strong, unambiguous evidence. Supporting and verification skills remain
    deferred.
 6. Injects a short `<lazy-skill-router>` block in `inject` mode, or records the same decision in `shadow` mode.
-7. Fails open when no route is clear and can correlate a later `Stop` completion event when measurement is enabled.
+7. Optionally ranks at most three installed skills through a separate local capability-index shadow path. Those
+   candidates are measurement-only and cannot change route selection, activation, or hook context.
+8. Fails open when no route is clear and can correlate a later `Stop` completion event when measurement is enabled.
 
 The app LLM runs only during explicit setup or sync. It writes structured metadata and a policy proposal; it never
 writes executable hook code. The runtime hook makes no LLM or network call.
@@ -150,8 +152,10 @@ the stored inventory still matches the filesystem and optional host catalog,
 managed runtime digests match, exactly one `UserPromptSubmit` router entry is registered with the canonical standalone
 `python3` command, the optional `Stop` hook matches the measurement setting, the installed hook accepts real
 `UserPromptSubmit` and `Stop` smoke events through a temporary logging-disabled config, and configured route skills are
-installed. Missing, duplicate, or drifted registration is unhealthy. If the ownership manifest reports managed runtime
-drift, doctor skips the executable smoke rather than running modified hook code.
+installed. When capability retrieval shadow is enabled, doctor also warns about a missing or stale capability index and
+disabled measurement without treating either as a legacy-routing failure. Missing, duplicate, or drifted registration
+is unhealthy. If the ownership manifest reports managed runtime drift, doctor skips the executable smoke rather than
+running modified hook code.
 
 Use a custom Codex home when needed:
 
@@ -384,6 +388,8 @@ Important fields:
 - `activation.metaPatterns`: trusted local selection-rationale regexes that force a diagnostic candidate into `abstain`
 - `activation.actionPatterns`: explicit implementation/action regexes that override soft explanation wording
 - `activation.noActionPatterns`: hard no-side-effect regexes that take precedence over action wording
+- `capabilityRetrieval.mode`: `off` (default) or `shadow`; shadow candidates never affect legacy routing or activation
+- `capabilityRetrieval.maxCandidates`: local retrieval result bound from `1` to `3`; default `3`
 - custom activation patterns must pass the conservative regex safety subset; the audited bundled defaults are the only
   exact allowlisted exceptions
 - `defaultVerification`: used when a route omits `verification`
@@ -523,6 +529,106 @@ Use `--strict` in CI or release checks when missing, inactive, ambiguous, reject
 bindings should fail the command. Rejected but unreferenced metadata remains a warning. The legacy source report remains
 available as `python3 sync_skills.py`.
 
+## Capability Retrieval Shadow
+
+The optional capability path is a reversible comparison lane, not a replacement router. It builds a local
+`capability-index/v1` from the current path-redacted inventory, then ranks at most three skills with a dependency-free
+lexical BM25/character-trigram scorer. The runtime makes no LLM, embedding, or network call.
+
+Build and validate the sidecar after install or whenever `skills.manifest.json` changes:
+
+```bash
+lazy-skill-router capability build
+lazy-skill-router capability validate
+lazy-skill-router route --capability-shadow-json "Create a repository threat model"
+```
+
+Enable normal-hook shadow measurement by merging this independent field into the existing top-level `routes.json`
+object and enabling measurement. Do not replace the existing routes with this excerpt:
+
+```json
+{
+  "capabilityRetrieval": {
+    "mode": "shadow",
+    "maxCandidates": 3
+  }
+}
+```
+
+```bash
+lazy-skill-router install --enable-measurement
+lazy-skill-router doctor
+```
+
+Normal hook retrieval runs only when both capability shadow and local measurement are enabled. The explicit
+`--capability-shadow-json` diagnostic runs on demand even when the config mode is `off`. Its result contains skill IDs,
+bounded scores, source-category evidence IDs, and legacy comparison metadata; it excludes the prompt, descriptions,
+matched substrings, and search tokens. Missing, invalid, symlinked, or inventory-stale indexes degrade to an empty
+diagnostic while the legacy hook continues unchanged.
+
+Retrieval `no-match` means only that no lexical candidate was found. It is not semantic `abstain`; final ownership and
+activation remain outside the shadow lane.
+
+When normal shadow measurement runs, each retrieval decision also adds a nested `RoutingObservationV1`. It stores at
+most three candidate IDs, bounded source-category evidence IDs, the legacy activation result, and an explicit
+ownership state. Ownership is currently `unobserved`. A usable retrieval records `observe-only`; an invalid or degraded
+retrieval records `fallback-legacy` only when legacy selection was observed, otherwise `stop-shadow`. All three are
+observation labels with `affectsLegacySelection: false`, not a request cancellation or a replacement for the legacy
+route.
+
+Prospective shadow events may also carry `AutomatedObjectiveSignalV1`. The local deterministic parser labels only
+unambiguous `$configured-name`, `skill configured-name`, or `configured-name 스킬` forms that resolve to one available
+inventory identity and appear in a clause with an explicit use/apply/invoke action. Questions and negated or excluded
+references are not labels. It stores at most three configured IDs and never stores the prompt. Build the separate
+artifact with:
+
+```bash
+lazy-skill-router shadow-evidence \
+  --config ~/.codex/lazy-skill-router/routes.json \
+  --json
+```
+
+`AutomatedShadowEvidenceV1` deduplicates prompt hashes internally and checks at least 100 prospective explicit-reference
+cases, Recall@3 at least `0.95`, Top-1 at least `0.90`, zero degraded observations, and p95 at most `20ms`. Its scope is
+explicit references only. Retrieval, parser, policy, config, catalog, and runtime provenance must each be present and
+singular. It always keeps `promotionStatus: blocked`, `authority: none`, and `autoPromote: false`; it does not prove
+semantic ownership, semantic abstention, independent authorship, or task quality.
+
+The paired evaluator emits a separate `PromotionGateV1`. It checks frozen evidence provenance, Recall@3,
+expected-abstain lexical no-match recall, the candidate-only paired confidence bound, inventory eligibility,
+operational failures, p95 latency, and report privacy. Expected-abstain no-match recall must be at least `0.95` and may
+not regress from legacy; this is a conservative no-skill boundary, not proof of semantic abstention.
+An optional `artifactPaths` map plus explicit `--artifact-root` lets the evaluator resolve safe relative paths and hash
+the five real evidence files. Absolute, parent-traversing, symlinked, reused, empty, oversized, or non-regular files are
+rejected. Supported POSIX hosts open from a confined root with `O_NOFOLLOW`, hard-cap the descriptor read at 16 MiB,
+hash that same descriptor, and reject files that change during the read; unsupported hosts fail closed. A SHA-shaped
+self-attestation therefore cannot open the gate. File verification proves content identity only, not independence or
+label quality. The gate's only outcomes are `blocked` and `eligible-for-human-review`; `authority` is `none` and
+`autoPromote` is always `false`. Passing the gate never edits active policy. Stable
+`reportRevision`/`gateRevision` values identify the replayed quality decision without volatile latency/environment
+samples; `runRevision` retains each full benchmark run.
+
+Frozen replay inputs can be preserved outside Git with the source-checkout tool. It writes a private content-addressed
+store under `~/.codex/private/lazy-skill-router/router-ab`, uses `0700` directories and `0600` files, validates the
+stored config/inventory/index against the manifest, and records no source paths:
+
+```bash
+python3 preserve_router_ab_bundle.py \
+  --name control-2026-07-13 \
+  --config /path/to/frozen/routes.json \
+  --inventory /path/to/frozen/skills.manifest.json \
+  --index /path/to/frozen/capability-index.json \
+  --manifest eval/router_ab_manifest.json
+```
+
+The first scorer is deliberately lexical. Retrieval across languages therefore depends on names, descriptions,
+aliases, and capability metadata already present in the inventory; an English-only catalog can miss Korean-only
+phrasing. The current live catalog commonly leaves aliases and capability tags empty, so Korean-only phrasing is a
+known first-tranche recall gap; fix that through bounded sync-time metadata enrichment, not hardcoded runtime route
+pairs. Treat the English contrast evaluator as a baseline for Top-K recall and ranking only; observe latency through
+the local measurement fields or a separate benchmark. Neither is proof that a skill was activated or accepted by the
+host model.
+
 ## App LLM Policy Sync
 
 The current app can contribute its actual visible skill names, descriptions, and enabled state without putting an LLM
@@ -535,9 +641,11 @@ lazy-skill-router sync --apply
 lazy-skill-router policy context
 ```
 
-`host-catalog.draft.json` must contain only `host`, `complete`, and skill metadata. Set `complete` to true only when the
-app confirms the full runtime catalog; otherwise filesystem-only skills remain unknown rather than being falsely marked
-inactive. Catalogs and inventories exclude absolute paths and full skill bodies.
+`host-catalog.draft.json` must contain only `host`, `complete`, and skill metadata. Skill records may add up to 8
+reviewed aliases and 16 reviewed capability phrases, each at most 160 characters; the explicit sync copies them into the
+revisioned inventory and capability index. Set `complete` to true only when the app confirms the full runtime catalog;
+otherwise filesystem-only skills remain unknown rather than being falsely marked inactive. Catalogs and inventories
+exclude absolute paths, full skill bodies, private prompts, and evaluation gold labels.
 
 `policy context` advertises `lazy-skill-router.policy-proposal/v2`. It requires identifier-safe route, intent, pattern,
 facet, and configured skill names, canonical skill bindings, bounded regexes, and synthetic examples, and it has no
@@ -750,11 +858,15 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_capability_index.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_retrieval.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py eval_capability_retrieval.py eval_router_ab.py materialize_router_ab_manifest.py preserve_router_ab_bundle.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json
 python3 eval_routes.py eval/prompts.jsonl
+python3 eval_capability_retrieval.py --inventory ~/.codex/lazy-skill-router/skills.manifest.json --index ~/.codex/lazy-skill-router/capability-index.json
+# The frozen A/B replay succeeds only when config, inventory, index, and experiment-code revisions match.
+python3 eval_router_ab.py eval/router_ab_manifest.json --config ~/.codex/lazy-skill-router/routes.json --inventory ~/.codex/lazy-skill-router/skills.manifest.json --index ~/.codex/lazy-skill-router/capability-index.json
+lazy-skill-router shadow-evidence --config ~/.codex/lazy-skill-router/routes.json --json
 python3 generate_routes.py --dry-run
 python3 sync_skills.py --routes routes.default.json --manifest-output /tmp/lazy-skill-router-skills.json --strict
 tmp="$(mktemp -d)"

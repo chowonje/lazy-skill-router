@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lazy_skill_router_capability_index import build_capability_index
 from lazy_skill_router_host_catalog import (
     build_host_catalog,
     effective_skill_names,
@@ -14,6 +15,7 @@ from lazy_skill_router_host_catalog import (
     reconcile_inventory,
 )
 from lazy_skill_router_inventory import build_inventory_manifest, diff_inventory, load_inventory_manifest
+from lazy_skill_router_retrieval import retrieve_capabilities
 from sync_skills import SkillRecord
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -219,6 +221,82 @@ class HostCatalogTest(unittest.TestCase):
         self.assertEqual(invalid.state, "invalid")
         self.assertEqual(invalid.reason_codes, ("host_catalog_revision_mismatch",))
 
+    def test_optional_bilingual_metadata_flows_from_host_catalog_to_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            skill_path = codex_home / "skills" / "security-threat-model" / "SKILL.md"
+            write_skill(skill_path, "security-threat-model", "Build a repository grounded threat model.")
+            filesystem = build_inventory_manifest(
+                (SkillRecord("security-threat-model", skill_path),),
+                codex_home,
+                agents_home,
+            )
+            catalog = build_host_catalog(
+                "codex",
+                [
+                    {
+                        "name": "security-threat-model",
+                        "description": "Build a repository grounded threat model.",
+                        "source": "user",
+                        "enabled": True,
+                        "allowImplicitInvocation": True,
+                        "aliases": ["보안 위협 모델", "위협 모델링"],
+                        "capabilities": ["신뢰 경계와 공격 경로 분석"],
+                    }
+                ],
+                complete=True,
+            )
+            catalog_path = root / "host-catalog.json"
+            catalog_path.write_text(json.dumps(catalog, ensure_ascii=False), encoding="utf-8")
+            loaded_catalog = load_host_catalog(catalog_path)
+            reconciled = reconcile_inventory(filesystem, loaded_catalog)
+            inventory_path = root / "skills.manifest.json"
+            inventory_path.write_text(json.dumps(reconciled, ensure_ascii=False), encoding="utf-8")
+            inventory = load_inventory_manifest(inventory_path)
+            index_path = root / "capability-index.json"
+            index_path.write_text(
+                json.dumps(build_capability_index(inventory), ensure_ascii=False),
+                encoding="utf-8",
+            )
+            result = retrieve_capabilities(
+                "이 저장소의 보안 위협 모델을 작성해줘",
+                {
+                    "_loaded_from": str(root / "routes.json"),
+                    "capabilityRetrieval": {"mode": "shadow", "maxCandidates": 3},
+                },
+                inventory,
+            )
+
+        resolved = inventory.resolve("security-threat-model")
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved["aliases"], ["보안 위협 모델", "위협 모델링"])
+        self.assertEqual(resolved["capabilities"], ["신뢰 경계와 공격 경로 분석"])
+        self.assertEqual(result["status"], "matched")
+        self.assertEqual(result["candidates"][0]["skillRef"]["configuredName"], "security-threat-model")
+        self.assertIn("metadata.alias.word", result["candidates"][0]["evidenceIds"])
+
+    def test_optional_metadata_is_bounded_and_rejects_invalid_values(self) -> None:
+        base = {
+            "name": "pdf",
+            "description": "PDF work",
+            "source": "user",
+            "enabled": True,
+            "allowImplicitInvocation": True,
+        }
+        invalid_values = (
+            {"aliases": "not-a-list"},
+            {"aliases": ["same", "same"]},
+            {"aliases": ["x"] * 9},
+            {"capabilities": ["x"] * 17},
+            {"capabilities": ["x" * 161]},
+        )
+        for metadata in invalid_values:
+            with self.subTest(metadata=metadata):
+                with self.assertRaises(ValueError):
+                    build_host_catalog("codex", [{**base, **metadata}], complete=True)
+
     def test_complete_host_catalog_marks_disabled_and_filesystem_only_skills_inactive(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -249,6 +327,8 @@ class HostCatalogTest(unittest.TestCase):
                         "source": "system",
                         "enabled": True,
                         "allowImplicitInvocation": True,
+                        "aliases": ["시스템 스킬"],
+                        "capabilities": ["호스트 전용 기능"],
                     },
                     {
                         "name": "manual-only",
@@ -277,6 +357,8 @@ class HostCatalogTest(unittest.TestCase):
         self.assertIsNone(snapshot.resolve("pdf"))
         self.assertIsNone(snapshot.resolve("stale"))
         self.assertEqual(snapshot.resolve("system-skill")["provider"], {"type": "host", "id": "codex"})
+        self.assertEqual(snapshot.resolve("system-skill")["aliases"], ["시스템 스킬"])
+        self.assertEqual(snapshot.resolve("system-skill")["capabilities"], ["호스트 전용 기능"])
         encoded = json.dumps(reconciled)
         self.assertNotIn(str(root), encoded)
         self.assertNotIn("private body", encoded)

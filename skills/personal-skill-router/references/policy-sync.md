@@ -32,7 +32,9 @@ metadata already available to the app:
       "description": "Create, inspect, or edit PDF files.",
       "source": "user",
       "enabled": true,
-      "allowImplicitInvocation": true
+      "allowImplicitInvocation": true,
+      "aliases": ["PDF 문서", "피디에프 검토"],
+      "capabilities": ["PDF 렌더링과 페이지 레이아웃 확인"]
     }
   ]
 }
@@ -40,6 +42,9 @@ metadata already available to the app:
 
 Set `complete` to `true` only when the app confirms that the list is complete. A shortened or budget-limited catalog
 must remain `false`. Do not include absolute paths, full `SKILL.md` bodies, credentials, prompts, or private file data.
+`aliases` and `capabilities` are optional app- or human-reviewed sync-time metadata: at most 8 aliases and 16
+capabilities, each at most 160 characters. Do not derive them from private prompts or evaluation gold labels. They are
+revisioned catalog data, not runtime translation rules or prompt-to-skill routes.
 
 Seal and validate the draft:
 
@@ -51,6 +56,20 @@ lazy-skill-router sync --host-catalog ~/.codex/lazy-skill-router/host-catalog.js
 ```
 
 `sync --apply` updates only `skills.manifest.json`. It preserves active routes.
+
+Build the revision-bound capability sidecar after any inventory apply:
+
+```bash
+lazy-skill-router capability build
+lazy-skill-router capability validate
+```
+
+This index supports a separate local Top-K comparison lane; it does not create one route per skill and does not replace
+the policy proposal workflow below. If the user wants to measure that lane, add
+`capabilityRetrieval: {"mode": "shadow", "maxCandidates": 3}` to `routes.json`, then enable local measurement with
+`lazy-skill-router install --enable-measurement`. Missing or stale indexes leave legacy routing unchanged. Use
+`lazy-skill-router route --capability-shadow-json "synthetic prompt"` for an explicit redacted diagnostic. Do not put
+private prompts into shared fixtures.
 
 When writing the inventory and host catalog to custom, non-sibling paths, pass both `--inventory` and
 `--host-catalog` to policy `stage`, `feedback`, and `promote` so freshness checks bind the intended files.

@@ -2,6 +2,41 @@
 
 ## 0.5.0.dev0 (Unreleased)
 
+### Capability Retrieval Shadow
+
+- Adds revision-bound `capability-index/v1` build/validate commands and dependency-free lexical Top-K retrieval over
+  bounded inventory metadata.
+- Adds an opt-in `capabilityRetrieval.mode: shadow` lane whose results never affect legacy route ranking,
+  `ActivationIR`, or model-visible hook context.
+- Adds redacted `retrieval-result/v1` diagnostics and privacy-preserving latency/candidate measurement fields; raw
+  prompts, descriptions, matched substrings, and search tokens are excluded.
+- Makes missing, invalid, symlinked, or stale indexes fail open and adds doctor warnings without declaring legacy
+  routing unhealthy.
+- Adds 12 English contrast fixtures and a separate Recall@3/Top-1 evaluator while preserving the 127-case legacy
+  corpus; Korean-only catalog recall remains an explicitly documented first-tranche gap.
+- Adds a frozen 240-case paired legacy-vs-retrieval evaluator and prompt-redacted result artifact. The first synthetic
+  run shows directional Top-1 gains but blocks behavior promotion on Korean, no-skill semantics, and missing host
+  ownership.
+- Adds bounded optional host-catalog aliases/capabilities, source-category retrieval evidence IDs, and a
+  corpus-informed bilingual calibration report. The pilot improves Korean retrieval directionally but is explicitly
+  ineligible for active-catalog promotion.
+- Separates labelled Top-K conflicts from inventory eligibility and verifies zero inactive/unavailable candidates in the
+  corrected control and pilot runs. Lexical `no-match` is explicitly not semantic `abstain`.
+- Adds additive `RoutingObservationV1` records with bounded evidence IDs, explicit unobserved ownership, and
+  `observe-only`/`fallback-legacy`/`stop-shadow` actions that never alter legacy selection.
+- Adds evaluator-only `PromotionGateV1` with frozen evidence, quality, latency, eligibility, and privacy checks. It can
+  only return blocked or eligible for human review and never promotes active behavior automatically. Artifact evidence
+  remains blocked unless an explicit local root safely resolves five unique regular files whose actual SHA-256 values
+  match the manifest; paths and contents stay out of reports. Stable decision revisions are separated from full
+  benchmark-run revisions.
+- Blocks review eligibility when expected-abstain lexical no-match recall is below `0.95` or regresses from legacy;
+  this remains a conservative no-skill check rather than a claim of semantic abstention.
+- Adds deterministic, prompt-redacted exact skill-reference signals and `AutomatedShadowEvidenceV1`. Its collection
+  gate can qualify only a prospective explicit-reference slice for automated shadow review; promotion remains blocked,
+  authority remains `none`, and no-skill, ownership, independence, or end-to-end quality are not inferred.
+- Adds a source-checkout private CAS tool for preserving frozen control/pilot replay inputs with byte-level deduplication,
+  `0700`/`0600` permissions, immutable refs, stored-input revalidation, and no source paths in descriptors.
+
 ### App-Aware Policy Sync
 
 - Adds `catalog`, `sync`, and `policy` CLI workflows for app-provided skill metadata, revisioned inventory drift, and

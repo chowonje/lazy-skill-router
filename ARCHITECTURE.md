@@ -29,6 +29,21 @@ The default path remains the v1 top-1 compatibility surface. Opt-in shadow paths
 route-result v2, structured recommendation v1, or compact Hook IR. Schema v2 policies use stable IDs, intent,
 capability requirements, explicit skill bindings, weighted pattern evidence, and post-selection fallback.
 
+Capability retrieval is a separate comparison lane:
+
+```text
+Prompt ─┬─> legacy route ranking ─> ActivationIR ─> optional hook context
+        └─> local capability Top-K ─> retrieval-result/v1 ─> RoutingObservationV1 ─> redacted journal
+```
+
+`capabilityRetrieval.mode: shadow` does not feed candidates into route ranking, `ActivationIR`, or context formatting.
+The hook runs it only when local measurement is also enabled; the explicit diagnostic can run it on demand. This keeps
+the first migration tranche reversible and makes latency/recall observable without changing the compatibility output.
+`RoutingObservationV1` records only bounded identifiers and source-category evidence. Normal retrieval is
+`observe-only`; degraded retrieval is `fallback-legacy` when legacy selection was observed and `stop-shadow` otherwise.
+None of these actions affects legacy selection. Host ownership remains `unobserved`, so the observation cannot be
+interpreted as a final skill choice or semantic abstention.
+
 The hook is intentionally fail-open. Missing authoritative config, invalid JSON, invalid route entries, unreadable files, broken installed-config symlinks, and malformed hook input degrade to no recommendation. The bundled default remains available only when no override is selected and no installed config exists.
 
 ## Main Modules
@@ -104,12 +119,28 @@ skills without storing absolute paths or full skill bodies. The scanner refuses 
 metadata resolving outside its skill root before reading them. Rejections expose only a root-relative locator and reason
 code through `scanIssues`.
 
+### `lazy_skill_router_capability_index.py`
+
+Builds and validates the local `capability-index/v1` sidecar from one available inventory revision. It excludes
+unavailable and ambiguous identities, projects only bounded inventory metadata, precomputes lexical word/character
+features, and hashes a canonical ordering. It does not read full skill bodies, infer roles from route regexes, or call an
+LLM. The generated sidecar is intentionally not install-owned and must be rebuilt explicitly after inventory changes.
+
+### `lazy_skill_router_retrieval.py`
+
+Ranks at most three capability entries with dependency-free BM25 word features plus character trigrams. Scores are
+ordering values, not probabilities or activation confidence. Results expose skill identity, score, source-category
+evidence IDs, and a comparison with the legacy winner; they never expose the prompt, description, matched substring, or
+search token. `no-match` means only that lexical retrieval found no candidate. It is not the semantic `abstain` decision,
+which remains owned by host ownership judgment and ActivationIR. Missing, invalid, symlinked, or stale indexes produce a
+degraded empty result and cannot block or alter legacy routing.
+
 ### `lazy_skill_router_host_catalog.py`
 
-Validates and revisions skill metadata supplied by the current host app. A complete catalog can mark filesystem-only
-cache entries inactive; an incomplete catalog cannot. System skills that have no local `SKILL.md` can still become
-available through host provenance. Duplicate filesystem identities remain ambiguous unless the host exposes one
-resolved runtime name.
+Validates and revisions skill metadata supplied by the current host app, including optional bounded aliases and
+capability phrases. A complete catalog can mark filesystem-only cache entries inactive; an incomplete catalog cannot.
+System skills that have no local `SKILL.md` can still become available through host provenance. Duplicate filesystem
+identities remain ambiguous unless the host exposes one resolved runtime name.
 
 The host LLM writes only a draft. `catalog build` performs schema validation, canonical sorting, and revision hashing.
 The runtime hook never imports this module and never calls an LLM.
@@ -150,6 +181,15 @@ Unknown event schemas with a valid timestamp are preserved in the bounded journa
 objective/human/grader outcome labels and builds cumulative reports. Completion correlation uses the session and turn
 hashes together. Duplicate outcomes are deduplicated, conflicting outcomes are excluded, and native/inject pairs never
 cross policy/config revision contexts. Completion is a lifecycle observation, not a success label.
+Capability decisions may add a nested `routing-observation/v1` without changing the outer measurement-event schema.
+The cumulative report counts retrieval status, ownership status, and `observe-only`/`fallback-legacy` actions while
+also recognizing `stop-shadow`, and ignores unknown nested observation versions. Current-schema observations with
+invalid status/action, ownership, activation, or privacy semantics are counted as invalid rather than evidence. The
+report does not infer ownership, fallback success, or task outcome.
+Prospective capability decisions may additionally include `automated-objective-signal/v1`. It recognizes only exact,
+inventory-resolved explicit skill references before ranking so complete misses remain measurable. The derived
+`automated-shadow-evidence/v1` gate covers only this objective slice, deduplicates prompt hashes without emitting them,
+and never changes the authority or promotion status of `PromotionGateV1`.
 
 ### `routes.default.json`
 
@@ -225,7 +265,7 @@ preserved, unsafe, and unowned copies remain untouched unless `--force` explicit
 ### `lazy_skill_router_cli`
 
 Small public console entrypoint for packaged installs. It exposes `install`, `doctor`, `uninstall`, `catalog`, `sync`,
-`policy`, `route`, `outcome`, and `report`. Policy commands run only during explicit setup, sync, evaluation, or
+`policy`, `route`, `outcome`, `report`, and `shadow-evidence`. Policy commands run only during explicit setup, sync, evaluation, or
 promotion. The installed Codex hook remains a standalone copy and does not depend on the pipx environment.
 
 ### `.github/workflows/release.yml`
@@ -241,17 +281,51 @@ parent-traversing, or symlinked manifests and requires exact artifact-root cover
 
 Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each prompt through the same core engine used by the hook, and reports expectation failures by fixture id and category.
 
+### `eval_capability_retrieval.py`
+
+Contrast evaluator for the optional Top-K lane. It checks explicit Top-1, Recall@3, exclusion, and result-bound
+expectations against a selected inventory/index pair. Passing these fixtures establishes retrieval behavior only; it
+does not prove host-model acceptance, skill activation, or end-to-end task quality.
+
+### `eval_router_ab.py`
+
+Runs the same pre-labelled prompt set through legacy route-plus-ActivationIR and capability Top-K. The manifest freezes
+config, inventory, index, retrieval algorithm, K, corpus, and experiment-code revisions. Reports omit prompt text and
+include paired rescue/harm/net-win, exact McNemar significance, approximate paired confidence bounds, language/risk/
+category slices, candidate-only metrics, lexical no-match probes, labelled candidate conflicts, inventory eligibility,
+and p50/p95/p99 latency. It compares candidate ownership only; it does not test host-model ownership, semantic
+abstention, or task execution success. Each report includes `PromotionGateV1`: candidate Recall@3 must be at least
+`0.95`; expected-abstain lexical no-match recall must be at least `0.95` and must not regress from legacy; the
+candidate-only paired CI lower bound must be positive; B p95 must be at most `20ms`; inventory-ineligible hits and
+operational failures must be zero; privacy must pass; and independent holdout/adjudication plus
+ownership/activation/outcome evidence revisions must exist. Evidence claims cannot pass until an artifact verifier
+resolves safe relative `artifactPaths` beneath an explicitly supplied local root and hashes all five regular files, so
+SHA-shaped self-attestation remains blocked. Paths and file contents are excluded from reports. This check proves byte
+identity, not independent authorship or label quality; those remain human-review requirements. `reportRevision` and
+`gateRevision` omit volatile exact latency/environment samples and identify the replay-stable quality decision;
+`runRevision` identifies the full benchmark run. The gate can only make a run eligible for human review; it has no
+promotion authority.
+
 ## Data Boundaries
 
 - Prompt text enters only through hook stdin or dry-run CLI arguments.
 - Config data enters through JSON files and is normalized into Policy IR at the shared parser boundary.
 - Installed skill metadata is read by `sync_skills.py` for reports and by `generate_routes.py` for user-specific config generation.
-- Host catalogs contain names, descriptions, source, enabled state, and implicit-invocation state. They exclude full
-  skill bodies, absolute paths, prompts, and credentials.
+- Host catalogs contain names, descriptions, source, enabled state, implicit-invocation state, and optional bounded
+  aliases/capability phrases. They exclude full skill bodies, absolute paths, prompts, evaluation labels, and credentials.
 - Policy proposals contain synthetic positive and negative examples. They must not copy private user prompts.
 - The app LLM is used only to produce draft metadata and policy proposals. Runtime matching, lifecycle enforcement,
   measurement, and promotion gates are deterministic and local.
+- Promotion evidence files are read only when the evaluator receives an explicit local `--artifact-root`; reports keep
+  only evidence types, verified revisions, and fixed failure codes, never artifact paths or contents. Supported POSIX
+  hosts open them relative to a held root descriptor with `O_NOFOLLOW`, hard-cap the read at 16 MiB, hash the same
+  descriptor, and reject mutation during the read; unsupported hosts fail closed.
 - Optional measurement records prompt/session/turn hashes and route metadata, not raw prompt or assistant text.
+- Automated objective signals retain only bounded configured skill IDs for deterministic explicit-reference forms;
+  generated evidence emits aggregate counts and revisions, never prompt/session/turn hashes or file paths.
+- Capability retrieval measurement adds only index revision, status, bounded candidate skill IDs, fixed
+  source-category evidence IDs, latency, reason codes, legacy activation metadata, and retrieval Top-1. It does not
+  persist descriptions, matched source text, or search tokens.
 - Policy feedback records a route id, proposal revision, verdict, source, and already-hashed session/turn linkage.
 - Measurement is bounded by entry count and age; the defaults are 1,000 entries and 30 days.
 - Outcome case ids are hashed. Outcome status is accepted only from an explicit objective, human, or grader label.
@@ -275,6 +349,19 @@ Route quality is checked at three levels:
 - `validate_routes.py` checks route JSON shape and regex validity.
 - `eval_routes.py` checks golden prompt fixtures across normal routing, answer-only prompts, activation precision,
   composite prompts, security requests, install/config requests, and external-state requests.
+- `eval_capability_retrieval.py` checks independent Top-K contrast fixtures without changing the legacy corpus or hook
+  output.
+- `eval_router_ab.py` runs a frozen paired comparison and emits a prompt-redacted report; the checked-in 240-case
+  synthetic corpus is an initial directional screen, not production-distribution evidence.
+- Non-control manifest variants use a base-revision-bound overlay. The bilingual pilot overlay changes frozen
+  inventory/index revisions and metadata provenance without duplicating the 240-case corpus; replay still requires the
+  separately frozen inventory/index bytes.
+- The Korean metadata pilot is corpus-informed calibration only. Promotion evidence requires metadata authored without
+  gold/prompt access and a predeclared independent holdout.
+- `shadow-evidence` aggregates prospective deterministic explicit-reference labels as an authority-free operational
+  slice. It cannot substitute for no-skill, ownership, activation, outcome, or independent-adjudication evidence.
+- `preserve_router_ab_bundle.py` keeps frozen replay bytes in a private local CAS and revalidates stored inputs; these
+  replay bundles are reproducibility material, not promotion evidence.
 - Measurement tests cover inject/shadow/off delivery, session-aware lifecycle correlation, privacy fields, event schema
   handling, conflicting outcome exclusion, revision segmentation, and native/inject harm-rescue reporting.
 
@@ -288,7 +375,10 @@ The remaining strategy gates are intentionally narrower than the implemented sha
 - add trusted eligibility probes before promoting inventory states from `unknown`
 - add explicit phase policy before emitting `mutate` or `publish`
 - keep per-prompt or low-margin runtime LLM assistance disabled; app LLM use remains confined to explicit setup and sync
-- add a versioned experiment manifest and objective evaluator before interpreting results across journals or corpora
+- expand independently authored bilingual aliases/capabilities at explicit sync time before treating lexical retrieval
+  as language-independent
+- repeat the versioned paired experiment with independently adjudicated labels and multiple inventory revisions before
+  behavior-promotion claims
 - expand platform/package matrices before release claims
 
 Any roadmap work must preserve recommendation-only semantics, fail-open behavior, and no raw prompt logging.

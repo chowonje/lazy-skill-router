@@ -158,6 +158,8 @@ class InstallManifestTest(unittest.TestCase):
             artifact_paths = {artifact["path"] for artifact in snapshot.artifacts}
             self.assertIn("hooks/lazy_skill_router_contracts.py", artifact_paths)
             self.assertIn("hooks/lazy_skill_router_inventory.py", artifact_paths)
+            self.assertIn("hooks/lazy_skill_router_capability_index.py", artifact_paths)
+            self.assertIn("hooks/lazy_skill_router_retrieval.py", artifact_paths)
 
             runtime = codex_home / "hooks" / "lazy_skill_router_core.py"
             runtime.write_text(runtime.read_text(encoding="utf-8") + "# drift\n", encoding="utf-8")

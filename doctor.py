@@ -16,10 +16,12 @@ from install import (
     smoke_hook,
     smoke_stop_hook,
 )
+from lazy_skill_router_capability_index import DEFAULT_CAPABILITY_INDEX_NAME, load_capability_index
 from lazy_skill_router_common import codex_home, load_hooks, load_json_object, write_json
 from lazy_skill_router_host_catalog import effective_skill_names, load_host_catalog, reconcile_inventory
 from lazy_skill_router_install_manifest import artifact_state, load_install_manifest
 from lazy_skill_router_inventory import InventorySnapshot, build_inventory_manifest, load_inventory_manifest
+from lazy_skill_router_retrieval import retrieval_settings
 from sync_skills import (
     build_report_for_names,
     has_blocking_policy_findings,
@@ -38,6 +40,8 @@ HOOK_FILES = (
     "lazy_skill_router_activation.py",
     "lazy_skill_router_logging.py",
     "lazy_skill_router_scoring.py",
+    "lazy_skill_router_capability_index.py",
+    "lazy_skill_router_retrieval.py",
 )
 DUPLICATE_SKILL_PREVIEW_LIMIT = 3
 DUPLICATE_PATH_PREVIEW_LIMIT = 2
@@ -255,6 +259,40 @@ def check_inventory_manifest(path: Path) -> CheckResult:
     return fail(f"skill inventory manifest validates: {reason}")
 
 
+def check_capability_retrieval(
+    config: dict[str, Any] | None,
+    inventory_path: Path,
+) -> tuple[CheckResult, ...]:
+    if config is None:
+        return ()
+    mode, _, config_reasons = retrieval_settings(config)
+    if config_reasons:
+        return (warn("capability retrieval disabled by invalid config: " + ", ".join(config_reasons)),)
+    if mode != "shadow":
+        return ()
+
+    checks: list[CheckResult] = []
+    index_path = inventory_path.with_name(DEFAULT_CAPABILITY_INDEX_NAME)
+    index = load_capability_index(index_path)
+    inventory = load_inventory_manifest(inventory_path)
+    if index.state != "available":
+        reason = ", ".join(index.reason_codes) if index.reason_codes else index.state
+        checks.append(warn(f"capability retrieval shadow index unavailable: {reason}; legacy routing is unaffected"))
+    elif inventory.state != "available" or index.inventory_revision != inventory.revision:
+        checks.append(warn("capability retrieval shadow index is stale; legacy routing is unaffected"))
+    else:
+        checks.append(ok(f"capability retrieval shadow index validates: {index.revision}"))
+
+    logging_config = config.get("logging")
+    if not isinstance(logging_config, dict) or logging_config.get("enabled") is not True:
+        checks.append(
+            warn("capability retrieval shadow measurement is disabled; normal hook retrieval will be skipped")
+        )
+    else:
+        checks.append(ok("capability retrieval shadow measurement enabled"))
+    return tuple(checks)
+
+
 def filesystem_inventory_snapshot(snapshot: InventorySnapshot) -> InventorySnapshot:
     skills = tuple(
         skill
@@ -408,6 +446,7 @@ def main() -> int:
         *route_checks,
         check_inventory_manifest(inventory_path),
         check_inventory_freshness(inventory_path, codex_root, agents_root),
+        *check_capability_retrieval(route_config, inventory_path),
         install_manifest_check,
         check_hook_registration(hooks_path, expected_command),
         check_stop_registration(hooks_path, expected_stop_command, route_config),

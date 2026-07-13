@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lazy_skill_router_logging import MEASUREMENT_EVENT_SCHEMA
+from lazy_skill_router_logging import MEASUREMENT_EVENT_SCHEMA, ROUTING_OBSERVATION_SCHEMA
 from measurement import build_measurement_report
 from validate_routes import validate_config
 
@@ -27,6 +27,120 @@ def measurement_event(event_type: str, **values: object) -> dict[str, object]:
 
 
 class MeasurementTest(unittest.TestCase):
+    def test_report_aggregates_only_current_routing_observations(self) -> None:
+        def observation(status: str, action: str, *, schema: str = ROUTING_OBSERVATION_SCHEMA) -> dict[str, object]:
+            reason = {
+                ("matched", "observe-only"): "ownership_unobserved",
+                ("degraded", "fallback-legacy"): "retrieval_unusable",
+            }[(status, action)]
+            return {
+                "schema": schema,
+                "lane": "capability-retrieval",
+                "mode": "shadow",
+                "retrieval": {
+                    "revision": None,
+                    "status": status,
+                    "candidates": ([{"skillId": "reviewer", "evidenceIds": []}] if status == "matched" else []),
+                    "latencyMs": None,
+                    "reasonCodes": [],
+                },
+                "ownership": {
+                    "status": "unobserved",
+                    "primarySkillId": None,
+                    "reasonCode": "host_ownership_observation_unavailable",
+                },
+                "activation": {
+                    "source": "legacy-route-plus-activation-ir",
+                    "disposition": "propose",
+                    "legacyPrimarySkillId": "reviewer",
+                    "injected": False,
+                },
+                "stop": {"action": action, "reasonCode": reason, "affectsLegacySelection": False},
+                "semantics": {
+                    "rawPromptStored": False,
+                    "semanticAbstentionObserved": False,
+                    "disagreementIsFallbackEvidence": False,
+                    "automaticPromotion": False,
+                },
+            }
+
+        report = build_measurement_report(
+            [
+                measurement_event("decision", routingObservation=observation("matched", "observe-only")),
+                measurement_event("decision", routingObservation=observation("degraded", "fallback-legacy")),
+                measurement_event(
+                    "decision",
+                    routingObservation=observation(
+                        "matched", "observe-only", schema="lazy-skill-router.routing-observation/v999"
+                    ),
+                ),
+                measurement_event(
+                    "decision",
+                    routingObservation={"schema": ROUTING_OBSERVATION_SCHEMA},
+                ),
+                measurement_event(
+                    "decision",
+                    routingObservation={
+                        **observation("matched", "observe-only"),
+                        "activation": {
+                            "source": "legacy-route-plus-activation-ir",
+                            "disposition": "abstain",
+                            "legacyPrimarySkillId": "reviewer",
+                            "injected": True,
+                        },
+                    },
+                ),
+                measurement_event(
+                    "decision",
+                    routingObservation={**observation("matched", "observe-only"), "lane": "wrong-lane"},
+                ),
+                measurement_event(
+                    "decision",
+                    routingObservation={
+                        **observation("matched", "observe-only"),
+                        "retrieval": {
+                            **observation("matched", "observe-only")["retrieval"],
+                            "candidates": [{"skillId": None, "evidenceIds": [None]}],
+                            "reasonCodes": [None],
+                        },
+                    },
+                ),
+                measurement_event(
+                    "decision",
+                    routingObservation={
+                        **observation("matched", "observe-only"),
+                        "retrieval": {
+                            **observation("matched", "observe-only")["retrieval"],
+                            "candidates": [{"skillId": "reviewer", "evidenceIds": [{}]}],
+                        },
+                    },
+                ),
+                measurement_event(
+                    "decision",
+                    routingObservation={
+                        **observation("matched", "observe-only"),
+                        "retrieval": {
+                            **observation("matched", "observe-only")["retrieval"],
+                            "latencyMs": 10**5000,
+                        },
+                    },
+                ),
+                measurement_event("decision"),
+            ]
+        )
+
+        self.assertEqual(report["events"], 10)
+        self.assertEqual(report["ignoredEvents"], 0)
+        self.assertEqual(report["routingObservations"]["total"], 2)
+        self.assertEqual(report["routingObservations"]["invalid"], 6)
+        self.assertEqual(report["routingObservations"]["byOwnershipStatus"], {"unobserved": 2})
+        self.assertEqual(
+            report["routingObservations"]["byStopAction"],
+            {"fallback-legacy": 1, "observe-only": 1},
+        )
+        self.assertEqual(report["routingObservations"]["legacySelectionAffected"], 0)
+        self.assertIn("invalid-routing-observations", report["warnings"])
+
     def test_activation_dispositions_are_accumulated_separately_from_delivery(self) -> None:
         report = build_measurement_report(
             [
