@@ -15,12 +15,29 @@ import sync_skills
 import uninstall
 from lazy_skill_router_activation import activation_ir_dict
 from lazy_skill_router_contracts import hook_ir_v1, route_result_v2, structured_recommendation_v1
-from lazy_skill_router_core import activation_for_prompt, dry_run_output, load_config
+from lazy_skill_router_core import (
+    activation_for_prompt,
+    dry_run_output,
+    load_config,
+    route_matches_with_shadow_competition,
+)
 from lazy_skill_router_host_catalog import catalog_main
 from lazy_skill_router_inventory import inventory_for_config
 from lazy_skill_router_policy import policy_main
 
-COMMANDS: Final = ("install", "doctor", "uninstall", "catalog", "sync", "policy", "route", "outcome", "report")
+COMMANDS: Final = (
+    "install",
+    "doctor",
+    "uninstall",
+    "catalog",
+    "sync",
+    "capability",
+    "policy",
+    "route",
+    "outcome",
+    "report",
+    "shadow-evidence",
+)
 DATA_ROOT_NAME: Final = "lazy-skill-router"
 PACKAGE_NAME: Final = "lazy-skill-router"
 UNKNOWN_VERSION: Final = "0.0.0"
@@ -80,6 +97,8 @@ def configure_install_sources(root: Path) -> None:
     install.INVENTORY_SOURCE = root / "lazy_skill_router_inventory.py"
     install.POLICY_IR_SOURCE = root / "lazy_skill_router_policy_ir.py"
     install.ACTIVATION_SOURCE = root / "lazy_skill_router_activation.py"
+    install.CAPABILITY_INDEX_SOURCE = root / "lazy_skill_router_capability_index.py"
+    install.RETRIEVAL_SOURCE = root / "lazy_skill_router_retrieval.py"
     install.SKILL_SOURCE = root / "skills" / "personal-skill-router"
     install.TEMPLATE_SOURCE = root / "routes.template.json"
 
@@ -103,6 +122,7 @@ def route_prompt(args: list[str]) -> int:
     )
     parser.add_argument("--config", help="Path to a routes JSON file.")
     parser.add_argument("--inventory", help="Path to a generated skill inventory manifest.")
+    parser.add_argument("--capability-index", help="Path to a generated capability-index/v1 file.")
     output_group = parser.add_mutually_exclusive_group()
     output_group.add_argument("--json", action="store_true", help="Print legacy route diagnostics as JSON.")
     output_group.add_argument(
@@ -125,11 +145,32 @@ def route_prompt(args: list[str]) -> int:
         action="store_true",
         help="Print the runtime Activation IR v1 decision contract.",
     )
+    output_group.add_argument(
+        "--capability-shadow-json",
+        action="store_true",
+        help="Print the capability retrieval v1 shadow diagnostic.",
+    )
     parser.add_argument("prompt", help="Prompt text to route.")
     parsed = parser.parse_args(args)
 
     config = load_config(resource_root() / "lazy_skill_router.py", parsed.config)
     inventory = inventory_for_config(config, parsed.inventory)
+    if parsed.capability_shadow_json:
+        from lazy_skill_router_retrieval import retrieve_capabilities
+
+        legacy_matches, _, _ = route_matches_with_shadow_competition(parsed.prompt, config, inventory)
+        legacy_match = legacy_matches[0] if legacy_matches else None
+        result = retrieve_capabilities(
+            parsed.prompt,
+            config,
+            inventory,
+            explicit_index=parsed.capability_index,
+            force=True,
+            legacy_route=legacy_match.route.name if legacy_match is not None else None,
+            legacy_primary=legacy_match.route.primary if legacy_match is not None else None,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
     if parsed.hook_ir_json:
         print(json.dumps(hook_ir_v1(parsed.prompt, config, inventory), ensure_ascii=False, indent=2))
         return 0
@@ -201,6 +242,10 @@ def run_command(command: str, args: list[str]) -> int:
         return run_main(sync_skills.main, command, sync_args)
     if command == "catalog":
         return catalog_main(args)
+    if command == "capability":
+        from lazy_skill_router_capability_index import capability_main
+
+        return capability_main(args)
     if command == "policy":
         return policy_main(args)
     if command == "route":
@@ -209,6 +254,8 @@ def run_command(command: str, args: list[str]) -> int:
         return measurement.outcome_main(args)
     if command == "report":
         return measurement.report_main(args)
+    if command == "shadow-evidence":
+        return measurement.shadow_evidence_main(args)
     raise ValueError(f"unknown command: {command}")
 
 

@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import re
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,6 +23,10 @@ MAX_MAX_ENTRIES = 10000
 MAX_RETENTION_DAYS = 365
 MEASUREMENT_EVENT_SCHEMA = "lazy-skill-router.measurement-event/v1"
 MEASUREMENT_EVENT_TYPES = frozenset({"completion", "decision", "outcome", "policy-feedback"})
+ROUTING_OBSERVATION_SCHEMA = "lazy-skill-router.routing-observation/v1"
+AUTOMATED_OBJECTIVE_SIGNAL_SCHEMA = "lazy-skill-router.automated-objective-signal/v1"
+AUTOMATED_OBJECTIVE_PARSER_REVISION = "deterministic-explicit-skill-reference/v2"
+IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+-]{0,159}$")
 
 
 class RouteLike(Protocol):
@@ -216,6 +221,120 @@ def candidate_proposal_revisions(candidates: Iterable[RouteMatchLike]) -> dict[s
     return revisions
 
 
+def bounded_identifier(value: Any) -> str | None:
+    if not isinstance(value, str) or IDENTIFIER_RE.fullmatch(value) is None:
+        return None
+    return value
+
+
+def bounded_identifiers(values: Any, maximum: int) -> list[str]:
+    if not isinstance(values, (list, tuple)):
+        return []
+    identifiers: list[str] = []
+    for value in values:
+        if (identifier := bounded_identifier(value)) is not None and identifier not in identifiers:
+            identifiers.append(identifier)
+        if len(identifiers) >= maximum:
+            break
+    return identifiers
+
+
+def routing_observation_v1(
+    *,
+    retrieval_status: str,
+    retrieval_revision: str | None,
+    candidate_observations: Iterable[dict[str, Any]],
+    retrieval_latency_ms: float | None,
+    retrieval_reason_codes: Iterable[str],
+    legacy_primary: str | None,
+    activation_disposition: str | None,
+    injected: bool,
+    legacy_selection_observed: bool,
+) -> dict[str, Any]:
+    candidates = []
+    for candidate in candidate_observations:
+        if len(candidates) >= 3:
+            break
+        if not isinstance(candidate, dict):
+            continue
+        skill_id = bounded_identifier(candidate.get("skillId"))
+        if skill_id is None:
+            continue
+        candidates.append(
+            {
+                "skillId": skill_id,
+                "evidenceIds": bounded_identifiers(candidate.get("evidenceIds"), 8),
+            }
+        )
+
+    usable_retrieval = retrieval_status in {"matched", "no-match"}
+    if usable_retrieval:
+        stop_action = "observe-only"
+        stop_reason = (
+            "lexical_no_match_not_semantic_abstain" if retrieval_status == "no-match" else "ownership_unobserved"
+        )
+    elif legacy_selection_observed:
+        stop_action = "fallback-legacy"
+        stop_reason = "retrieval_unusable"
+    else:
+        stop_action = "stop-shadow"
+        stop_reason = "retrieval_unusable_no_legacy_selection"
+
+    return {
+        "schema": ROUTING_OBSERVATION_SCHEMA,
+        "lane": "capability-retrieval",
+        "mode": "shadow",
+        "retrieval": {
+            "revision": bounded_identifier(retrieval_revision),
+            "status": bounded_identifier(retrieval_status) or "degraded",
+            "candidates": candidates,
+            "latencyMs": (round(max(0.0, retrieval_latency_ms), 3) if retrieval_latency_ms is not None else None),
+            "reasonCodes": bounded_identifiers(tuple(retrieval_reason_codes), 8),
+        },
+        "ownership": {
+            "status": "unobserved",
+            "primarySkillId": None,
+            "reasonCode": "host_ownership_observation_unavailable",
+        },
+        "activation": {
+            "source": (
+                "legacy-route-plus-activation-ir"
+                if activation_disposition in {"activate", "propose", "abstain"}
+                else "unobserved"
+            ),
+            "disposition": (
+                activation_disposition if activation_disposition in {"activate", "propose", "abstain"} else None
+            ),
+            "legacyPrimarySkillId": bounded_identifier(legacy_primary),
+            "injected": injected,
+        },
+        "stop": {
+            "action": stop_action,
+            "reasonCode": stop_reason,
+            "affectsLegacySelection": False,
+        },
+        "semantics": {
+            "rawPromptStored": False,
+            "semanticAbstentionObserved": False,
+            "disagreementIsFallbackEvidence": False,
+            "automaticPromotion": False,
+        },
+    }
+
+
+def automated_objective_signal_v1(expected_skill_ids: Iterable[str]) -> dict[str, Any]:
+    expected = bounded_identifiers(tuple(expected_skill_ids), 3)
+    return {
+        "schema": AUTOMATED_OBJECTIVE_SIGNAL_SCHEMA,
+        "kind": "explicit-skill-reference" if expected else "unlabelled",
+        "expectedSkillIds": expected,
+        "source": "local-deterministic-parser",
+        "parserRevision": AUTOMATED_OBJECTIVE_PARSER_REVISION,
+        "reasonCode": "deterministic_exact_reference" if expected else "no_exact_reference",
+        "rawPromptStored": False,
+    }
+
+
 def log_decision(
     prompt: str,
     match: RouteMatchLike | None,
@@ -233,6 +352,14 @@ def log_decision(
     latency_ms: float | None = None,
     catalog_revision: str | None = None,
     runtime_revision: str | None = None,
+    capability_index_revision: str | None = None,
+    capability_candidate_skill_ids: Iterable[str] = (),
+    capability_candidate_observations: Iterable[dict[str, Any]] = (),
+    capability_retrieval_latency_ms: float | None = None,
+    capability_retrieval_status: str | None = None,
+    capability_retrieval_reason_codes: Iterable[str] = (),
+    retrieval_top1: str | None = None,
+    automated_expected_skill_ids: Iterable[str] = (),
 ) -> None:
     shadow_candidates = tuple(shadow_candidates)
     matched_pattern_ids = list(getattr(match, "matched_pattern_ids", ())) if match is not None else []
@@ -271,6 +398,34 @@ def log_decision(
         "runtimeRevision": runtime_revision,
         "latencyMs": round(max(0.0, latency_ms), 3) if latency_ms is not None else None,
     }
+    if capability_retrieval_status is not None:
+        event.update(
+            {
+                "retrievalRevision": capability_index_revision,
+                "retrievalStatus": capability_retrieval_status,
+                "capabilityCandidateSkillIds": list(capability_candidate_skill_ids)[:3],
+                "capabilityRetrievalLatencyMs": (
+                    round(max(0.0, capability_retrieval_latency_ms), 3)
+                    if capability_retrieval_latency_ms is not None
+                    else None
+                ),
+                "capabilityRetrievalReasonCodes": list(capability_retrieval_reason_codes)[:8],
+                "legacyPrimary": match.route.primary if match is not None else None,
+                "retrievalTop1": retrieval_top1,
+                "automatedObjectiveSignal": automated_objective_signal_v1(automated_expected_skill_ids),
+                "routingObservation": routing_observation_v1(
+                    retrieval_status=capability_retrieval_status,
+                    retrieval_revision=capability_index_revision,
+                    candidate_observations=capability_candidate_observations,
+                    retrieval_latency_ms=capability_retrieval_latency_ms,
+                    retrieval_reason_codes=capability_retrieval_reason_codes,
+                    legacy_primary=match.route.primary if match is not None else None,
+                    activation_disposition=activation_disposition,
+                    injected=injected,
+                    legacy_selection_observed=mode != "off",
+                ),
+            }
+        )
     append_measurement_event(event, config)
 
 
