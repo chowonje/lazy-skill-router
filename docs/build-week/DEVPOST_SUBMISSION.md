@@ -56,8 +56,8 @@ only for human review rather than automatic promotion or release.
 
 - Prior foundation: Architecture 3, commit `6123ffe3acdc7ae7b35082ab8938d77fc8070872`, Codex session
   `019f522b-8db5-7211-84d4-889d8c9d9de8`.
-- Submission-period extension: commits `561732d17c6ad479ba07b2b9cab73dcb05333f90` and
-  `a62473470b120703f929a4026948550db1384627`, Codex session
+- Submission-period extension: commits `561732d17c6ad479ba07b2b9cab73dcb05333f90`,
+  `a62473470b120703f929a4026948550db1384627`, and `0fc72a1c2345d10c3d554e48f1f5194bdfd44f13`, Codex session
   `019f6362-9c9b-76e2-b3d1-cffb12ebfc9d`.
 
 Architecture 3 is disclosed as pre-existing work. The judged Build Week contribution is the separate stabilization and
