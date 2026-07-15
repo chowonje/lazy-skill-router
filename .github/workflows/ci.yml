@@ -100,6 +100,7 @@ jobs:
           tests/test_logging.py
           tests/test_measurement.py
           tests/test_route_result_v2.py
+          tests/test_runtime_policy_safety.py
           tests/test_schema_v2.py
           tests/test_surface_equivalence.py
 
@@ -222,10 +223,19 @@ jobs:
             --codex-home .ci/install-codex \
             --agents-home .ci/install-agents
 
-      - name: Check wheel and pipx CLI smoke
+      - name: Build distributions and check extracted sdist
         run: |
           python -m build
           python -m twine check dist/*
+          temp_root="${TMPDIR:-/tmp}"
+          sdist_root="$(mktemp -d "${temp_root%/}/lazy-skill-router-sdist.XXXXXX")"
+          tar -xzf dist/*.tar.gz -C "$sdist_root"
+          sdist_dir="$(find "$sdist_root" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -n "$sdist_dir"
+          (cd "$sdist_dir" && python3 -m unittest discover -s tests -p "test*.py")
+
+      - name: Check wheel and pipx CLI smoke
+        run: |
           pipx_home="$(mktemp -d)"
           pipx_bin="$(mktemp -d)"
           PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python -m pipx install dist/*.whl

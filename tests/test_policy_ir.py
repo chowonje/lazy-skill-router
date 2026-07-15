@@ -30,6 +30,54 @@ def available_skill(name: str, canonical_id: str) -> dict[str, object]:
 
 
 class PolicyIRTest(unittest.TestCase):
+    def test_capability_retrieval_algorithm_is_validated_by_shared_policy_parser(self) -> None:
+        valid = parse_policy_config(
+            {
+                "capabilityRetrieval": {
+                    "mode": "shadow",
+                    "maxCandidates": 3,
+                    "algorithm": "lexical-bm25-char3-anchored/v2",
+                },
+                "routes": [],
+            }
+        )
+        invalid = parse_policy_config(
+            {
+                "capabilityRetrieval": {
+                    "mode": "shadow",
+                    "maxCandidates": 3,
+                    "algorithm": "unknown/v9",
+                },
+                "routes": [],
+            }
+        )
+        invalid_type = parse_policy_config(
+            {
+                "capabilityRetrieval": {
+                    "mode": "shadow",
+                    "maxCandidates": 3,
+                    "algorithm": [],
+                },
+                "routes": [],
+            }
+        )
+        replay_only = parse_policy_config(
+            {
+                "capabilityRetrieval": {
+                    "mode": "shadow",
+                    "maxCandidates": 3,
+                    "algorithm": "lexical-bm25-char3/v1",
+                },
+                "routes": [],
+            }
+        )
+
+        self.assertNotIn("capability_retrieval_fields_unknown", {finding.code for finding in valid.findings})
+        self.assertNotIn("capability_retrieval_algorithm_invalid", {finding.code for finding in valid.findings})
+        self.assertIn("capability_retrieval_algorithm_invalid", {finding.code for finding in invalid.findings})
+        self.assertIn("capability_retrieval_algorithm_invalid", {finding.code for finding in invalid_type.findings})
+        self.assertIn("capability_retrieval_algorithm_replay_only", {finding.code for finding in replay_only.findings})
+
     def test_activation_pattern_structure_is_rejected_before_regex_execution(self) -> None:
         compiled = mock.Mock()
 
@@ -128,6 +176,7 @@ class PolicyIRTest(unittest.TestCase):
                     "intent": "문서 만들기",
                     "capabilityRequirements": {"primary": ["pdf-work"]},
                     "match": {"any": [{"id": "pdf/create", "regex": "pdf"}]},
+                    "lifecycle": {"state": "active"},
                 }
             ],
         }
@@ -174,6 +223,7 @@ class PolicyIRTest(unittest.TestCase):
                     "intent": "work_with_pdf",
                     "capabilityRequirements": {"primary": ["pdf-work"], "verification": ["verify"]},
                     "match": {"any": [{"id": "pdf.token", "regex": "pdf", "label": "PDF token", "weight": 2}]},
+                    "lifecycle": {"state": "active"},
                 }
             ],
         }
@@ -208,6 +258,7 @@ class PolicyIRTest(unittest.TestCase):
                     "intent": "active_pdf",
                     "capabilityRequirements": {"primary": ["pdf-work"]},
                     "match": {"any": [{"id": "active.pdf", "regex": "pdf"}]},
+                    "lifecycle": {"state": "active"},
                 },
             ],
         }
@@ -262,6 +313,7 @@ class PolicyIRTest(unittest.TestCase):
                     "intent": "work_with_pdf",
                     "capabilityRequirements": {"primary": ["pdf-work"]},
                     "match": {"any": [{"id": "pdf.token", "regex": "pdf"}]},
+                    "lifecycle": {"state": "active"},
                 }
             ],
         }

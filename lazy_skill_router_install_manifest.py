@@ -4,9 +4,10 @@ import datetime as dt
 import hashlib
 import json
 import os
-from collections.abc import Iterable
+import unicodedata
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 INSTALL_MANIFEST_SCHEMA = "lazy-skill-router.install-manifest/v1"
@@ -114,15 +115,75 @@ def build_install_manifest(
     }
 
 
-def invalid_snapshot(reason: str) -> InstallManifestSnapshot:
-    return InstallManifestSnapshot("invalid", None, (), None, (reason,))
+def refresh_generated_artifact_digests(
+    snapshot: InstallManifestSnapshot,
+    replacements: Mapping[str, str],
+    *,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Return a manifest with selected generated-file digests refreshed.
+
+    The ownership and registration contract is preserved.  A sync operation
+    may refresh only artifacts that the installer already recorded as
+    generated regular files.
+    """
+
+    if snapshot.state != "available" or snapshot.registration is None:
+        raise ValueError("an available install ownership manifest is required")
+    if not replacements:
+        raise ValueError("at least one generated artifact digest is required")
+    if any(not valid_manifest_path(path) for path in replacements):
+        raise ValueError("generated artifact path is invalid")
+    if any(
+        not isinstance(digest, str)
+        or len(digest) != len("sha256:") + 64
+        or not digest.startswith("sha256:")
+        or any(character not in "0123456789abcdef" for character in digest.removeprefix("sha256:"))
+        for digest in replacements.values()
+    ):
+        raise ValueError("generated artifact digest is invalid")
+
+    records = [dict(artifact) for artifact in snapshot.artifacts]
+    for relative_path, digest in replacements.items():
+        matches = [record for record in records if record.get("path") == relative_path]
+        if len(matches) != 1:
+            raise ValueError(f"install ownership record missing or ambiguous: {relative_path}")
+        record = matches[0]
+        if record.get("ownership") != "generated" or record.get("kind") != "file":
+            raise ValueError(f"install ownership record is not a generated file: {relative_path}")
+        record["digest"] = digest
+
+    records.sort(key=lambda artifact: str(artifact.get("path", "")))
+    registration = dict(snapshot.registration)
+    timestamp = generated_at or dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "schema": INSTALL_MANIFEST_SCHEMA,
+        "revision": manifest_revision(records, registration),
+        "generated_at": timestamp,
+        "artifacts": records,
+        "registration": registration,
+    }
+
+
+def invalid_snapshot(
+    reason: str,
+    artifacts: tuple[dict[str, Any], ...] = (),
+) -> InstallManifestSnapshot:
+    return InstallManifestSnapshot("invalid", None, artifacts, None, (reason,))
 
 
 def valid_manifest_path(value: Any) -> bool:
     if not isinstance(value, str) or not value:
         return False
-    path = Path(value)
-    return bool(path.parts) and not path.is_absolute() and ".." not in path.parts
+    path = PurePosixPath(value)
+    return (
+        bool(path.parts)
+        and not path.is_absolute()
+        and path.as_posix() == value
+        and "." not in path.parts
+        and ".." not in path.parts
+        and "\\" not in value
+    )
 
 
 def path_is_within(path: Path, root: Path) -> bool:
@@ -180,9 +241,16 @@ def load_install_manifest(path: Path) -> InstallManifestSnapshot:
         return invalid_snapshot("install_manifest_artifacts_invalid")
     if not isinstance(registration, dict):
         return invalid_snapshot("install_manifest_registration_invalid")
+    path_aliases: dict[str, str] = {}
     for artifact in artifacts:
         if not valid_manifest_path(artifact.get("path")):
             return invalid_snapshot("install_manifest_path_invalid")
+        raw_path = str(artifact["path"])
+        path_key = unicodedata.normalize("NFC", raw_path).casefold()
+        previous_path = path_aliases.get(path_key)
+        if previous_path is not None:
+            return invalid_snapshot("install_manifest_path_invalid", tuple(artifacts))
+        path_aliases[path_key] = raw_path
         if artifact.get("ownership") not in OWNERSHIP_VALUES:
             return invalid_snapshot("install_manifest_ownership_invalid")
         if artifact.get("kind") not in {"file", "directory", "symlink"}:
@@ -197,6 +265,30 @@ def load_install_manifest(path: Path) -> InstallManifestSnapshot:
 def artifact_path(codex_root: Path, artifact: dict[str, Any]) -> Path:
     relative = artifact.get("path")
     return confined_path(codex_root, relative, allow_leaf_symlink=True)
+
+
+def physical_artifact_aliases(
+    snapshot: InstallManifestSnapshot,
+    codex_root: Path,
+) -> tuple[tuple[str, str], ...]:
+    if snapshot.state != "available":
+        return ()
+    identities: dict[tuple[int, int], str] = {}
+    aliases: list[tuple[str, str]] = []
+    for artifact in snapshot.artifacts:
+        relative = str(artifact.get("path"))
+        try:
+            installed_path = artifact_path(codex_root, artifact)
+            installed_stat = installed_path.lstat()
+        except (OSError, ValueError):
+            continue
+        physical_key = (installed_stat.st_dev, installed_stat.st_ino)
+        previous = identities.get(physical_key)
+        if previous is not None:
+            aliases.append((previous, relative))
+        else:
+            identities[physical_key] = relative
+    return tuple(aliases)
 
 
 def artifact_state(codex_root: Path, artifact: dict[str, Any]) -> str:

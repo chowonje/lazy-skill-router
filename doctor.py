@@ -19,7 +19,7 @@ from install import (
 from lazy_skill_router_capability_index import DEFAULT_CAPABILITY_INDEX_NAME, load_capability_index
 from lazy_skill_router_common import codex_home, load_hooks, load_json_object, write_json
 from lazy_skill_router_host_catalog import effective_skill_names, load_host_catalog, reconcile_inventory
-from lazy_skill_router_install_manifest import artifact_state, load_install_manifest
+from lazy_skill_router_install_manifest import artifact_state, load_install_manifest, physical_artifact_aliases
 from lazy_skill_router_inventory import InventorySnapshot, build_inventory_manifest, load_inventory_manifest
 from lazy_skill_router_retrieval import retrieval_settings
 from sync_skills import (
@@ -263,25 +263,28 @@ def check_capability_retrieval(
     config: dict[str, Any] | None,
     inventory_path: Path,
 ) -> tuple[CheckResult, ...]:
-    if config is None:
-        return ()
-    mode, _, config_reasons = retrieval_settings(config)
-    if config_reasons:
-        return (warn("capability retrieval disabled by invalid config: " + ", ".join(config_reasons)),)
-    if mode != "shadow":
-        return ()
-
     checks: list[CheckResult] = []
     index_path = inventory_path.with_name(DEFAULT_CAPABILITY_INDEX_NAME)
     index = load_capability_index(index_path)
     inventory = load_inventory_manifest(inventory_path)
     if index.state != "available":
         reason = ", ".join(index.reason_codes) if index.reason_codes else index.state
-        checks.append(warn(f"capability retrieval shadow index unavailable: {reason}; legacy routing is unaffected"))
-    elif inventory.state != "available" or index.inventory_revision != inventory.revision:
-        checks.append(warn("capability retrieval shadow index is stale; legacy routing is unaffected"))
+        checks.append(fail(f"capability index validates: {reason}"))
+    elif inventory.state != "available":
+        checks.append(fail("capability index validates: inventory unavailable"))
+    elif index.inventory_revision != inventory.revision:
+        checks.append(fail("capability index validates: index is stale relative to inventory"))
     else:
-        checks.append(ok(f"capability retrieval shadow index validates: {index.revision}"))
+        checks.append(ok(f"capability index validates: {index.revision}"))
+
+    if config is None:
+        return tuple(checks)
+    mode, _, _, config_reasons = retrieval_settings(config)
+    if config_reasons:
+        checks.append(warn("capability retrieval disabled by invalid config: " + ", ".join(config_reasons)))
+        return tuple(checks)
+    if mode != "shadow":
+        return tuple(checks)
 
     logging_config = config.get("logging")
     if not isinstance(logging_config, dict) or logging_config.get("enabled") is not True:
@@ -363,7 +366,7 @@ def check_inventory_freshness(path: Path, codex_root: Path, agents_root: Path) -
     previous_host_revision = previous_sources.get("hostCatalogRevision") if isinstance(previous_sources, dict) else None
     host_changed = previous_host_revision != host_catalog.revision
     host_detail = "; host catalog changed" if host_changed else ""
-    return warn(
+    return fail(
         "skill inventory freshness checked: "
         f"{added} added, {removed} removed, {changed} changed; "
         f"run lazy-skill-router sync --plan{host_detail}"
@@ -371,13 +374,42 @@ def check_inventory_freshness(path: Path, codex_root: Path, agents_root: Path) -
 
 
 def check_install_manifest(path: Path, codex_root: Path) -> CheckResult:
+    required_generated = (
+        "lazy-skill-router/skills.manifest.json",
+        f"lazy-skill-router/{DEFAULT_CAPABILITY_INDEX_NAME}",
+    )
     snapshot = load_install_manifest(path)
     if snapshot.state != "available":
+        for relative_path in required_generated:
+            records = tuple(artifact for artifact in snapshot.artifacts if artifact.get("path") == relative_path)
+            if len(records) > 1:
+                return fail(
+                    "install ownership manifest validates: "
+                    f"{relative_path} requires exactly one generated regular-file ownership record"
+                )
         reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
         return fail(f"install ownership manifest validates: {reason}")
 
+    for relative_path in required_generated:
+        records = tuple(artifact for artifact in snapshot.artifacts if artifact.get("path") == relative_path)
+        if len(records) != 1 or records[0].get("ownership") != "generated" or records[0].get("kind") != "file":
+            return fail(
+                "install ownership manifest validates: "
+                f"{relative_path} requires exactly one generated regular-file ownership record"
+            )
+
+    physical_aliases = physical_artifact_aliases(snapshot, codex_root)
+    if physical_aliases:
+        alias_text = ", ".join(f"{left} = {right}" for left, right in physical_aliases)
+        return fail(f"install ownership manifest validates: physical identity alias: {alias_text}")
+
     managed_drift = []
     generated_drift = []
+    critical_generated_drift = []
+    critical_generated_paths = {
+        "lazy-skill-router/skills.manifest.json",
+        f"lazy-skill-router/{DEFAULT_CAPABILITY_INDEX_NAME}",
+    }
     for artifact in snapshot.artifacts:
         ownership = artifact.get("ownership")
         if ownership == "preserved":
@@ -388,10 +420,16 @@ def check_install_manifest(path: Path, codex_root: Path) -> CheckResult:
         detail = f"{artifact.get('path')} ({state})"
         if ownership == "managed":
             managed_drift.append(detail)
+        elif artifact.get("path") in critical_generated_paths:
+            critical_generated_drift.append(detail)
         else:
             generated_drift.append(detail)
     if managed_drift:
         return fail("install ownership manifest validates: managed artifact drift: " + ", ".join(managed_drift))
+    if critical_generated_drift:
+        return fail(
+            "install ownership manifest validates: generated artifact drift: " + ", ".join(critical_generated_drift)
+        )
     if generated_drift:
         return warn("install ownership manifest validates with generated config drift: " + ", ".join(generated_drift))
     return ok(f"install ownership manifest validates: {snapshot.revision}")

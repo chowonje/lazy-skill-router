@@ -418,6 +418,7 @@ class ActivationIRTest(unittest.TestCase):
                         ]
                     },
                     "activation": {"requiredFacets": ["read", "write"], "scope": "task"},
+                    "lifecycle": {"state": "active"},
                 }
             ],
         }

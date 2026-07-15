@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
 
+from lazy_skill_router_common import MAX_ROUTABLE_PROMPT_CHARS
 from lazy_skill_router_policy_ir import (
     ACTIVATION_REGEX_ERRORS,
     SHIPPED_ACTIVATION_PATTERN_BUNDLES,
     activation_pattern_risk,
+    normalize_v1_leading_positive_lookahead,
 )
 from lazy_skill_router_scoring import RouteMatch, matched_patterns, tuple_of_strings
 
@@ -100,21 +103,51 @@ class ActivationIR:
 def configured_number(value: Any, default: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return default
-    return max(0.0, min(1.0, float(value)))
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return default
+    if not math.isfinite(number):
+        return default
+    return max(0.0, min(1.0, number))
 
 
-def validated_activation_patterns(value: Any, defaults: tuple[str, ...]) -> tuple[str, ...]:
+def validated_activation_patterns(
+    value: Any,
+    defaults: tuple[str, ...],
+    schema_version: int,
+) -> tuple[str, ...]:
     def validated(patterns: tuple[str, ...], *, trusted_bundle: bool) -> tuple[str, ...]:
+        normalized_patterns: list[str] = []
         for pattern in patterns:
-            if not trusted_bundle and activation_pattern_risk(pattern) is not None:
+            normalized, anchored = (
+                normalize_v1_leading_positive_lookahead(pattern) if schema_version == 1 else (pattern, False)
+            )
+            if (
+                not trusted_bundle
+                and activation_pattern_risk(
+                    normalized,
+                    allow_leading_positive_lookahead=anchored,
+                )
+                is not None
+            ):
                 return ()
             try:
-                compiled = re.compile(pattern)
+                compiled = re.compile(normalized)
             except ACTIVATION_REGEX_ERRORS:
                 return ()
-            if not trusted_bundle and activation_pattern_risk(pattern, compiled) is not None:
+            if (
+                not trusted_bundle
+                and activation_pattern_risk(
+                    normalized,
+                    compiled,
+                    allow_leading_positive_lookahead=anchored,
+                )
+                is not None
+            ):
                 return ()
-        return patterns
+            normalized_patterns.append(normalized)
+        return tuple(normalized_patterns)
 
     trusted_defaults = defaults in SHIPPED_ACTIVATION_PATTERN_BUNDLES.values()
     safe_defaults = validated(defaults, trusted_bundle=trusted_defaults)
@@ -129,15 +162,16 @@ def activation_policy(config: dict[str, Any]) -> ActivationPolicyIR:
     activation = activation if isinstance(activation, dict) else {}
     selection = config.get("selection")
     selection = selection if isinstance(selection, dict) else {}
+    schema_version = 2 if config.get("schemaVersion") == 2 else 1
     return ActivationPolicyIR(
         configured_number(
             activation.get("autoActivateMinStrength"),
             DEFAULT_AUTO_ACTIVATE_MIN_STRENGTH,
         ),
         configured_number(selection.get("minScoreMargin"), DEFAULT_MIN_SCORE_MARGIN),
-        validated_activation_patterns(activation.get("metaPatterns"), DEFAULT_META_PATTERNS),
-        validated_activation_patterns(activation.get("actionPatterns"), DEFAULT_ACTION_PATTERNS),
-        validated_activation_patterns(activation.get("noActionPatterns"), DEFAULT_NO_ACTION_PATTERNS),
+        validated_activation_patterns(activation.get("metaPatterns"), DEFAULT_META_PATTERNS, schema_version),
+        validated_activation_patterns(activation.get("actionPatterns"), DEFAULT_ACTION_PATTERNS, schema_version),
+        validated_activation_patterns(activation.get("noActionPatterns"), DEFAULT_NO_ACTION_PATTERNS, schema_version),
     )
 
 
@@ -213,6 +247,20 @@ def decide_activation(
     *,
     answer_only: bool,
 ) -> ActivationIR:
+    if len(prompt) > MAX_ROUTABLE_PROMPT_CHARS:
+        return ActivationIR(
+            "abstain",
+            "prompt_too_long",
+            None,
+            None,
+            0.0,
+            0.0,
+            (),
+            DEFAULT_ACTIVATION_SCOPE,
+            IntentFrame("input-rejected", (), (), False, False),
+            (),
+            (),
+        )
     policy = activation_policy(config)
     if not matches:
         frame = IntentFrame(request_mode(prompt, answer_only, policy), (), (), False, False)

@@ -3,8 +3,10 @@
 ## Purpose
 
 `PromotionGateV1` may verify that declared evidence revisions match real local files. This is a content-identity check,
-not proof that the files were independently produced or that their judgments are correct. The gate still has
-`authority: none`, never changes runtime policy, and can only return `eligible-for-human-review`.
+not proof that the files were independently produced or that their judgments are correct. The current verifier reports
+`provesIndependence: false`, so the gate fails closed with `independent_evidence_unverified`. The gate still has
+`authority: none`, never changes runtime policy, and cannot become `eligible-for-human-review` until a verifier
+positively proves independence.
 
 ## Artifact binding
 
@@ -80,13 +82,15 @@ activation/outcome quality, independent authorship을 증명하지 않는다. �
 
 Stop and keep legacy behavior when any of these occurs:
 
-- frozen revision mismatch, artifact verification failure, role-separation breach, or raw-prompt leak;
+- frozen revision mismatch, artifact verification failure, unverified independence, role-separation breach, or raw-prompt leak;
 - active router changes during the experiment or a candidate changes after holdout results are viewed;
-- Recall@3 below 95%; expected-abstain lexical no-match recall below 95% or below legacy; candidate-only confidence
-  lower bound at or below zero; B p95 above 20 ms;
+- Recall@3 below 95%, Top-1 below 90%, MRR below 75%, or mean Precision@3 below 30%; expected-abstain lexical
+  no-match recall below 95%; paired Recall@3 uplift confidence lower bound at or below zero; B p95 above 20 ms;
+- any forbidden Top-1 or high-risk forbidden Top-3 candidate;
 - any inventory-ineligible candidate, operational failure, unresolved adjudication, invalid/conflicting outcome, or
   ownership-to-activation-to-outcome linkage gap;
 - any high-risk safety harm, missed semantic abstention, or unplanned activation after abstention.
 
-Passing file identity and metric checks is only permission to begin human review. Behavior promotion requires a
-separate reviewed change, staged rollout, and explicit rollback path.
+Passing file identity and metric checks is insufficient. Independently verified evidence is also required before human
+review eligibility. Behavior promotion still requires a separate reviewed change, staged rollout, and explicit
+rollback path.

@@ -19,6 +19,7 @@ from lazy_skill_router_core import (
     activation_for_prompt,
     dry_run_output,
     load_config,
+    prompt_is_too_long,
     route_matches_with_shadow_competition,
 )
 from lazy_skill_router_host_catalog import catalog_main
@@ -122,7 +123,7 @@ def route_prompt(args: list[str]) -> int:
     )
     parser.add_argument("--config", help="Path to a routes JSON file.")
     parser.add_argument("--inventory", help="Path to a generated skill inventory manifest.")
-    parser.add_argument("--capability-index", help="Path to a generated capability-index/v1 file.")
+    parser.add_argument("--capability-index", help="Path to a generated v1 or v2 capability index file.")
     output_group = parser.add_mutually_exclusive_group()
     output_group.add_argument("--json", action="store_true", help="Print legacy route diagnostics as JSON.")
     output_group.add_argument(
@@ -148,15 +149,15 @@ def route_prompt(args: list[str]) -> int:
     output_group.add_argument(
         "--capability-shadow-json",
         action="store_true",
-        help="Print the capability retrieval v1 shadow diagnostic.",
+        help="Print the configured capability retrieval shadow diagnostic.",
     )
     parser.add_argument("prompt", help="Prompt text to route.")
     parsed = parser.parse_args(args)
 
     config = load_config(resource_root() / "lazy_skill_router.py", parsed.config)
-    inventory = inventory_for_config(config, parsed.inventory)
+    inventory = None if prompt_is_too_long(parsed.prompt) else inventory_for_config(config, parsed.inventory)
     if parsed.capability_shadow_json:
-        from lazy_skill_router_retrieval import retrieve_capabilities
+        from lazy_skill_router_retrieval import PRODUCT_PREVIEW_ALGORITHM, retrieve_capabilities
 
         legacy_matches, _, _ = route_matches_with_shadow_competition(parsed.prompt, config, inventory)
         legacy_match = legacy_matches[0] if legacy_matches else None
@@ -168,6 +169,7 @@ def route_prompt(args: list[str]) -> int:
             force=True,
             legacy_route=legacy_match.route.name if legacy_match is not None else None,
             legacy_primary=legacy_match.route.primary if legacy_match is not None else None,
+            algorithm=PRODUCT_PREVIEW_ALGORITHM,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
@@ -200,6 +202,27 @@ def route_prompt(args: list[str]) -> int:
             print(f"Diagnostic route: {result['route']}")
         print(f"Reason: {result['reason']}")
         print(f"Answer-only: {str(result['answerOnly']).lower()}")
+        if "route" not in result and result.get("requestMode") == "action":
+            from lazy_skill_router_retrieval import PRODUCT_PREVIEW_ALGORITHM, retrieve_capabilities
+
+            preview = retrieve_capabilities(
+                parsed.prompt,
+                config,
+                inventory,
+                explicit_index=parsed.capability_index,
+                force=True,
+                algorithm=PRODUCT_PREVIEW_ALGORITHM,
+            )
+            candidates = preview.get("candidates")
+            if preview.get("status") == "matched" and isinstance(candidates, list) and candidates:
+                print()
+                print("Possible installed skill matches (preview only; not activated):")
+                for candidate in candidates:
+                    skill_ref = candidate.get("skillRef") if isinstance(candidate, dict) else None
+                    configured_name = skill_ref.get("configuredName") if isinstance(skill_ref, dict) else None
+                    if isinstance(configured_name, str):
+                        print(f"  {candidate['rank']}. {sync_skills.human_text(configured_name)}")
+                print("Lexical metadata matches only; Codex must confirm task ownership.")
         return 0
 
     supporting = result["supporting"] if isinstance(result["supporting"], list) else []

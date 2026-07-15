@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -131,6 +132,7 @@ class CliTest(unittest.TestCase):
         self.assertIn("Activation: activate (eligible)", completed.stdout)
         self.assertIn("Primary skill: github:gh-fix-ci", completed.stdout)
         self.assertIn("Confidence:", completed.stdout)
+        self.assertNotIn("Possible installed skill matches", completed.stdout)
 
     def test_cli_route_json_reuses_dry_run_diagnostics(self) -> None:
         completed = subprocess.run(
@@ -206,6 +208,62 @@ class CliTest(unittest.TestCase):
         self.assertIn("Activation: abstain (meta_context)", completed.stdout)
         self.assertIn("Diagnostic route: skill-routing", completed.stdout)
         self.assertNotIn("Primary skill:", completed.stdout)
+        self.assertNotIn("Possible installed skill matches", completed.stdout)
+
+    def test_cli_install_then_route_suggests_from_local_inventory_without_json_work(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            custom_skill = agents_home / "skills" / "diagram-maker" / "SKILL.md"
+            custom_skill.parent.mkdir(parents=True)
+            custom_skill.write_text(
+                "---\n"
+                "name: diagram-maker\n"
+                "description: Create architecture diagrams and dependency maps from repository structure.\n"
+                "---\n",
+                encoding="utf-8",
+            )
+            install_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    CLI_MODULE,
+                    "install",
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+            self.assertEqual(install_result.returncode, 0, install_result.stderr)
+
+            env = dict(os.environ, CODEX_HOME=str(codex_home))
+            suggested = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    CLI_MODULE,
+                    "route",
+                    "Create architecture diagrams and dependency maps.",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                env=env,
+            )
+
+            self.assertEqual(suggested.returncode, 0, suggested.stderr)
+            self.assertIn("No route", suggested.stdout)
+            self.assertIn("Possible installed skill matches (preview only; not activated):", suggested.stdout)
+            self.assertIn("  1. diagram-maker", suggested.stdout)
+            self.assertIn("Lexical metadata matches only", suggested.stdout)
+            self.assertNotIn("score", suggested.stdout.lower())
 
 
 if __name__ == "__main__":

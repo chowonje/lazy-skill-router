@@ -107,12 +107,31 @@ class RouteResultV2Test(unittest.TestCase):
 
     def test_v2_tie_is_deterministic_and_explicitly_ambiguous(self) -> None:
         routes = [
-            {"name": "z-route", "primary": "z-skill", "patterns": ["python"]},
-            {"name": "a-route", "primary": "a-skill", "patterns": ["python"]},
+            {
+                "id": "z-route",
+                "intent": "z-route",
+                "capabilityRequirements": {"primary": ["z-work"]},
+                "match": {"any": [{"id": "z.signal", "regex": "python"}]},
+                "lifecycle": {"state": "active"},
+            },
+            {
+                "id": "a-route",
+                "intent": "a-route",
+                "capabilityRequirements": {"primary": ["a-work"]},
+                "match": {"any": [{"id": "a.signal", "regex": "python"}]},
+                "lifecycle": {"state": "active"},
+            },
         ]
         config = {
-            "version": 1,
-            "selection": {"maxRecommendations": 3, "minScoreMargin": 0.05},
+            "schemaVersion": 2,
+            "policyVersion": "test",
+            "selection": {
+                "mode": "ranked",
+                "maxRecommendations": 3,
+                "minMatchStrength": 0.55,
+                "minScoreMargin": 0.05,
+            },
+            "skillBindings": {"z-work": "z-skill", "a-work": "a-skill"},
             "routes": routes,
         }
 

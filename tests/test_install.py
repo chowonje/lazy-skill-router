@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from install import InstallError, install_hook_command, install_stop_hook_command, smoke_config_for_prompt, smoke_hook
+from lazy_skill_router_capability_index import load_capability_index
 from lazy_skill_router_install_manifest import build_install_manifest
 from lazy_skill_router_inventory import load_inventory_manifest
 
@@ -210,6 +211,13 @@ class InstallTest(unittest.TestCase):
             self.assertEqual(manifest.state, "available")
             self.assertEqual(manifest.match_count("personal-skill-router"), 1)
             self.assertIn("write skill inventory manifest", completed.stdout)
+
+            index_path = codex_home / "lazy-skill-router" / "capability-index.json"
+            index = load_capability_index(index_path)
+            self.assertEqual(index.state, "available")
+            self.assertEqual(index.inventory_revision, manifest.revision)
+            self.assertEqual(len(index.entries), 1)
+            self.assertIn("write capability index", completed.stdout)
 
             hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
             hook_command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
@@ -700,7 +708,9 @@ class InstallTest(unittest.TestCase):
             self.assertIn('+    "UserPromptSubmit": [', completed.stdout)
             self.assertIn("lazy_skill_router.py", completed.stdout)
             self.assertIn('+            "command": "python3 ', completed.stdout)
+            self.assertIn("write capability index", completed.stdout)
             self.assertFalse((codex_home / "hooks.json").exists())
+            self.assertFalse((codex_home / "lazy-skill-router" / "capability-index.json").exists())
 
     def test_doctor_reports_installed_hook_health(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -746,7 +756,7 @@ class InstallTest(unittest.TestCase):
             self.assertIn("[OK] skill inventory manifest validates", doctor.stdout)
             self.assertIn("[OK] skill inventory freshness checked", doctor.stdout)
 
-    def test_doctor_warns_when_inventory_is_stale_after_a_skill_is_added(self) -> None:
+    def test_doctor_fails_when_inventory_is_stale_after_a_skill_is_added(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             codex_home = root / "codex"
@@ -757,9 +767,25 @@ class InstallTest(unittest.TestCase):
 
             doctor = run_doctor(codex_home, agents_home)
 
-        self.assertEqual(doctor.returncode, 0, doctor.stderr)
-        self.assertIn("[WARN] skill inventory freshness checked: 1 added, 0 removed, 0 changed", doctor.stdout)
+        self.assertEqual(doctor.returncode, 1, doctor.stderr)
+        self.assertIn("[FAIL] skill inventory freshness checked: 1 added, 0 removed, 0 changed", doctor.stdout)
         self.assertIn("run lazy-skill-router sync --plan", doctor.stdout)
+
+    def test_doctor_fails_when_capability_index_is_missing_even_with_retrieval_off(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            install = run_install(codex_home, agents_home)
+            self.assertEqual(install.returncode, 0, install.stderr)
+            index_path = codex_home / "lazy-skill-router" / "capability-index.json"
+            index_path.unlink()
+
+            doctor = run_doctor(codex_home, agents_home)
+
+        self.assertEqual(doctor.returncode, 1, doctor.stderr)
+        self.assertIn("[FAIL] capability index validates: capability_index_missing", doctor.stdout)
+        self.assertIn("[FAIL] install ownership manifest validates: generated artifact drift", doctor.stdout)
 
     def test_doctor_fails_when_inventory_manifest_revision_is_tampered(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -815,7 +841,8 @@ class InstallTest(unittest.TestCase):
                 text=True,
             )
 
-            self.assertEqual(doctor.returncode, 0, doctor.stderr)
+            self.assertEqual(doctor.returncode, 1, doctor.stderr)
+            self.assertIn("[FAIL] skill inventory freshness checked", doctor.stdout)
             self.assertIn("[WARN] skill sync checked: 1 duplicate skill name", doctor.stdout)
             self.assertIn("not an install failure", doctor.stdout)
             self.assertIn("examples: personal-skill-router (2 copies:", doctor.stdout)

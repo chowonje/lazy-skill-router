@@ -15,10 +15,19 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Final
 
-from lazy_skill_router_capability_index import CapabilityIndexSnapshot, load_capability_index
+from lazy_skill_router_capability_index import (
+    CAPABILITY_INDEX_SCHEMA_V1,
+    CAPABILITY_INDEX_SCHEMA_V2,
+    CapabilityIndexSnapshot,
+    load_capability_index,
+)
 from lazy_skill_router_core import activation_for_prompt
 from lazy_skill_router_inventory import InventorySnapshot, load_inventory_manifest
-from lazy_skill_router_retrieval import RETRIEVAL_ALGORITHM, retrieve_capabilities
+from lazy_skill_router_retrieval import (
+    RETRIEVAL_ALGORITHM,
+    SUPPORTED_RETRIEVAL_ALGORITHMS,
+    retrieve_capabilities,
+)
 from release_checksums import safe_manifest_path
 
 EXPERIMENT_MANIFEST_SCHEMA: Final = "lazy-skill-router.router-ab-manifest/v1"
@@ -29,7 +38,7 @@ CONTENT_REVISION_RE: Final = re.compile(r"^sha256:[0-9a-f]{64}$")
 TOP_K: Final = 3
 MANIFEST_REQUIRED_FIELDS: Final = frozenset({"schema", "frozen", "cases"})
 MANIFEST_FIELDS: Final = MANIFEST_REQUIRED_FIELDS | {"evidence"}
-FROZEN_FIELDS: Final = frozenset(
+FROZEN_REQUIRED_FIELDS: Final = frozenset(
     {
         "configRevision",
         "inventoryRevision",
@@ -39,6 +48,7 @@ FROZEN_FIELDS: Final = frozenset(
         "maxCandidates",
     }
 )
+FROZEN_FIELDS: Final = FROZEN_REQUIRED_FIELDS | {"indexSchema"}
 CASE_FIELDS: Final = frozenset({"id", "category", "language", "risk", "prompt", "gold"})
 GOLD_FIELDS: Final = frozenset({"primary", "acceptableCandidates", "expectedAbstain", "forbiddenCandidates"})
 EVIDENCE_REQUIRED_FIELDS: Final = frozenset(
@@ -67,15 +77,21 @@ CORPUS_PROVENANCE: Final = frozenset({"unspecified", "synthetic-calibration", "i
 METADATA_PROVENANCE: Final = frozenset(
     {"unspecified", "active-catalog", "corpus-informed-calibration", "independent-catalog"}
 )
+RISK_LEVELS: Final = frozenset({"low", "medium", "high"})
 PROMOTION_POLICY: Final = {
     "minCandidateRecallAt3": 0.95,
-    "minExpectedAbstainNoMatchRecall": 0.95,
-    "maxExpectedAbstainNoMatchRegression": 0.0,
-    "candidateOnlyCiLowerBoundExclusive": 0.0,
+    "minCandidateTop1": 0.90,
+    "minCandidateMrr": 0.75,
+    "minCandidateMeanPrecisionAt3": 0.30,
+    "minExpectedAbstainLexicalNoMatchRecall": 0.95,
+    "maxForbiddenTop1Hits": 0,
+    "maxHighRiskForbiddenTop3Hits": 0,
+    "candidateRecallAt3CiLowerBoundExclusive": 0.0,
     "maxCandidateP95LatencyMs": 20.0,
     "maxInventoryIneligibleHits": 0,
     "maxOperationalFailures": 0,
     "requiresArtifactVerification": True,
+    "requiresIndependenceVerification": True,
 }
 VOLATILE_CONFIG_FIELDS: Final = frozenset({"_loaded_from", "_config_trust"})
 EXPERIMENT_CODE_FILES: Final = (
@@ -102,6 +118,7 @@ class FrozenInputs:
     retrieval_algorithm: str
     experiment_code_revision: str
     max_candidates: int
+    index_schema: str = CAPABILITY_INDEX_SCHEMA_V1
 
 
 @dataclass(frozen=True)
@@ -259,10 +276,13 @@ def require_string_list(value: Any, location: str, *, allow_empty: bool) -> tupl
 
 def parse_frozen(value: Any) -> FrozenInputs:
     raw = require_object(value, "frozen")
-    require_exact_fields(raw, FROZEN_FIELDS, "frozen")
+    require_fields(raw, required=FROZEN_REQUIRED_FIELDS, allowed=FROZEN_FIELDS, location="frozen")
     max_candidates = raw["maxCandidates"]
     if isinstance(max_candidates, bool) or max_candidates != TOP_K:
         raise ValueError(f"frozen.maxCandidates must be {TOP_K}")
+    index_schema = raw.get("indexSchema", CAPABILITY_INDEX_SCHEMA_V1)
+    if index_schema not in {CAPABILITY_INDEX_SCHEMA_V1, CAPABILITY_INDEX_SCHEMA_V2}:
+        raise ValueError("frozen.indexSchema is unsupported")
     return FrozenInputs(
         require_string(raw["configRevision"], "frozen.configRevision"),
         require_string(raw["inventoryRevision"], "frozen.inventoryRevision"),
@@ -270,6 +290,7 @@ def parse_frozen(value: Any) -> FrozenInputs:
         require_string(raw["retrievalAlgorithm"], "frozen.retrievalAlgorithm"),
         require_string(raw["experimentCodeRevision"], "frozen.experimentCodeRevision"),
         max_candidates,
+        index_schema,
     )
 
 
@@ -305,11 +326,14 @@ def parse_case(value: Any, offset: int) -> ABCase:
     location = f"cases[{offset}]"
     raw = require_object(value, location)
     require_exact_fields(raw, CASE_FIELDS, location)
+    risk = require_string(raw["risk"], f"{location}.risk")
+    if risk not in RISK_LEVELS:
+        raise ValueError(f"{location}.risk is unsupported")
     return ABCase(
         require_string(raw["id"], f"{location}.id"),
         require_string(raw["category"], f"{location}.category"),
         require_string(raw["language"], f"{location}.language"),
-        require_string(raw["risk"], f"{location}.risk"),
+        risk,
         require_string(raw["prompt"], f"{location}.prompt"),
         parse_gold(raw["gold"], f"{location}.gold"),
     )
@@ -408,7 +432,7 @@ def verify_inputs(
     if inventory.state != "available" or not inventory.revision:
         reasons = ", ".join(inventory.reason_codes) or inventory.state
         raise ValueError(f"skill inventory is unavailable: {reasons}")
-    index = load_capability_index(index_path)
+    index = load_capability_index(index_path, frozen_replay=True)
     if index.state != "available" or not index.revision:
         reasons = ", ".join(index.reason_codes) or index.state
         raise ValueError(f"capability index is unavailable: {reasons}")
@@ -419,14 +443,20 @@ def verify_inputs(
         config_revision(config),
         inventory.revision,
         index.revision,
-        RETRIEVAL_ALGORITHM,
+        (
+            frozen.retrieval_algorithm
+            if frozen.retrieval_algorithm in SUPPORTED_RETRIEVAL_ALGORITHMS
+            else RETRIEVAL_ALGORITHM
+        ),
         experiment_code_revision(),
         TOP_K,
+        index.schema or CAPABILITY_INDEX_SCHEMA_V1,
     )
     labels = (
         ("configRevision", frozen.config_revision, actual.config_revision),
         ("inventoryRevision", frozen.inventory_revision, actual.inventory_revision),
         ("indexRevision", frozen.index_revision, actual.index_revision),
+        ("indexSchema", frozen.index_schema, actual.index_schema),
         ("retrievalAlgorithm", frozen.retrieval_algorithm, actual.retrieval_algorithm),
         ("experimentCodeRevision", frozen.experiment_code_revision, actual.experiment_code_revision),
         ("maxCandidates", frozen.max_candidates, actual.max_candidates),
@@ -456,15 +486,22 @@ def retrieval_outcome(
     config: dict[str, Any],
     inventory: InventorySnapshot,
     index_path: Path,
+    retrieval_algorithm: str,
 ) -> SystemOutcome:
     retrieval_config = dict(config)
-    retrieval_config["capabilityRetrieval"] = {"mode": "shadow", "maxCandidates": TOP_K}
+    retrieval_config["capabilityRetrieval"] = {
+        "mode": "shadow",
+        "maxCandidates": TOP_K,
+        "algorithm": retrieval_algorithm,
+    }
     result = retrieve_capabilities(
         prompt,
         retrieval_config,
         inventory,
         explicit_index=str(index_path),
         force=True,
+        algorithm=retrieval_algorithm,
+        frozen_replay=True,
     )
     names: list[str] = []
     candidates = result.get("candidates")
@@ -477,7 +514,7 @@ def retrieval_outcome(
     status = str(result.get("status", "invalid"))
     return SystemOutcome(
         tuple(names),
-        not names,
+        False,
         status,
         operational_failure=status not in {"matched", "no-match"},
     )
@@ -501,7 +538,13 @@ def evaluate_case(
         return legacy_outcome(case.prompt, inputs.config, inputs.inventory)
 
     def retrieval_call() -> SystemOutcome:
-        return retrieval_outcome(case.prompt, inputs.config, inputs.inventory, inputs.index_path)
+        return retrieval_outcome(
+            case.prompt,
+            inputs.config,
+            inputs.inventory,
+            inputs.index_path,
+            inputs.frozen.retrieval_algorithm,
+        )
 
     try:
         if retrieval_first:
@@ -626,8 +669,19 @@ def system_summary(
     all_conflicts = [
         labelled_conflict_hits(evaluation.case, outcome) for evaluation, outcome in zip(evaluations, outcomes)
     ]
+    high_risk_conflicts = [
+        hits for evaluation, hits in zip(evaluations, all_conflicts) if evaluation.case.risk == "high"
+    ]
     all_ineligible = [inventory_ineligible_hits(outcome, inventory) for outcome in outcomes]
-    top1_conflicts = sum(bool(hits) and outcome.top1 == hits[0] for hits, outcome in zip(all_conflicts, outcomes))
+    top1_conflicts = sum(
+        outcome.top1 is not None and outcome.top1 in evaluation.case.gold.forbidden_candidates
+        for evaluation, outcome in zip(evaluations, outcomes)
+    )
+    lexical_no_matches = [outcome.status == "no-match" for outcome in outcomes]
+    expected_lexical_no_match = [evaluation.case.gold.expected_abstain for evaluation in evaluations]
+    correct_lexical_no_match = sum(
+        expected and observed for expected, observed in zip(expected_lexical_no_match, lexical_no_matches)
+    )
     statuses = Counter(outcome.status for outcome in outcomes)
     return {
         "top1Accuracy": {"correct": correct, "total": len(evaluations), "rate": ratio(correct, len(evaluations))},
@@ -645,6 +699,12 @@ def system_summary(
             "precision": ratio(true_abstain, actual_abstain),
             "recall": ratio(true_abstain, expected_abstain),
         },
+        "expectedAbstainLexicalNoMatch": {
+            "expected": expected_abstain,
+            "actual": sum(lexical_no_matches),
+            "correct": correct_lexical_no_match,
+            "recall": ratio(correct_lexical_no_match, expected_abstain),
+        },
         "recallAt3": {"eligibleCases": len(ranking), "mean": mean(values[0] for values in ranking)},
         "mrr": {"eligibleCases": len(ranking), "mean": mean(values[1] for values in ranking)},
         "precisionAt3": {"eligibleCases": len(ranking), "mean": mean(values[2] for values in ranking)},
@@ -652,6 +712,8 @@ def system_summary(
             "top1Hits": top1_conflicts,
             "topKHits": sum(len(hits) for hits in all_conflicts),
             "topKAffectedCases": sum(bool(hits) for hits in all_conflicts),
+            "highRiskTopKHits": sum(len(hits) for hits in high_risk_conflicts),
+            "highRiskTopKAffectedCases": sum(bool(hits) for hits in high_risk_conflicts),
         },
         "inventoryIneligibleCandidates": {
             "hits": sum(len(hits) for hits in all_ineligible),
@@ -709,6 +771,28 @@ def paired_statistics(evaluations: tuple[CaseEvaluation, ...]) -> dict[str, Any]
     }
 
 
+def paired_recall_at_3_statistics(evaluations: tuple[CaseEvaluation, ...]) -> dict[str, Any]:
+    deltas: list[float] = []
+    for evaluation in evaluations:
+        legacy_values = ranking_values(evaluation.case, evaluation.legacy)
+        retrieval_values = ranking_values(evaluation.case, evaluation.retrieval)
+        if legacy_values is None or retrieval_values is None:
+            continue
+        deltas.append(retrieval_values[0] - legacy_values[0])
+    mean_uplift = sum(deltas) / len(deltas) if deltas else 0.0
+    if len(deltas) > 1:
+        variance = sum((delta - mean_uplift) ** 2 for delta in deltas) / (len(deltas) - 1)
+        margin = 1.959963984540054 * math.sqrt(variance / len(deltas))
+        normal_ci = [round(mean_uplift - margin, 6), round(mean_uplift + margin, 6)]
+    else:
+        normal_ci = None
+    return {
+        "pairs": len(deltas),
+        "meanUplift": round(mean_uplift, 6),
+        "pairedNormalApprox95Ci": normal_ci,
+    }
+
+
 def grouped_summaries(
     evaluations: tuple[CaseEvaluation, ...],
     field: str,
@@ -717,15 +801,16 @@ def grouped_summaries(
     grouped: dict[str, list[CaseEvaluation]] = {}
     for evaluation in evaluations:
         grouped.setdefault(str(getattr(evaluation.case, field)), []).append(evaluation)
-    return {
-        name: {
+    summaries: dict[str, Any] = {}
+    for name, group in sorted(grouped.items()):
+        candidate_only = tuple(evaluation for evaluation in group if not evaluation.case.gold.expected_abstain)
+        summaries[name] = {
             "total": len(group),
             "a": system_summary(tuple(group), "legacy", inventory),
             "b": system_summary(tuple(group), "retrieval", inventory),
-            "comparison": comparison_summary(tuple(group)),
+            "comparison": comparison_summary(candidate_only),
         }
-        for name, group in sorted(grouped.items())
-    }
+    return summaries
 
 
 def frozen_payload(frozen: FrozenInputs) -> dict[str, Any]:
@@ -733,6 +818,7 @@ def frozen_payload(frozen: FrozenInputs) -> dict[str, Any]:
         "configRevision": frozen.config_revision,
         "inventoryRevision": frozen.inventory_revision,
         "indexRevision": frozen.index_revision,
+        "indexSchema": frozen.index_schema,
         "retrievalAlgorithm": frozen.retrieval_algorithm,
         "experimentCodeRevision": frozen.experiment_code_revision,
         "maxCandidates": frozen.max_candidates,
@@ -1039,13 +1125,18 @@ def promotion_gate_v1(
 ) -> dict[str, Any]:
     evidence = manifest.evidence
     artifact_verification = verify_evidence_artifacts(evidence, artifact_root)
+    independence_verified = artifact_verification.get("provesIndependence") is True
     privacy = privacy_verification(report, manifest)
     candidate_recall = report["b"]["recallAt3"]["mean"]
-    a_abstention = report.get("a", {}).get("abstention", {})
-    b_abstention = report.get("b", {}).get("abstention", {})
-    a_expected_abstain_recall = a_abstention.get("recall") if isinstance(a_abstention, dict) else None
-    b_expected_abstain_recall = b_abstention.get("recall") if isinstance(b_abstention, dict) else None
-    ci = report["candidateOnlyPairedStatistics"]["pairedNormalApprox95Ci"]
+    candidate_top1 = report.get("b", {}).get("candidateTop1Accuracy", {}).get("rate")
+    candidate_mrr = report.get("b", {}).get("mrr", {}).get("mean")
+    candidate_precision_at_3 = report.get("b", {}).get("precisionAt3", {}).get("mean")
+    expected_abstain_lexical_no_match = report.get("b", {}).get("expectedAbstainLexicalNoMatch", {}).get("recall")
+    conflicts = report.get("b", {}).get("labelledCandidateConflicts", {})
+    forbidden_top1_hits = conflicts.get("top1Hits") if isinstance(conflicts, dict) else None
+    high_risk_forbidden_top_3_hits = conflicts.get("highRiskTopKHits") if isinstance(conflicts, dict) else None
+    recall_statistics = report.get("candidateRecallAt3PairedStatistics", {})
+    ci = recall_statistics.get("pairedNormalApprox95Ci") if isinstance(recall_statistics, dict) else None
     ci_valid = (
         isinstance(ci, list)
         and len(ci) == 2
@@ -1062,8 +1153,12 @@ def promotion_gate_v1(
         blockers.append("evidence_artifact_verifier_unavailable")
     elif artifact_verification["status"] != "passed":
         blockers.append("evidence_artifact_verification_failed")
+    if not independence_verified:
+        blockers.append("independent_evidence_unverified")
     if evidence.metadata_provenance == "corpus-informed-calibration":
         blockers.append("metadata_corpus_informed")
+    elif evidence.metadata_provenance != "independent-catalog":
+        blockers.append("independent_metadata_missing")
     if evidence.corpus_provenance != "independent-holdout" or not is_content_revision(
         evidence.independent_holdout_revision
     ):
@@ -1083,20 +1178,40 @@ def promotion_gate_v1(
         blockers.append("candidate_recall_missing")
     elif candidate_recall < PROMOTION_POLICY["minCandidateRecallAt3"]:
         blockers.append("candidate_recall_below_minimum")
-    expected_abstain_recalls_available = all(
-        is_finite_metric(value, minimum=0.0, maximum=1.0)
-        for value in (a_expected_abstain_recall, b_expected_abstain_recall)
+    candidate_top1_valid = is_finite_metric(candidate_top1, minimum=0.0, maximum=1.0)
+    if not candidate_top1_valid:
+        blockers.append("candidate_top1_missing")
+    elif candidate_top1 < PROMOTION_POLICY["minCandidateTop1"]:
+        blockers.append("candidate_top1_below_minimum")
+    candidate_mrr_valid = is_finite_metric(candidate_mrr, minimum=0.0, maximum=1.0)
+    if not candidate_mrr_valid:
+        blockers.append("candidate_mrr_missing")
+    elif candidate_mrr < PROMOTION_POLICY["minCandidateMrr"]:
+        blockers.append("candidate_mrr_below_minimum")
+    candidate_precision_valid = is_finite_metric(candidate_precision_at_3, minimum=0.0, maximum=1.0)
+    if not candidate_precision_valid:
+        blockers.append("candidate_precision_at_3_missing")
+    elif candidate_precision_at_3 < PROMOTION_POLICY["minCandidateMeanPrecisionAt3"]:
+        blockers.append("candidate_precision_at_3_below_minimum")
+    lexical_no_match_valid = is_finite_metric(
+        expected_abstain_lexical_no_match,
+        minimum=0.0,
+        maximum=1.0,
     )
-    if not expected_abstain_recalls_available:
-        blockers.append("expected_abstain_no_match_recall_missing")
-    else:
-        if b_expected_abstain_recall < PROMOTION_POLICY["minExpectedAbstainNoMatchRecall"]:
-            blockers.append("expected_abstain_no_match_recall_below_minimum")
-        if (
-            a_expected_abstain_recall - b_expected_abstain_recall
-            > PROMOTION_POLICY["maxExpectedAbstainNoMatchRegression"]
-        ):
-            blockers.append("expected_abstain_no_match_regressed")
+    if not lexical_no_match_valid:
+        blockers.append("expected_abstain_lexical_no_match_missing")
+    elif expected_abstain_lexical_no_match < PROMOTION_POLICY["minExpectedAbstainLexicalNoMatchRecall"]:
+        blockers.append("expected_abstain_lexical_no_match_below_minimum")
+    forbidden_top1_valid = is_nonnegative_count(forbidden_top1_hits)
+    if not forbidden_top1_valid:
+        blockers.append("forbidden_top1_count_missing")
+    elif forbidden_top1_hits > PROMOTION_POLICY["maxForbiddenTop1Hits"]:
+        blockers.append("forbidden_top1_candidate")
+    high_risk_forbidden_valid = is_nonnegative_count(high_risk_forbidden_top_3_hits)
+    if not high_risk_forbidden_valid:
+        blockers.append("high_risk_forbidden_top3_count_missing")
+    elif high_risk_forbidden_top_3_hits > PROMOTION_POLICY["maxHighRiskForbiddenTop3Hits"]:
+        blockers.append("high_risk_forbidden_top3_candidate")
     ineligible_hits_valid = is_nonnegative_count(ineligible_hits)
     if not ineligible_hits_valid:
         blockers.append("inventory_eligibility_missing")
@@ -1108,9 +1223,9 @@ def promotion_gate_v1(
     elif operational_failures > PROMOTION_POLICY["maxOperationalFailures"]:
         blockers.append("operational_failure")
     if not ci_valid:
-        blockers.append("candidate_only_ci_missing")
-    elif ci_lower <= PROMOTION_POLICY["candidateOnlyCiLowerBoundExclusive"]:
-        blockers.append("candidate_only_ci_nonpositive")
+        blockers.append("candidate_recall_at_3_ci_missing")
+    elif ci_lower <= PROMOTION_POLICY["candidateRecallAt3CiLowerBoundExclusive"]:
+        blockers.append("candidate_recall_at_3_ci_nonpositive")
     p95_latency_valid = is_finite_metric(p95_latency_ms, minimum=0.0)
     if not p95_latency_valid:
         blockers.append("latency_budget_missing")
@@ -1119,18 +1234,40 @@ def promotion_gate_v1(
 
     checks = {
         "artifactEvidence": "passed" if artifact_verification["status"] == "passed" else "blocked",
+        "independentEvidence": "passed" if independence_verified else "blocked",
         "privacy": privacy["status"],
         "candidateRecallAt3": (
             "passed"
             if candidate_recall_valid and candidate_recall >= PROMOTION_POLICY["minCandidateRecallAt3"]
             else "blocked"
         ),
-        "expectedAbstainNoMatchRecall": (
+        "candidateTop1": (
+            "passed" if candidate_top1_valid and candidate_top1 >= PROMOTION_POLICY["minCandidateTop1"] else "blocked"
+        ),
+        "candidateMrr": (
+            "passed" if candidate_mrr_valid and candidate_mrr >= PROMOTION_POLICY["minCandidateMrr"] else "blocked"
+        ),
+        "candidatePrecisionAt3": (
             "passed"
-            if expected_abstain_recalls_available
-            and b_expected_abstain_recall >= PROMOTION_POLICY["minExpectedAbstainNoMatchRecall"]
-            and a_expected_abstain_recall - b_expected_abstain_recall
-            <= PROMOTION_POLICY["maxExpectedAbstainNoMatchRegression"]
+            if candidate_precision_valid
+            and candidate_precision_at_3 >= PROMOTION_POLICY["minCandidateMeanPrecisionAt3"]
+            else "blocked"
+        ),
+        "expectedAbstainLexicalNoMatch": (
+            "passed"
+            if lexical_no_match_valid
+            and expected_abstain_lexical_no_match >= PROMOTION_POLICY["minExpectedAbstainLexicalNoMatchRecall"]
+            else "blocked"
+        ),
+        "forbiddenTop1": (
+            "passed"
+            if forbidden_top1_valid and forbidden_top1_hits <= PROMOTION_POLICY["maxForbiddenTop1Hits"]
+            else "blocked"
+        ),
+        "highRiskForbiddenTop3": (
+            "passed"
+            if high_risk_forbidden_valid
+            and high_risk_forbidden_top_3_hits <= PROMOTION_POLICY["maxHighRiskForbiddenTop3Hits"]
             else "blocked"
         ),
         "inventoryEligibility": (
@@ -1143,8 +1280,10 @@ def promotion_gate_v1(
             if operational_failures_valid and operational_failures <= PROMOTION_POLICY["maxOperationalFailures"]
             else "blocked"
         ),
-        "candidateOnlyCi": (
-            "passed" if ci_valid and ci_lower > PROMOTION_POLICY["candidateOnlyCiLowerBoundExclusive"] else "blocked"
+        "candidateRecallAt3Ci": (
+            "passed"
+            if ci_valid and ci_lower > PROMOTION_POLICY["candidateRecallAt3CiLowerBoundExclusive"]
+            else "blocked"
         ),
         "latencyBudget": (
             "passed"
@@ -1183,13 +1322,18 @@ def promotion_gate_v1(
         "checks": checks,
         "observed": {
             "candidateRecallAt3": candidate_recall,
-            "aExpectedAbstainNoMatchRecall": a_expected_abstain_recall,
-            "bExpectedAbstainNoMatchRecall": b_expected_abstain_recall,
-            "candidateOnlyCiLowerBound": ci_lower,
+            "candidateTop1": candidate_top1,
+            "candidateMrr": candidate_mrr,
+            "candidatePrecisionAt3": candidate_precision_at_3,
+            "expectedAbstainLexicalNoMatchRecall": expected_abstain_lexical_no_match,
+            "forbiddenTop1Hits": forbidden_top1_hits,
+            "highRiskForbiddenTop3Hits": high_risk_forbidden_top_3_hits,
+            "candidateRecallAt3CiLowerBound": ci_lower,
             "inventoryIneligibleHits": ineligible_hits,
             "operationalFailures": operational_failures,
             "candidateP95LatencyMs": p95_latency_ms,
             "privacyVerification": privacy,
+            "independenceVerified": independence_verified,
         },
         "blockers": blockers,
     }
@@ -1241,6 +1385,7 @@ def report_payload(
             "executionOrder": "alternating-ab-ba",
             "topK": TOP_K,
             "rankingMetricsExcludeGoldAbstainCases": True,
+            "pairedComparisonsExcludeGoldAbstainCases": True,
             "precisionDenominator": "returned-candidates-up-to-top-k",
             "variantBProducesCandidatesNotFinalOwnership": True,
             "retrievalNoMatchIsNotSemanticAbstention": True,
@@ -1257,10 +1402,11 @@ def report_payload(
             **system_summary(evaluations, "retrieval", inputs.inventory),
             "latency": latency_summary(evaluations, "retrieval"),
         },
-        "comparison": comparison_summary(evaluations),
-        "pairedStatistics": paired_statistics(evaluations),
+        "comparison": comparison_summary(candidate_only),
+        "pairedStatistics": paired_statistics(candidate_only),
         "candidateOnlyComparison": comparison_summary(candidate_only),
         "candidateOnlyPairedStatistics": paired_statistics(candidate_only),
+        "candidateRecallAt3PairedStatistics": paired_recall_at_3_statistics(candidate_only),
         "slices": {
             "category": grouped_summaries(evaluations, "category", inputs.inventory),
             "language": grouped_summaries(evaluations, "language", inputs.inventory),
@@ -1295,12 +1441,14 @@ def print_text_report(report: dict[str, Any]) -> None:
     print(f"Frozen index: {report['frozenInputs']['indexRevision']}")
     for label in ("a", "b"):
         system = report[label]
-        top1 = system["top1Accuracy"]
+        top1 = system["candidateTop1Accuracy"]
         latency = system["latency"]
+        lexical_no_match = system["expectedAbstainLexicalNoMatch"]
         print(
-            f"{label.upper()} top1: {top1['correct']}/{top1['total']} ({top1['rate']}); "
+            f"{label.upper()} candidate top1: {top1['correct']}/{top1['total']} ({top1['rate']}); "
             f"Recall@3: {system['recallAt3']['mean']}; MRR: {system['mrr']['mean']}; "
             f"Precision@3: {system['precisionAt3']['mean']}; "
+            f"expected-abstain lexical no-match: {lexical_no_match['recall']}; "
             f"p95: {latency['p95Ms']} ms; "
             f"labelled conflicts Top1/TopK: "
             f"{system['labelledCandidateConflicts']['top1Hits']}/"

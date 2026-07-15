@@ -14,7 +14,11 @@ from unittest import mock
 
 import eval_router_ab
 import materialize_router_ab_manifest
-from lazy_skill_router_capability_index import build_capability_index
+from lazy_skill_router_capability_index import (
+    CAPABILITY_INDEX_SCHEMA_V1,
+    CAPABILITY_INDEX_SCHEMA_V2,
+    build_capability_index,
+)
 from lazy_skill_router_inventory import INVENTORY_SCHEMA, inventory_revision
 from release_checksums import digest_file
 
@@ -48,7 +52,11 @@ def write_experiment_inputs(root: Path) -> tuple[Path, Path, Path, dict[str, obj
     inventory_path.write_text(json.dumps(inventory_payload), encoding="utf-8")
     inventory = eval_router_ab.load_inventory_manifest(inventory_path)
 
-    index_payload = build_capability_index(inventory, generated_at="2026-07-13T00:00:00Z")
+    index_payload = build_capability_index(
+        inventory,
+        generated_at="2026-07-13T00:00:00Z",
+        schema=CAPABILITY_INDEX_SCHEMA_V1,
+    )
     index_path = root / "capability-index.json"
     index_path.write_text(json.dumps(index_payload), encoding="utf-8")
 
@@ -115,12 +123,24 @@ def perfect_gate_report() -> dict[str, object]:
         "a": {"abstention": {"recall": 1.0}},
         "b": {
             "recallAt3": {"mean": 0.95},
+            "candidateTop1Accuracy": {"rate": 0.90},
+            "mrr": {"mean": 0.75},
+            "precisionAt3": {"mean": 0.30},
             "abstention": {"recall": 1.0},
+            "expectedAbstainLexicalNoMatch": {"recall": 0.95},
+            "labelledCandidateConflicts": {
+                "top1Hits": 0,
+                "topKHits": 0,
+                "topKAffectedCases": 0,
+                "highRiskTopKHits": 0,
+                "highRiskTopKAffectedCases": 0,
+            },
             "inventoryIneligibleCandidates": {"hits": 0},
             "operationalFailures": 0,
             "latency": {"p95Ms": 20.0},
         },
         "candidateOnlyPairedStatistics": {"pairedNormalApprox95Ci": [0.000001, 0.2]},
+        "candidateRecallAt3PairedStatistics": {"pairedNormalApprox95Ci": [0.000001, 0.2]},
         "cases": [{"id": "holdout-1"}],
     }
 
@@ -153,6 +173,176 @@ class StepClock:
 
 
 class RouterABEvalTest(unittest.TestCase):
+    def test_missing_frozen_index_schema_replays_v1(self) -> None:
+        parsed = eval_router_ab.parse_manifest(
+            manifest(
+                {
+                    "configRevision": "cfg",
+                    "inventoryRevision": "inv",
+                    "indexRevision": "idx",
+                    "retrievalAlgorithm": "lexical-bm25-char3/v1",
+                    "experimentCodeRevision": "code",
+                    "maxCandidates": 3,
+                },
+                "Private replay prompt",
+            )
+        )
+
+        self.assertEqual(parsed.frozen.index_schema, CAPABILITY_INDEX_SCHEMA_V1)
+        self.assertEqual(eval_router_ab.frozen_payload(parsed.frozen)["indexSchema"], CAPABILITY_INDEX_SCHEMA_V1)
+
+    def test_manifest_rejects_unknown_risk_before_safety_slicing(self) -> None:
+        raw = manifest(
+            {
+                "configRevision": "cfg",
+                "inventoryRevision": "inv",
+                "indexRevision": "idx",
+                "retrievalAlgorithm": "lexical-bm25-char3/v1",
+                "experimentCodeRevision": "code",
+                "maxCandidates": 3,
+            },
+            "Private risk prompt",
+        )
+        raw["cases"][0]["risk"] = "critical"  # type: ignore[index]
+
+        with self.assertRaisesRegex(ValueError, "risk.*unsupported"):
+            eval_router_ab.parse_manifest(raw)
+
+    def test_high_risk_rank_two_forbidden_candidate_blocks_gate(self) -> None:
+        case = eval_router_ab.ABCase(
+            "high-risk-rank-two",
+            "security",
+            "en",
+            "high",
+            "Private high-risk prompt",
+            eval_router_ab.GoldLabel("safe", ("safe",), False, ("forbidden",)),
+        )
+        evaluations = (
+            eval_router_ab.CaseEvaluation(
+                case,
+                eval_router_ab.SystemOutcome(("safe",), False, "activate"),
+                eval_router_ab.SystemOutcome(("safe", "forbidden"), False, "matched"),
+            ),
+        )
+        inventory = eval_router_ab.InventorySnapshot(
+            "available",
+            "inv",
+            (skill("safe", "Safe skill"), skill("forbidden", "Forbidden skill")),
+        )
+
+        summary = eval_router_ab.system_summary(evaluations, "retrieval", inventory)
+
+        self.assertEqual(summary["labelledCandidateConflicts"]["top1Hits"], 0)
+        self.assertEqual(summary["labelledCandidateConflicts"]["highRiskTopKHits"], 1)
+
+    def test_promotion_gate_enforces_full_candidate_safety_policy(self) -> None:
+        case = eval_router_ab.ABCase(
+            "holdout-1",
+            "review",
+            "en",
+            "high",
+            "Independent holdout prompt",
+            eval_router_ab.GoldLabel("reviewer", ("reviewer",), False, ("forbidden",)),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            experiment = eval_router_ab.ExperimentManifest(
+                eval_router_ab.FrozenInputs("cfg", "inv", "idx", "algo", "code", 3),
+                (case,),
+                "sha256:manifest",
+                write_evidence_artifacts(root),
+            )
+            report = perfect_gate_report()
+            report["b"].update(  # type: ignore[union-attr]
+                {
+                    "candidateTop1Accuracy": {"rate": 0.899999},
+                    "mrr": {"mean": 0.749999},
+                    "precisionAt3": {"mean": 0.299999},
+                    "expectedAbstainLexicalNoMatch": {"recall": 0.949999},
+                    "labelledCandidateConflicts": {
+                        "top1Hits": 1,
+                        "topKHits": 2,
+                        "topKAffectedCases": 1,
+                        "highRiskTopKHits": 1,
+                        "highRiskTopKAffectedCases": 1,
+                    },
+                }
+            )
+            report["candidateRecallAt3PairedStatistics"] = {"pairedNormalApprox95Ci": [0.0, 0.2]}
+
+            gate = eval_router_ab.promotion_gate_v1(report, experiment, artifact_root=root)
+
+        self.assertEqual(gate["status"], "blocked")
+        self.assertEqual(
+            {
+                "candidate_top1_below_minimum",
+                "candidate_mrr_below_minimum",
+                "candidate_precision_at_3_below_minimum",
+                "expected_abstain_lexical_no_match_below_minimum",
+                "forbidden_top1_candidate",
+                "high_risk_forbidden_top3_candidate",
+                "candidate_recall_at_3_ci_nonpositive",
+            }
+            - set(gate["blockers"]),
+            set(),
+        )
+        self.assertNotIn("expected_abstain_no_match_regressed", gate["blockers"])
+        self.assertFalse(gate["autoPromote"])
+        self.assertEqual(gate["authority"], "none")
+
+    def test_lexical_no_match_is_not_semantic_abstention(self) -> None:
+        case = eval_router_ab.ABCase(
+            "no-match",
+            "none",
+            "en",
+            "low",
+            "Private no-match prompt",
+            eval_router_ab.GoldLabel(None, (), True, ()),
+        )
+        evaluations = (
+            eval_router_ab.CaseEvaluation(
+                case,
+                eval_router_ab.SystemOutcome((), True, "abstain"),
+                eval_router_ab.SystemOutcome((), False, "no-match"),
+            ),
+        )
+        inventory = eval_router_ab.InventorySnapshot("available", "inv", ())
+
+        legacy = eval_router_ab.system_summary(evaluations, "legacy", inventory)
+        retrieval = eval_router_ab.system_summary(evaluations, "retrieval", inventory)
+
+        self.assertEqual(legacy["abstention"]["recall"], 1.0)
+        self.assertEqual(legacy["expectedAbstainLexicalNoMatch"]["recall"], 0.0)
+        self.assertEqual(retrieval["abstention"]["recall"], 0.0)
+        self.assertEqual(retrieval["expectedAbstainLexicalNoMatch"]["recall"], 1.0)
+
+    def test_paired_recall_ci_measures_recall_uplift_not_top1_uplift(self) -> None:
+        cases = tuple(
+            eval_router_ab.ABCase(
+                f"recall-{offset}",
+                "review",
+                "en",
+                "low",
+                f"Private recall prompt {offset}",
+                eval_router_ab.GoldLabel("primary", ("primary", "alternate"), False, ()),
+            )
+            for offset in range(2)
+        )
+        evaluations = tuple(
+            eval_router_ab.CaseEvaluation(
+                case,
+                eval_router_ab.SystemOutcome(("primary",), False, "activate"),
+                eval_router_ab.SystemOutcome(("primary", "alternate"), False, "matched"),
+            )
+            for case in cases
+        )
+
+        statistics = eval_router_ab.paired_recall_at_3_statistics(evaluations)
+
+        self.assertEqual(statistics["pairs"], 2)
+        self.assertEqual(statistics["meanUplift"], 0.5)
+        self.assertEqual(statistics["pairedNormalApprox95Ci"], [0.5, 0.5])
+
     def test_experiment_code_revision_covers_transitive_local_runtime_imports(self) -> None:
         self.assertTrue(
             {"lazy_skill_router_common.py", "lazy_skill_router_logging.py"} <= set(eval_router_ab.EXPERIMENT_CODE_FILES)
@@ -187,6 +377,9 @@ class RouterABEvalTest(unittest.TestCase):
                 "frozen": {
                     "inventoryRevision": "sha256:" + "1" * 64,
                     "indexRevision": "sha256:" + "2" * 64,
+                    "indexSchema": CAPABILITY_INDEX_SCHEMA_V2,
+                    "retrievalAlgorithm": "lexical-bm25-char3-anchored/v2",
+                    "experimentCodeRevision": "sha256:" + "3" * 64,
                 },
                 "evidence": {"metadataProvenance": "corpus-informed-calibration"},
             },
@@ -196,6 +389,9 @@ class RouterABEvalTest(unittest.TestCase):
 
         self.assertEqual(materialized["frozen"]["inventoryRevision"], "sha256:" + "1" * 64)
         self.assertEqual(materialized["frozen"]["indexRevision"], "sha256:" + "2" * 64)
+        self.assertEqual(materialized["frozen"]["indexSchema"], CAPABILITY_INDEX_SCHEMA_V2)
+        self.assertEqual(materialized["frozen"]["retrievalAlgorithm"], "lexical-bm25-char3-anchored/v2")
+        self.assertEqual(materialized["frozen"]["experimentCodeRevision"], "sha256:" + "3" * 64)
         self.assertEqual(materialized["evidence"]["metadataProvenance"], "corpus-informed-calibration")
         self.assertEqual(revision, eval_router_ab.canonical_revision(materialized))
         self.assertEqual(base["evidence"]["metadataProvenance"], "independent-catalog")
@@ -234,6 +430,30 @@ class RouterABEvalTest(unittest.TestCase):
         self.assertNotIn(sentinel, encoded)
         self.assertNotIn("Review pull request regressions", encoded)
 
+    def test_v2_frozen_algorithm_is_replayed_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path, inventory_path, index_path, frozen = write_experiment_inputs(root)
+            frozen["retrievalAlgorithm"] = "lexical-bm25-char3-anchored/v2"
+            parsed = eval_router_ab.parse_manifest(manifest(frozen, "Review pull request regressions"))
+            with mock.patch(
+                "eval_router_ab.load_capability_index",
+                wraps=eval_router_ab.load_capability_index,
+            ) as index_loader:
+                inputs = eval_router_ab.verify_inputs(
+                    eval_router_ab.load_config(config_path), inventory_path, index_path, parsed.frozen
+                )
+                with mock.patch(
+                    "eval_router_ab.retrieve_capabilities",
+                    wraps=eval_router_ab.retrieve_capabilities,
+                ) as retrieval:
+                    eval_router_ab.evaluate_cases(parsed.cases, inputs, clock_ns=StepClock())
+
+        self.assertEqual(inputs.frozen.retrieval_algorithm, "lexical-bm25-char3-anchored/v2")
+        self.assertTrue(index_loader.call_args.kwargs["frozen_replay"])
+        self.assertEqual(retrieval.call_args.kwargs["algorithm"], "lexical-bm25-char3-anchored/v2")
+        self.assertTrue(retrieval.call_args.kwargs["frozen_replay"])
+
     def test_metrics_cover_harm_forbidden_abstention_and_slices(self) -> None:
         frozen = eval_router_ab.FrozenInputs("cfg", "inv", "idx", "algo", "code", 3)
         cases = (
@@ -263,7 +483,7 @@ class RouterABEvalTest(unittest.TestCase):
             eval_router_ab.CaseEvaluation(
                 cases[1],
                 eval_router_ab.SystemOutcome((), True, "abstain", 6.0),
-                eval_router_ab.SystemOutcome((), True, "no-match", 8.0),
+                eval_router_ab.SystemOutcome((), False, "no-match", 8.0),
             ),
         )
         manifest_value = eval_router_ab.ExperimentManifest(frozen, cases, "manifest")
@@ -281,19 +501,28 @@ class RouterABEvalTest(unittest.TestCase):
 
         report = eval_router_ab.report_payload(manifest_value, inputs, evaluations)
 
-        self.assertEqual(report["comparison"], {"rescue": 0, "harm": 1, "netWin": -1, "bothCorrect": 1, "bothWrong": 0})
+        self.assertEqual(report["comparison"], {"rescue": 0, "harm": 1, "netWin": -1, "bothCorrect": 0, "bothWrong": 0})
         self.assertEqual(report["pairedStatistics"]["discordant"], 1)
         self.assertEqual(report["pairedStatistics"]["exactMcNemarTwoSidedP"], 1.0)
+        self.assertTrue(report["protocol"]["pairedComparisonsExcludeGoldAbstainCases"])
         self.assertEqual(
             report["candidateOnlyComparison"],
             {"rescue": 0, "harm": 1, "netWin": -1, "bothCorrect": 0, "bothWrong": 0},
         )
         self.assertEqual(
             report["b"]["labelledCandidateConflicts"],
-            {"top1Hits": 1, "topKHits": 1, "topKAffectedCases": 1},
+            {
+                "top1Hits": 1,
+                "topKHits": 1,
+                "topKAffectedCases": 1,
+                "highRiskTopKHits": 1,
+                "highRiskTopKAffectedCases": 1,
+            },
         )
         self.assertEqual(report["b"]["inventoryIneligibleCandidates"], {"hits": 1, "affectedCases": 1})
         self.assertEqual(report["a"]["abstention"]["recall"], 1.0)
+        self.assertEqual(report["b"]["abstention"]["recall"], 0.0)
+        self.assertEqual(report["b"]["expectedAbstainLexicalNoMatch"]["recall"], 1.0)
         self.assertEqual(report["b"]["mrr"]["mean"], 0.5)
         self.assertEqual(set(report["slices"]["language"]), {"ko", "mixed"})
         self.assertEqual(set(report["slices"]["risk"]), {"high", "low"})
@@ -499,7 +728,10 @@ class RouterABEvalTest(unittest.TestCase):
         self.assertEqual(gate["status"], "blocked")
         self.assertEqual(gate["authority"], "none")
         self.assertFalse(gate["autoPromote"])
-        self.assertEqual(gate["blockers"], ["evidence_artifact_verifier_unavailable"])
+        self.assertEqual(
+            gate["blockers"],
+            ["evidence_artifact_verifier_unavailable", "independent_evidence_unverified"],
+        )
         self.assertEqual(gate["evidenceVerification"]["status"], "unavailable")
 
         invalid_experiment = eval_router_ab.ExperimentManifest(
@@ -520,7 +752,11 @@ class RouterABEvalTest(unittest.TestCase):
         self.assertEqual(invalid_gate["status"], "blocked")
         self.assertEqual(
             invalid_gate["blockers"],
-            ["evidence_artifact_verifier_unavailable", "ownership_observation_missing"],
+            [
+                "evidence_artifact_verifier_unavailable",
+                "independent_evidence_unverified",
+                "ownership_observation_missing",
+            ],
         )
 
         short_case = eval_router_ab.ABCase(
@@ -542,7 +778,7 @@ class RouterABEvalTest(unittest.TestCase):
         self.assertEqual(verification["status"], "failed")
         self.assertEqual(verification["minimumPromptLeakScanChars"], 1)
 
-    def test_artifact_verifier_hashes_real_files_without_emitting_paths(self) -> None:
+    def test_artifact_identity_does_not_self_attest_independence(self) -> None:
         case = eval_router_ab.ABCase(
             "holdout-1",
             "review",
@@ -568,8 +804,10 @@ class RouterABEvalTest(unittest.TestCase):
             )
             encoded = json.dumps(gate, ensure_ascii=False)
 
-            self.assertEqual(gate["status"], "eligible-for-human-review")
+            self.assertEqual(gate["status"], "blocked")
             self.assertEqual(gate["checks"]["artifactEvidence"], "passed")
+            self.assertEqual(gate["checks"]["independentEvidence"], "blocked")
+            self.assertEqual(gate["blockers"], ["independent_evidence_unverified"])
             self.assertEqual(gate["evidenceVerification"]["status"], "passed")
             self.assertEqual(len(gate["evidenceVerification"]["verifiedArtifactRevisions"]), 5)
             self.assertFalse(gate["evidenceVerification"]["provesIndependence"])
@@ -578,7 +816,7 @@ class RouterABEvalTest(unittest.TestCase):
             self.assertFalse(gate["autoPromote"])
 
             no_skill_failure_report = json.loads(json.dumps(perfect_gate_report()))
-            no_skill_failure_report["b"]["abstention"]["recall"] = 0.0
+            no_skill_failure_report["b"]["expectedAbstainLexicalNoMatch"]["recall"] = 0.0
             no_skill_failure = eval_router_ab.promotion_gate_v1(
                 no_skill_failure_report,
                 experiment,
@@ -586,10 +824,10 @@ class RouterABEvalTest(unittest.TestCase):
             )
             self.assertEqual(no_skill_failure["status"], "blocked")
             self.assertIn(
-                "expected_abstain_no_match_recall_below_minimum",
+                "expected_abstain_lexical_no_match_below_minimum",
                 no_skill_failure["blockers"],
             )
-            self.assertIn("expected_abstain_no_match_regressed", no_skill_failure["blockers"])
+            self.assertNotIn("expected_abstain_no_match_regressed", no_skill_failure["blockers"])
 
             (root / "PRIVATE_ARTIFACT_PATH.json").write_text("tampered", encoding="utf-8")
             tampered = eval_router_ab.promotion_gate_v1(
@@ -604,6 +842,47 @@ class RouterABEvalTest(unittest.TestCase):
                 tampered["evidenceVerification"]["failures"],
             )
             self.assertNotIn("PRIVATE_ARTIFACT_PATH", json.dumps(tampered, ensure_ascii=False))
+
+    def test_independently_verified_metrics_only_allow_human_review(self) -> None:
+        case = eval_router_ab.ABCase(
+            "holdout-1",
+            "review",
+            "en",
+            "low",
+            "Independent holdout prompt",
+            eval_router_ab.GoldLabel("reviewer", ("reviewer",), False, ()),
+        )
+        evidence = eval_router_ab.ExperimentEvidence(
+            "independent-holdout",
+            "independent-catalog",
+            "sha256:" + "1" * 64,
+            "sha256:" + "2" * 64,
+            "sha256:" + "3" * 64,
+            "sha256:" + "4" * 64,
+            "sha256:" + "5" * 64,
+        )
+        experiment = eval_router_ab.ExperimentManifest(
+            eval_router_ab.FrozenInputs("cfg", "inv", "idx", "algo", "code", 3),
+            (case,),
+            "sha256:manifest",
+            evidence,
+        )
+        verified = {
+            "status": "passed",
+            "scope": "independent-evidence-verification",
+            "verifiedArtifactRevisions": [],
+            "failures": [],
+            "provesIndependence": True,
+            "provesQuality": False,
+        }
+
+        with mock.patch.object(eval_router_ab, "verify_evidence_artifacts", return_value=verified):
+            gate = eval_router_ab.promotion_gate_v1(perfect_gate_report(), experiment)
+
+        self.assertEqual(gate["status"], "eligible-for-human-review")
+        self.assertEqual(gate["checks"]["independentEvidence"], "passed")
+        self.assertEqual(gate["authority"], "none")
+        self.assertFalse(gate["autoPromote"])
 
     def test_artifact_verifier_rejects_unsafe_reused_and_non_regular_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -762,8 +1041,25 @@ class RouterABEvalTest(unittest.TestCase):
         )
         mutations = (
             (("b", "recallAt3", "mean"), math.nan, "candidate_recall_missing"),
-            (("b", "abstention", "recall"), math.nan, "expected_abstain_no_match_recall_missing"),
-            (("candidateOnlyPairedStatistics", "pairedNormalApprox95Ci", 0), math.nan, "candidate_only_ci_missing"),
+            (("b", "candidateTop1Accuracy", "rate"), math.nan, "candidate_top1_missing"),
+            (("b", "mrr", "mean"), math.nan, "candidate_mrr_missing"),
+            (("b", "precisionAt3", "mean"), math.nan, "candidate_precision_at_3_missing"),
+            (
+                ("b", "expectedAbstainLexicalNoMatch", "recall"),
+                math.nan,
+                "expected_abstain_lexical_no_match_missing",
+            ),
+            (("b", "labelledCandidateConflicts", "top1Hits"), math.nan, "forbidden_top1_count_missing"),
+            (
+                ("b", "labelledCandidateConflicts", "highRiskTopKHits"),
+                math.nan,
+                "high_risk_forbidden_top3_count_missing",
+            ),
+            (
+                ("candidateRecallAt3PairedStatistics", "pairedNormalApprox95Ci", 0),
+                math.nan,
+                "candidate_recall_at_3_ci_missing",
+            ),
             (("b", "latency", "p95Ms"), math.nan, "latency_budget_missing"),
             (("b", "inventoryIneligibleCandidates", "hits"), math.nan, "inventory_eligibility_missing"),
             (("b", "operationalFailures"), math.nan, "operational_failure_count_missing"),
@@ -819,12 +1115,24 @@ class RouterABEvalTest(unittest.TestCase):
             "a": {"abstention": {"recall": 0.95}},
             "b": {
                 "recallAt3": {"mean": 0.949999},
+                "candidateTop1Accuracy": {"rate": 0.899999},
+                "mrr": {"mean": 0.749999},
+                "precisionAt3": {"mean": 0.299999},
                 "abstention": {"recall": 0.949999},
+                "expectedAbstainLexicalNoMatch": {"recall": 0.949999},
+                "labelledCandidateConflicts": {
+                    "top1Hits": 1,
+                    "topKHits": 2,
+                    "topKAffectedCases": 1,
+                    "highRiskTopKHits": 1,
+                    "highRiskTopKAffectedCases": 1,
+                },
                 "inventoryIneligibleCandidates": {"hits": 1},
                 "operationalFailures": 1,
                 "latency": {"p95Ms": 20.0001},
             },
             "candidateOnlyPairedStatistics": {"pairedNormalApprox95Ci": [0.0, 0.2]},
+            "candidateRecallAt3PairedStatistics": {"pairedNormalApprox95Ci": [0.0, 0.2]},
             "cases": [{"id": "calibration-1", "prompt": case.prompt}],
         }
 
@@ -835,14 +1143,19 @@ class RouterABEvalTest(unittest.TestCase):
             set(gate["blockers"]),
             {
                 "evidence_artifact_verifier_unavailable",
+                "independent_evidence_unverified",
                 "metadata_corpus_informed",
                 "privacy_verification_failed",
                 "candidate_recall_below_minimum",
-                "expected_abstain_no_match_recall_below_minimum",
-                "expected_abstain_no_match_regressed",
+                "candidate_top1_below_minimum",
+                "candidate_mrr_below_minimum",
+                "candidate_precision_at_3_below_minimum",
+                "expected_abstain_lexical_no_match_below_minimum",
+                "forbidden_top1_candidate",
+                "high_risk_forbidden_top3_candidate",
                 "inventory_ineligible_candidate",
                 "operational_failure",
-                "candidate_only_ci_nonpositive",
+                "candidate_recall_at_3_ci_nonpositive",
                 "latency_budget_exceeded",
             },
         )

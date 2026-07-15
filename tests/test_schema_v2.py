@@ -39,11 +39,13 @@ def schema_v2_config() -> dict[str, object]:
                     "any": [{"id": "pdf.token", "regex": "pdf", "label": "PDF token", "weight": 2}],
                     "none": ["explain-only-never"],
                 },
+                "lifecycle": {"state": "active"},
             },
             {
                 "id": "general",
                 "intent": "general_assistance",
                 "capabilityRequirements": {"primary": ["general-assistance"]},
+                "lifecycle": {"state": "active"},
             },
         ],
     }

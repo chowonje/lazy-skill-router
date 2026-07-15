@@ -243,14 +243,88 @@ class LazySkillRouterTest(unittest.TestCase):
 
     def test_common_backup_file_uses_optional_label(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            hooks_json = Path(temp_dir) / "hooks.json"
+            managed_root = Path(temp_dir) / "codex"
+            hooks_json = managed_root / "hooks.json"
+            managed_root.mkdir()
             hooks_json.write_text("{}\n", encoding="utf-8")
+            hooks_json.chmod(0o640)
+            os.utime(hooks_json, ns=(1_700_000_000_000_000_000, 1_700_000_001_000_000_000))
 
-            backup = common.backup_file(hooks_json, "uninstall")
+            backup = common.backup_file(hooks_json, managed_root, "uninstall")
 
             self.assertIsNotNone(backup)
             self.assertTrue(backup.is_file())
             self.assertIn(".bak-lazy-skill-router-uninstall-", backup.name)
+            self.assertEqual(backup.stat().st_mode & 0o777, hooks_json.stat().st_mode & 0o777)
+            self.assertEqual(backup.stat().st_mtime_ns, hooks_json.stat().st_mtime_ns)
+
+    def test_common_backup_file_rejects_symlink_source_root_and_parent(self) -> None:
+        for symlink_kind in ("source", "root", "root-parent", "parent"):
+            with self.subTest(symlink_kind=symlink_kind), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                real_root = root / "real-codex"
+                real_root.mkdir()
+                outside = root / "outside"
+                outside.mkdir()
+                sentinel = outside / "sentinel.json"
+                sentinel.write_text("keep\n", encoding="utf-8")
+
+                if symlink_kind == "root":
+                    managed_root = root / "codex"
+                    managed_root.symlink_to(real_root, target_is_directory=True)
+                    source = managed_root / "hooks.json"
+                    (real_root / "hooks.json").write_text("{}\n", encoding="utf-8")
+                elif symlink_kind == "root-parent":
+                    real_parent = root / "real-parent"
+                    real_managed_root = real_parent / "codex"
+                    real_managed_root.mkdir(parents=True)
+                    linked_parent = root / "linked-parent"
+                    linked_parent.symlink_to(real_parent, target_is_directory=True)
+                    managed_root = linked_parent / "codex"
+                    source = managed_root / "hooks.json"
+                    (real_managed_root / "hooks.json").write_text("{}\n", encoding="utf-8")
+                elif symlink_kind == "parent":
+                    managed_root = real_root
+                    linked_parent = managed_root / "linked"
+                    linked_parent.symlink_to(outside, target_is_directory=True)
+                    source = linked_parent / "sentinel.json"
+                else:
+                    managed_root = real_root
+                    source = managed_root / "hooks.json"
+                    source.symlink_to(sentinel)
+
+                with self.assertRaises(ValueError):
+                    common.backup_file(source, managed_root, "security-test")
+
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep\n")
+
+    def test_common_backup_file_does_not_follow_a_colliding_backup_symlink(self) -> None:
+        class FixedDateTime(common.dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 7, 15, 12, 34, 56, tzinfo=tz)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            managed_root = root / "codex"
+            managed_root.mkdir()
+            source = managed_root / "hooks.json"
+            source.write_text("{}\n", encoding="utf-8")
+            sentinel = root / "outside.json"
+            sentinel.write_text("keep\n", encoding="utf-8")
+            collision = managed_root / ("hooks.json.bak-lazy-skill-router-security-test-20260715-123456-collision")
+            collision.symlink_to(sentinel)
+
+            with (
+                mock.patch.object(common.dt, "datetime", FixedDateTime),
+                mock.patch.object(common.secrets, "token_hex", side_effect=("collision", "unique")),
+            ):
+                backup = common.backup_file(source, managed_root, "security-test")
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep\n")
+            self.assertTrue(collision.is_symlink())
+            self.assertEqual(backup.name, "hooks.json.bak-lazy-skill-router-security-test-20260715-123456-unique")
+            self.assertEqual(backup.read_text(encoding="utf-8"), "{}\n")
 
     def test_priority_can_select_later_specific_route(self) -> None:
         config = {

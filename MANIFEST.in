@@ -4,3 +4,19 @@ include CURRENT_PUBLIC_CONTRACT.md
 include SECURITY.md
 include SUPPORT.md
 include UNRELEASED_STRATEGY_IMPLEMENTATION.md
+include eval_capability_retrieval.py
+include eval_router_ab.py
+include eval_routes.py
+include materialize_router_ab_manifest.py
+include preserve_router_ab_bundle.py
+include eval/capability_metadata_ko_pilot.json
+include eval/capability_retrieval.jsonl
+include eval/prompts.jsonl
+include eval/router_ab_manifest.json
+include eval/router_ab_manifest_bilingual_pilot.overlay.json
+include docs/build-week/CHANGE_SCOPE.md
+include docs/evaluation/automated-shadow-evidence.md
+include docs/evaluation/promotion-evidence-protocol.md
+include docs/evaluation/router-ab-2026-07-13-bilingual-pilot.md
+include docs/evaluation/router-ab-2026-07-13.md
+recursive-include tests *.py

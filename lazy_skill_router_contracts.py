@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 from urllib.parse import quote
 
 from lazy_skill_router_activation import activation_ir_dict, decide_activation
-from lazy_skill_router_core import answer_only_patterns, parse_routes
+from lazy_skill_router_core import (
+    answer_only_patterns,
+    prompt_is_too_long,
+    ranked_matches_for_routes,
+    runtime_policy,
+)
 from lazy_skill_router_inventory import InventorySnapshot
-from lazy_skill_router_scoring import RouteMatch, ranked_route_matches_v2, text_matches
+from lazy_skill_router_policy_ir import runtime_routes
+from lazy_skill_router_scoring import RouteMatch, text_matches
 
 ROUTE_RESULT_CONTRACT_VERSION = 2
 DEFAULT_MAX_RECOMMENDATIONS = 3
@@ -20,7 +27,13 @@ MAX_HOOK_IR_SKILLS = 8
 def configured_number(value: Any, default: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return default
-    return max(0.0, min(1.0, float(value)))
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return default
+    if not math.isfinite(number):
+        return default
+    return max(0.0, min(1.0, number))
 
 
 def selection_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -88,8 +101,15 @@ def contract_matches(
     config: dict[str, Any],
     inventory: InventorySnapshot | None = None,
 ) -> tuple[RouteMatch, ...]:
-    routes = [route for route in parse_routes(config, inventory) if route.lifecycle_state == "active"]
-    return ranked_route_matches_v2(prompt, routes, config)
+    if prompt_is_too_long(prompt):
+        return ()
+    policy = runtime_policy(config, inventory)
+    if policy is None:
+        return ()
+    routes = [route for route in runtime_routes(policy) if route.lifecycle_state == "active"]
+    matches = ranked_matches_for_routes(prompt, config, routes, policy.schema_version)
+    normal_matches = tuple(match for match in matches if not match.route.fallback)
+    return normal_matches or tuple(match for match in matches if match.route.fallback)
 
 
 def route_result_v2(
@@ -105,10 +125,10 @@ def route_result_v2(
         prompt,
         matches,
         config,
-        answer_only=text_matches(prompt, answer_only_patterns(config)),
+        answer_only=(not prompt_is_too_long(prompt) and text_matches(prompt, answer_only_patterns(config))),
     )
     if activation.disposition == "abstain":
-        status = "abstained" if matches else "no-match"
+        status = "abstained" if matches or activation.reason_code == "prompt_too_long" else "no-match"
         bounded = ()
     else:
         status = "ambiguous" if ambiguous else "matched" if matches else "no-match"

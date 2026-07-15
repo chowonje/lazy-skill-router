@@ -68,6 +68,7 @@ AUTOMATED_PROMOTION_BLOCKERS: Final = (
     "outcome_runtime_linkage_unavailable",
 )
 SHA256_REVISION_RE: Final = re.compile(r"^sha256:[0-9a-f]{64}$")
+RETRIEVAL_ALGORITHMS: Final = frozenset({"lexical-bm25-char3/v1", "lexical-bm25-char3-anchored/v2"})
 
 
 def load_measurement_config(config_path: str | None) -> dict[str, Any]:
@@ -442,6 +443,26 @@ def valid_automated_decision_context(event: dict[str, Any]) -> bool:
     )
 
 
+def retrieval_context(
+    event: dict[str, Any],
+    observation: dict[str, Any],
+) -> tuple[str, str, str] | None:
+    retrieval = observation.get("retrieval")
+    if not isinstance(retrieval, dict):
+        return None
+    algorithm = event.get("retrievalAlgorithm")
+    implementation_revision = event.get("retrievalImplementationRevision")
+    index_revision = retrieval.get("revision")
+    if (
+        not isinstance(algorithm, str)
+        or algorithm not in RETRIEVAL_ALGORITHMS
+        or not valid_sha256_revision(implementation_revision)
+        or not valid_sha256_revision(index_revision)
+    ):
+        return None
+    return str(algorithm), str(implementation_revision), str(index_revision)
+
+
 def build_automated_shadow_evidence(events: list[dict[str, Any]]) -> dict[str, Any]:
     accepted = [event for event in events if is_measurement_event(event)]
     decisions = [event for event in accepted if event.get("eventType") == "decision"]
@@ -461,17 +482,23 @@ def build_automated_shadow_evidence(events: list[dict[str, Any]]) -> dict[str, A
         and observation.get("schema") == ROUTING_OBSERVATION_SCHEMA
         and is_routing_observation(observation)
     ]
-    valid_signals = [
-        (event, observation, signal)
+    valid_context_pairs = [
+        (event, observation, context)
         for event, observation in valid_pairs
+        if (context := retrieval_context(event, observation)) is not None
+    ]
+    valid_signals = [
+        (event, observation, signal, context)
+        for event, observation, context in valid_context_pairs
         if is_automated_objective_signal(signal := event.get("automatedObjectiveSignal"))
     ]
     invalid_observations = len(capability_decisions) - len(valid_pairs)
-    invalid_signals = len(valid_pairs) - len(valid_signals)
+    invalid_retrieval_contexts = len(valid_pairs) - len(valid_context_pairs)
+    invalid_signals = len(valid_context_pairs) - len(valid_signals)
 
-    grouped: dict[tuple[str, str | None], list[tuple[tuple[str, ...], tuple[str, ...]]]] = {}
+    grouped: dict[tuple[str, str, str, str], list[tuple[tuple[str, ...], tuple[str, ...]]]] = {}
     invalid_labeled_hashes = 0
-    for event, observation, signal in valid_signals:
+    for event, observation, signal, context in valid_signals:
         if signal["kind"] != "explicit-skill-reference":
             continue
         prompt_hash_value = event.get("promptHash")
@@ -479,10 +506,9 @@ def build_automated_shadow_evidence(events: list[dict[str, Any]]) -> dict[str, A
             invalid_labeled_hashes += 1
             continue
         retrieval = observation["retrieval"]
-        revision = retrieval["revision"]
         expected = tuple(signal["expectedSkillIds"])
         candidates = tuple(candidate["skillId"] for candidate in retrieval["candidates"])
-        grouped.setdefault((str(prompt_hash_value), revision), []).append((expected, candidates))
+        grouped.setdefault((str(prompt_hash_value), *context), []).append((expected, candidates))
 
     grouped_sets = {key: set(values) for key, values in grouped.items()}
     conflicts = sum(len(values) > 1 for values in grouped_sets.values())
@@ -505,13 +531,14 @@ def build_automated_shadow_evidence(events: list[dict[str, Any]]) -> dict[str, A
     invalid_retrieval_revisions = sum(
         not valid_sha256_revision(observation["retrieval"].get("revision")) for _, observation in valid_pairs
     )
+    retrieval_contexts = sorted({context for _, _, context in valid_context_pairs})
     decision_contexts = context_segments([event for event, _ in valid_pairs], DECISION_CONTEXT_FIELDS)
     invalid_decision_contexts = sum(not valid_automated_decision_context(event) for event, _ in valid_pairs)
     valid_context_events = [event for event, _ in valid_pairs if valid_automated_decision_context(event)]
     parser_revisions = sorted(
         {
             str(signal["parserRevision"])
-            for _, _, signal in valid_signals
+            for _, _, signal, _ in valid_signals
             if isinstance(signal.get("parserRevision"), str)
         }
     )
@@ -539,6 +566,10 @@ def build_automated_shadow_evidence(events: list[dict[str, Any]]) -> dict[str, A
         collection_blockers.append("retrieval_revision_missing_or_invalid")
     if len(retrieval_revisions) > 1:
         collection_blockers.append("mixed_retrieval_revisions")
+    if invalid_retrieval_contexts:
+        collection_blockers.append("retrieval_context_missing_or_invalid")
+    if len(retrieval_contexts) > 1:
+        collection_blockers.append("mixed_retrieval_contexts")
     if invalid_decision_contexts:
         collection_blockers.append("decision_context_missing_or_invalid")
     if len(decision_contexts) > 1:
@@ -604,6 +635,16 @@ def build_automated_shadow_evidence(events: list[dict[str, Any]]) -> dict[str, A
             "retrievalRevisionCount": len(retrieval_revisions),
             "retrievalRevisions": retrieval_revisions,
             "invalidRetrievalRevisions": invalid_retrieval_revisions,
+            "retrievalContextCount": len(retrieval_contexts),
+            "retrievalContexts": [
+                {
+                    "algorithm": algorithm,
+                    "implementationRevision": implementation_revision,
+                    "indexRevision": index_revision,
+                }
+                for algorithm, implementation_revision, index_revision in retrieval_contexts
+            ],
+            "invalidRetrievalContexts": invalid_retrieval_contexts,
             "decisionContextCount": len(decision_contexts),
             "decisionContextRevision": canonical_revision(decision_contexts),
             "invalidDecisionContexts": invalid_decision_contexts,

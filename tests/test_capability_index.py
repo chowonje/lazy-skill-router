@@ -7,7 +7,11 @@ from copy import deepcopy
 from pathlib import Path
 
 from lazy_skill_router_capability_index import (
+    CAPABILITY_INDEX_SCHEMA_V1,
+    CAPABILITY_INDEX_SCHEMA_V2,
+    FEATURE_EXTRACTOR_V1,
     build_capability_index,
+    build_capability_index_v1,
     capability_index_revision,
     index_statistics,
     load_capability_index,
@@ -53,6 +57,62 @@ def resign(index: dict[str, object]) -> None:
 
 
 class CapabilityIndexTest(unittest.TestCase):
+    def test_product_builder_emits_v2_with_revision_bound_feature_extractor(self) -> None:
+        built = build_capability_index(
+            inventory(skill("code-review", "Review code and pull requests.")),
+            generated_at="2026-07-12T00:00:00Z",
+        )
+
+        self.assertEqual(built["schema"], CAPABILITY_INDEX_SCHEMA_V2)
+        self.assertEqual(built["feature_extractor"], FEATURE_EXTRACTOR_V1)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "capability-index.json"
+            path.write_text(json.dumps(built, ensure_ascii=False), encoding="utf-8")
+            loaded = load_capability_index(path)
+
+        self.assertEqual(loaded.state, "available")
+        self.assertEqual(loaded.schema, CAPABILITY_INDEX_SCHEMA_V2)
+        self.assertEqual(loaded.feature_extractor, FEATURE_EXTRACTOR_V1)
+
+    def test_v1_frozen_builder_is_replay_only_and_remains_loadable_without_rewriting(self) -> None:
+        built = build_capability_index_v1(
+            inventory(skill("code-review", "Review code and pull requests.")),
+            generated_at="2026-07-12T00:00:00Z",
+        )
+        original_bytes = json.dumps(built, ensure_ascii=False, sort_keys=True).encode()
+
+        self.assertEqual(built["schema"], CAPABILITY_INDEX_SCHEMA_V1)
+        self.assertNotIn("feature_extractor", built)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "capability-index.json"
+            path.write_bytes(original_bytes)
+            product = load_capability_index(path)
+            loaded = load_capability_index(path, frozen_replay=True)
+
+        self.assertEqual(product.state, "invalid")
+        self.assertEqual(product.reason_codes, ("capability_index_v1_replay_only",))
+        self.assertEqual(loaded.state, "available")
+        self.assertEqual(loaded.schema, CAPABILITY_INDEX_SCHEMA_V1)
+        self.assertEqual(loaded.feature_extractor, FEATURE_EXTRACTOR_V1)
+        self.assertEqual(json.dumps(built, ensure_ascii=False, sort_keys=True).encode(), original_bytes)
+
+    def test_v2_loader_rejects_unknown_feature_extractor(self) -> None:
+        built = build_capability_index(
+            inventory(skill("code-review", "Review code and pull requests.")),
+            generated_at="2026-07-12T00:00:00Z",
+        )
+        built["feature_extractor"] = "unknown/v9"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "capability-index.json"
+            path.write_text(json.dumps(built, ensure_ascii=False), encoding="utf-8")
+            loaded = load_capability_index(path)
+
+        self.assertEqual(loaded.state, "invalid")
+        self.assertEqual(loaded.reason_codes, ("capability_index_feature_extractor_unsupported",))
+
     def test_build_is_deterministic_and_excludes_unavailable_or_ambiguous_skills(self) -> None:
         duplicate_a = skill("duplicate", "first", canonical_id="skill/duplicate-a")
         duplicate_b = skill("duplicate", "second", canonical_id="skill/duplicate-b")

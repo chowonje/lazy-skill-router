@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from lazy_skill_router_common import debug
+from lazy_skill_router_common import MAX_ROUTABLE_PROMPT_CHARS, debug
 
 MIN_CONFIDENCE = 0.55
 NORMAL_CONFIDENCE = 0.75
@@ -100,9 +101,13 @@ def route_pattern(value: Any, route_id: str = "route") -> RoutePattern | None:
     pattern_id = (
         configured_id if isinstance(configured_id, str) and configured_id else stable_pattern_id(route_id, regex)
     )
+    try:
+        numeric_weight = float(configured_weight)
+    except (OverflowError, TypeError, ValueError):
+        numeric_weight = 1.0
     weight = (
-        float(configured_weight)
-        if not isinstance(configured_weight, bool) and isinstance(configured_weight, (int, float))
+        numeric_weight
+        if not isinstance(configured_weight, bool) and math.isfinite(numeric_weight) and 0 < numeric_weight <= 3
         else 1.0
     )
     facet = configured_facet if isinstance(configured_facet, str) and configured_facet else "signal"
@@ -124,28 +129,36 @@ def route_number(value: Any, default: float) -> float:
     if isinstance(value, bool):
         return default
     if isinstance(value, (int, float)):
-        return float(value)
+        try:
+            number = float(value)
+        except (OverflowError, ValueError):
+            return default
+        return number if math.isfinite(number) else default
     return default
 
 
 def matched_patterns(text: str, patterns: Iterable[str]) -> tuple[str, ...]:
+    if len(text) > MAX_ROUTABLE_PROMPT_CHARS:
+        return ()
     matches: list[str] = []
     for pattern in patterns:
         try:
             if re.search(pattern, text, re.IGNORECASE):
                 matches.append(pattern)
-        except re.error as exc:
+        except (re.error, RecursionError, OverflowError) as exc:
             debug(f"invalid regex {pattern!r}: {exc}")
     return tuple(matches)
 
 
 def matched_route_patterns(text: str, patterns: Iterable[RoutePattern]) -> tuple[RoutePattern, ...]:
+    if len(text) > MAX_ROUTABLE_PROMPT_CHARS:
+        return ()
     matches: list[RoutePattern] = []
     for pattern in patterns:
         try:
             if re.search(pattern.regex, text, re.IGNORECASE):
                 matches.append(pattern)
-        except re.error as exc:
+        except (re.error, RecursionError, OverflowError) as exc:
             debug(f"invalid regex {pattern.regex!r}: {exc}")
     return tuple(matches)
 
@@ -159,7 +172,13 @@ def configured_float(config: dict[str, Any], key: str, default: float) -> float:
     if isinstance(value, bool):
         return default
     if isinstance(value, (int, float)):
-        return max(0.0, min(1.0, float(value)))
+        try:
+            number = float(value)
+        except (OverflowError, ValueError):
+            return default
+        if not math.isfinite(number):
+            return default
+        return max(0.0, min(1.0, number))
     return default
 
 
@@ -176,7 +195,10 @@ def confidence_for(matches: tuple[str, ...]) -> float:
 
 
 def match_strength_for(matches: tuple[RoutePattern, ...]) -> float:
-    return min(0.95, 0.50 + (0.15 * sum(pattern.weight for pattern in matches)))
+    total = sum(pattern.weight for pattern in matches)
+    if not math.isfinite(total):
+        return 0.0
+    return min(0.95, 0.50 + (0.15 * total))
 
 
 def confidence_label(confidence: float) -> str:
@@ -185,6 +207,8 @@ def confidence_label(confidence: float) -> str:
 
 def score_for(route: Route, confidence: float) -> float:
     score = confidence + route.weight + (route.priority * PRIORITY_SCORE_STEP)
+    if not math.isfinite(score):
+        return 0.0
     return max(0.0, min(1.0, score))
 
 
@@ -225,6 +249,8 @@ def filter_route(route: Route, config: dict[str, Any]) -> Route | None:
 
 
 def candidate_match(prompt: str, route: Route, config: dict[str, Any]) -> RouteMatch | None:
+    if len(prompt) > MAX_ROUTABLE_PROMPT_CHARS:
+        return None
     if route.exclude_patterns and text_matches(prompt, route.exclude_patterns):
         return None
     matches = matched_route_patterns(prompt, route.patterns)
@@ -252,6 +278,8 @@ def route_rank(match: RouteMatch, index: int) -> tuple[int, float, float, int]:
 
 
 def ranked_route_matches(prompt: str, routes: list[Route], config: dict[str, Any]) -> tuple[RouteMatch, ...]:
+    if len(prompt) > MAX_ROUTABLE_PROMPT_CHARS:
+        return ()
     ranked: list[tuple[tuple[int, float, float, int], RouteMatch]] = []
     lowered = prompt.lower()
     for index, route in enumerate(routes):
@@ -269,6 +297,8 @@ def choose_route(prompt: str, routes: list[Route], config: dict[str, Any]) -> Ro
 
 
 def ranked_route_matches_v2(prompt: str, routes: list[Route], config: dict[str, Any]) -> tuple[RouteMatch, ...]:
+    if len(prompt) > MAX_ROUTABLE_PROMPT_CHARS:
+        return ()
     lowered = prompt.lower()
     normal = tuple(
         match
