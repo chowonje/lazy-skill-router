@@ -48,6 +48,54 @@ jobs:
       - name: Run tests
         run: python3 -m unittest discover -s tests -p "test*.py"
 
+      - name: Verify judge demo
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=scripts \
+            python3 scripts/test_prepare_judge_demo.py
+          PYTHONDONTWRITEBYTECODE=1 examples/ci-relay-demo/scripts/verify.sh
+          python3 -m json.tool docs/build-week/routes.judge-demo.json >/dev/null
+          python3 -m json.tool examples/ci-relay-demo/fixtures/sample_ci_event.json >/dev/null
+          python3 validate_routes.py docs/build-week/routes.judge-demo.json
+
+          temp_root="${TMPDIR:-/tmp}"
+          judge_root="$(mktemp -d "${temp_root%/}/lazy-skill-router-judge.XXXXXX")"
+          trap 'rm -rf "$judge_root"' EXIT
+
+          python3 lazy_skill_router.py \
+            --config docs/build-week/routes.judge-demo.json \
+            --route-result-v2 \
+            "Map this repository as a project mind map. Show the data flow. Do not modify files." \
+            > "$judge_root/mindmap.json"
+          python3 lazy_skill_router.py \
+            --config docs/build-week/routes.judge-demo.json \
+            --route-result-v2 \
+            "Add one retry on TimeoutError. Make the smallest correct change and add no dependency." \
+            > "$judge_root/ponytail.json"
+          python3 lazy_skill_router.py \
+            --config docs/build-week/routes.judge-demo.json \
+            --route-result-v2 \
+            "Scan this CI relay for a concrete exploitable security vulnerability. Do not modify files." \
+            > "$judge_root/security.json"
+
+          JUDGE_ROOT="$judge_root" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["JUDGE_ROOT"])
+          expected = {
+              "mindmap.json": ("project-mindmap", "propose", "answer_only"),
+              "ponytail.json": ("ponytail", "activate", "eligible"),
+              "security.json": ("codex-security:security-scan", "propose", "answer_only"),
+          }
+          for name, (skill, disposition, reason) in expected.items():
+              result = json.loads((root / name).read_text(encoding="utf-8"))
+              assert result["status"] == "matched"
+              assert result["recommendations"][0]["legacy_skill_projection"]["primary"] == skill
+              assert result["activation"]["disposition"] == disposition
+              assert result["activation"]["reasonCode"] == reason
+          PY
+
       - name: Compile Python files
         run: >
           python3 -m py_compile

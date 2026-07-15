@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "policyVersion": "judge-demo-2026-07-15.1",
+  "minConfidence": 0.55,
+  "selection": {
+    "maxRecommendations": 1,
+    "minScoreMargin": 0.05
+  },
+  "activation": {
+    "mode": "inject",
+    "autoActivateMinStrength": 0.8,
+    "actionPatterns": ["\\b(add|change|implement|scan|map)\\b"],
+    "noActionPatterns": ["do not modify"]
+  },
+  "logging": {
+    "enabled": false,
+    "path": "",
+    "maxEntries": 100,
+    "retentionDays": 1
+  },
+  "display": {
+    "showRouterNotice": true
+  },
+  "allowedSkills": [
+    "project-mindmap",
+    "ponytail",
+    "codex-security:security-scan"
+  ],
+  "answerOnlyPatterns": ["do not modify"],
+  "routes": [
+    {
+      "name": "project-mindmap-demo",
+      "primary": "project-mindmap",
+      "supporting": [],
+      "verification": "",
+      "reason": "Project structure and data-flow mapping language was detected.",
+      "patterns": ["project mind map", "map this repository", "data flow"]
+    },
+    {
+      "name": "ponytail-demo",
+      "primary": "ponytail",
+      "supporting": [],
+      "verification": "",
+      "reason": "A smallest-correct-change implementation request was detected.",
+      "patterns": ["smallest correct change", "one retry", "no dependency", "minimal change.{0,80}no new dependenc"]
+    },
+    {
+      "name": "security-demo",
+      "primary": "codex-security:security-scan",
+      "supporting": [],
+      "verification": "",
+      "reason": "A repository security or vulnerability scan request was detected.",
+      "patterns": ["security", "vulnerab", "file-write"]
+    }
+  ]
+}

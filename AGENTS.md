@@ -59,9 +59,13 @@
   control corpus.
 - `eval/capability_metadata_ko_pilot.json`: corpus-informed bilingual calibration metadata; never promote it directly.
 - `tests/`: unittest coverage for the router and project utilities.
+- `examples/ci-relay-demo/`: local-only, intentionally vulnerable judge fixture; excluded from package artifacts.
+- `scripts/prepare_judge_demo.py`: creates independent numbered Desktop copies of the fixture without host install.
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
+- Verify the judge fixture: `examples/ci-relay-demo/scripts/verify.sh`
+- Test the Desktop materializer: `PYTHONPATH=scripts python3 scripts/test_prepare_judge_demo.py`
 - Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_capability_index.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_retrieval.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py eval_capability_retrieval.py eval_router_ab.py materialize_router_ab_manifest.py preserve_router_ab_bundle.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`

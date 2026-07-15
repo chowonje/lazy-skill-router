@@ -1,8 +1,7 @@
 # lazy-skill-router
 
-`lazy-skill-router` is a Codex hook that classifies the current prompt, separates route candidates from actual skill
-activation, and can accumulate privacy-preserving activation evidence. Its app-aware sync workflow lets the host LLM
-describe the skills it can actually see and propose user-specific routes before the deterministic hook evaluates them.
+`lazy-skill-router` is a local skill recommendation layer for Codex. It maps the current prompt to a deterministic
+`activate`, `propose`, or `abstain` decision so users do not need to remember every installed skill.
 
 It is a recommendation policy, not an authorization layer. Codex should still inspect the actual task, repository
 state, and safety constraints before choosing any skill.
@@ -11,13 +10,85 @@ The current shipped behavior is documented in [`CURRENT_PUBLIC_CONTRACT.md`](CUR
 The released compatibility baseline is `0.4.0`; unreleased source changes and rollback notes are tracked in
 [`CHANGELOG.md`](CHANGELOG.md).
 
+## Judge quick start
+
+Judges can exercise the router and the sample project directly from source. This path requires Git and Python 3.9 or
+newer on macOS or Linux. It installs no package, writes nothing under `~/.codex`, and makes no network call after the
+repository has been cloned.
+
+```bash
+git clone https://github.com/chowonje/lazy-skill-router.git
+cd lazy-skill-router
+
+python3 lazy_skill_router.py \
+  --config docs/build-week/routes.judge-demo.json \
+  --route-result-v2 \
+  "Map this repository as a project mind map. Show the data flow. Do not modify files."
+
+python3 lazy_skill_router.py \
+  --config docs/build-week/routes.judge-demo.json \
+  --route-result-v2 \
+  "Add one retry on TimeoutError. Make the smallest correct change and add no dependency."
+
+examples/ci-relay-demo/scripts/verify.sh
+```
+
+The first decision should recommend `project-mindmap` with an answer-only `propose` disposition. The second should
+select `ponytail` with an eligible `activate` disposition. The fixture verification runs six tests, compiles the sample,
+and processes [`sample_ci_event.json`](examples/ci-relay-demo/fixtures/sample_ci_event.json) in a disposable directory.
+See [`JUDGE_DEMO.md`](docs/build-week/JUDGE_DEMO.md) for all three prompts and the optional isolated recording setup.
+The fixture contains one intentional path-traversal flaw for the optional security scene; it is local-only and must
+never be deployed.
+
+## Build Week disclosure
+
+This is a pre-existing project. Architecture 3 is the prior foundation; it is not presented as work created during
+Build Week. The submission-period work is the separate v0.5 stabilization tranche.
+
+| Period | Evidence | Scope |
+| --- | --- | --- |
+| Before Build Week | [`6123ffe`](https://github.com/chowonje/lazy-skill-router/commit/6123ffe3acdc7ae7b35082ab8938d77fc8070872), Codex session `019f522b-8db5-7211-84d4-889d8c9d9de8` | Architecture 3 added a guarded capability-retrieval shadow lane while deterministic routing and ActivationIR retained authority. |
+| During Build Week | [`561732d`](https://github.com/chowonje/lazy-skill-router/commit/561732d17c6ad479ba07b2b9cab73dcb05333f90) and [`a624734`](https://github.com/chowonje/lazy-skill-router/commit/a62473470b120703f929a4026948550db1384627), Codex session `019f6362-9c9b-76e2-b3d1-cffb12ebfc9d` | Added bounded prompt handling, conservative PolicyIR and regex validation, managed-root write confinement, transactional install/sync recovery, measurement-pure diagnostics, capability-index v2 compatibility, regression tests, and the documented change boundary. |
+
+The exact inclusions and exclusions are recorded in
+[`docs/build-week/CHANGE_SCOPE.md`](docs/build-week/CHANGE_SCOPE.md).
+The prepared English project-description copy is in
+[`docs/build-week/DEVPOST_SUBMISSION.md`](docs/build-week/DEVPOST_SUBMISSION.md).
+
+## How I used GPT-5.6 and Codex
+
+I used Codex with GPT-5.6 for the codebase-wide architecture review, implementation, regression testing, and
+documentation. GPT-5.6 helped trace cross-file failure paths and challenge unsafe assumptions around regex evaluation,
+manifest ownership, atomic writes, diagnostic logging, and index compatibility. Codex then turned those findings into
+characterization tests, focused patches, repeated verification runs, and the reproducible judge fixture.
+
+Codex accelerated the mechanical and cross-cutting work, but I kept the product decisions explicit:
+
+- deterministic routing remains the activation authority;
+- capability Top-K remains a non-activating preview and shadow measurement lane;
+- recommendations never grant permission to execute a skill;
+- promotion thresholds were not lowered, and no automatic promotion or release was performed;
+- the original dirty source tree was preserved while the Build Week changes were curated in an isolated worktree.
+
+The resulting stabilized boundary is:
+
+```text
+prompt
+  -> 4,096-character input gate
+  -> validated PolicyIR
+     -> deterministic route + ActivationIR       (activation authority)
+     -> capability-index v2 preview / Top-K      (shadow and human preview only)
+```
+
 ## Build Week stabilization scope
 
-This branch curates the post-baseline v0.5 runtime stabilization work for review. It hardens bounded routing,
+The unreleased v0.5 line curates the post-baseline runtime stabilization work for review. It hardens bounded routing,
 policy validation, transactional install/sync writes, diagnostic purity, and the non-activating capability preview.
 It does **not** enable Top-K activation, lower promotion thresholds, install into the host Codex home, or claim release
 readiness. The exact baseline, inclusions, exclusions, and verification boundary are recorded in
 [`docs/build-week/CHANGE_SCOPE.md`](docs/build-week/CHANGE_SCOPE.md).
+
+The local-only judge demo uses one reproducible CI Relay fixture without changing the runtime or host installation.
 
 ## Why Use It
 
