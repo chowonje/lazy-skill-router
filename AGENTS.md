@@ -22,8 +22,11 @@
 - `lazy_skill_router_core.py`: pure routing engine and activation-mode policy.
 - `lazy_skill_router_contracts.py`: versioned route-result, structured recommendation, and Hook IR builders.
 - `lazy_skill_router_inventory.py`: path-redacted generated skill inventory and loader.
-- `lazy_skill_router_capability_index.py`: revision-bound local capability index builder and validator.
-- `lazy_skill_router_retrieval.py`: dependency-free Top-K shadow retrieval and redacted result contract.
+- `lazy_skill_router_capability_index.py`: dual-read v1/v2 capability index builder and validator; product writes use
+  revision-bound v2 indexes while v1 remains frozen-replay-only.
+- `lazy_skill_router_retrieval.py`: dependency-free Top-K shadow retrieval, anchored-v2 product preview, and redacted
+  result contract. The plain human CLI may display preview candidates after a no-route action result, but they never
+  enter activation or JSON recommendation contracts.
 - `lazy_skill_router_host_catalog.py`: app-provided host catalog validation and inventory reconciliation.
 - `lazy_skill_router_policy.py`: app-LLM policy context, proposal validation, shadow staging, feedback, and promotion.
 - `lazy_skill_router_policy_ir.py`: shared immutable v1/v2 policy parser, reference resolver, and smoke-primary selector.
@@ -36,7 +39,7 @@
   shadow evidence gate.
 - `routes.default.json`: bundled default route policy data.
 - `validate_routes.py`: route config schema and regex validation.
-- `sync_skills.py`: read-only drift planning and explicit inventory-manifest apply.
+- `sync_skills.py`: read-only drift planning and explicit inventory/index/install-manifest bundle apply.
 - `install.py`: Codex home installation surface.
 - `doctor.py`: read-only install health checker.
 - `uninstall.py`: Codex home removal surface.
@@ -78,6 +81,10 @@
 - Use `priority` and `weight` sparingly; prefer better patterns when a route is too broad.
 - Prefer specific patterns and `excludePatterns` over generic catch-all regexes.
 - Add or update `eval/prompts.jsonl` fixtures for every route behavior change.
+- Keep every routable entrypoint behind the shared 4,096-character input boundary. Oversized prompts must abstain
+  before regex, inventory, or retrieval work begins.
+- Route and activation regexes must pass the shared conservative validator. Do not weaken its pattern-count, repeat,
+  lookaround, or backreference checks for app-authored policy.
 - Treat route candidacy and skill activation separately. Weak, ambiguous, fallback, meta, answer-only, or incomplete
   facet matches must not silently become automatic skill activation.
 - Run `validate_routes.py`, `eval_routes.py`, and unit tests after route edits.
@@ -90,6 +97,8 @@
 - Keep install and uninstall actions visible in command output.
 - Keep doctor checks read-only.
 - Never weaken the fail-open behavior of the installed hook.
+- Keep inventory, capability index, and install-manifest revisions transactionally aligned on the default sync path.
+- Pass the exact managed root into backup and replacement helpers; reject symlinked roots, parents, sources, and leaves.
 
 ## Documentation
 - Keep `README.md`, `ARCHITECTURE.md`, and this file aligned when behavior, commands, or safety guarantees change.

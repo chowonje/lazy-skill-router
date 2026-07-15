@@ -25,6 +25,10 @@ The current shipped public behavior is tracked in [`CURRENT_PUBLIC_CONTRACT.md`]
 8. When measurement is enabled, the decision is appended to a bounded local event journal and a conditional `Stop` hook
    records turn completion without reading or storing the assistant response.
 
+Every entrypoint applies the shared 4,096-character routing limit before regex matching, inventory resolution, or
+capability retrieval. Oversized input becomes `abstain/prompt_too_long`; only the actual hook may persist the redacted
+`input-rejected` decision status. Dry-run and every structured diagnostic remain measurement-pure.
+
 The default path remains the v1 top-1 compatibility surface. Opt-in shadow paths normalize the same prompt into
 route-result v2, structured recommendation v1, or compact Hook IR. Schema v2 policies use stable IDs, intent,
 capability requirements, explicit skill bindings, weighted pattern evidence, and post-selection fallback.
@@ -39,6 +43,8 @@ Prompt ─┬─> legacy route ranking ─> ActivationIR ─> optional hook cont
 `capabilityRetrieval.mode: shadow` does not feed candidates into route ranking, `ActivationIR`, or context formatting.
 The hook runs it only when local measurement is also enabled; the explicit diagnostic can run it on demand. This keeps
 the first migration tranche reversible and makes latency/recall observable without changing the compatibility output.
+The human CLI additionally shows product-preview candidates when an action prompt has no legacy route. That display is
+separate from every JSON contract, labels the results as preview-only, and does not change activation.
 `RoutingObservationV1` records only bounded identifiers and source-category evidence. Normal retrieval is
 `observe-only`; degraded retrieval is `fallback-legacy` when legacy selection was observed and `stop-shadow` otherwise.
 None of these actions affects legacy selection. Host ownership remains `unobserved`, so the observation cannot be
@@ -121,14 +127,16 @@ code through `scanIssues`.
 
 ### `lazy_skill_router_capability_index.py`
 
-Builds and validates the local `capability-index/v1` sidecar from one available inventory revision. It excludes
+Builds and validates the local `capability-index/v2` sidecar from one available inventory revision. V2 binds the
+feature extractor into its canonical revision; v1 remains readable only for exact frozen replay. The builder excludes
 unavailable and ambiguous identities, projects only bounded inventory metadata, precomputes lexical word/character
 features, and hashes a canonical ordering. It does not read full skill bodies, infer roles from route regexes, or call an
-LLM. The generated sidecar is intentionally not install-owned and must be rebuilt explicitly after inventory changes.
+LLM. Install and default-path sync generate the sidecar with the inventory and register both in the ownership manifest.
 
 ### `lazy_skill_router_retrieval.py`
 
-Ranks at most three capability entries with dependency-free BM25 word features plus character trigrams. Scores are
+Ranks at most three capability entries with the dependency-free `lexical-bm25-char3-anchored/v2` product preview.
+The stable v1 scorer remains available only when a frozen replay explicitly selects it. Scores are
 ordering values, not probabilities or activation confidence. Results expose skill identity, score, source-category
 evidence IDs, and a comparison with the legacy winner; they never expose the prompt, description, matched substring, or
 search token. `no-match` means only that lexical retrieval found no candidate. It is not the semantic `abstain` decision,
@@ -249,7 +257,7 @@ smoke uses the first eligible active primary selected from Policy IR in a contro
 `--smoke-prompt` uses the validated candidate route config. Missing eligible primary fails before mutation.
 
 Only after smoke succeeds does install snapshot all mutation targets, copy runtime and skill files, write route,
-inventory, and ownership manifests, and register the hook last. A process-visible exception restores the snapshots in
+inventory, capability index, and ownership manifest, and register the hook last. A process-visible exception restores the snapshots in
 reverse order. `install.manifest.json` records relative artifact paths, ownership, digest, expected registration, and a
 canonical revision. The transaction snapshot directory contains a path-confined journal; the next install recovers a
 matching interrupted transaction before reading current install state. Dry-run validates and counts matching journals
