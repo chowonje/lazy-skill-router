@@ -59,6 +59,7 @@ only for human review rather than automatic promotion or release.
 - Submission-period extension: commits `561732d17c6ad479ba07b2b9cab73dcb05333f90`,
   `a62473470b120703f929a4026948550db1384627`, and `0fc72a1c2345d10c3d554e48f1f5194bdfd44f13`, Codex session
   `019f6362-9c9b-76e2-b3d1-cffb12ebfc9d`.
+- Public review and CI evidence: [PR #9](https://github.com/chowonje/lazy-skill-router/pull/9).
 
 Architecture 3 is disclosed as pre-existing work. The judged Build Week contribution is the separate stabilization and
 reproducible-demo tranche described above.

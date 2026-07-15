@@ -75,5 +75,7 @@ filter was unavailable and because date/version strings triggered phone-number h
 reviewed as false positives. The intentionally vulnerable demo fixture remains a consciously accepted public warning
 and is excluded from package artifacts.
 
-The Ubuntu/Python 3.9, 3.11, and 3.14 GitHub Actions matrix remains pending until the branch is pushed. A clean local run
-does not broaden the included scope or authorize a tag, host installation, activation, or release.
+The first public GitHub Actions run on [PR #9](https://github.com/chowonje/lazy-skill-router/pull/9) passed on Ubuntu with
+Python 3.9, 3.11, and 3.14 at commit `354637bb629ec1a86c9dfb26677bf175fd7ce79a`. Every later commit must pass the same
+matrix before merge. A clean run does not broaden the included scope or authorize a tag, host installation, activation,
+or release.
