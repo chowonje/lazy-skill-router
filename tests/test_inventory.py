@@ -1223,6 +1223,23 @@ class InventoryManifestTest(unittest.TestCase):
             self.assertEqual(paths[0].read_bytes(), originals[paths[0]])
             self.assertEqual(paths[2].read_bytes(), originals[paths[2]])
 
+    def test_sync_bundle_failure_removes_created_managed_root_ancestors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            created_ancestor = root / "created-ancestor"
+            managed_root = created_ancestor / "managed"
+            target = managed_root / "artifact.json"
+            item = sync_module.JsonBundleItem("artifact", target, {"updated": True})
+
+            with (
+                mock.patch.object(sync_module, "_stage_bytes", side_effect=OSError("injected stage failure")),
+                self.assertRaisesRegex(OSError, "injected stage failure"),
+            ):
+                sync_module.apply_json_bundle((item,), managed_root)
+
+            self.assertFalse(managed_root.exists())
+            self.assertFalse(created_ancestor.exists())
+
     def test_sync_apply_json_reports_each_artifact_status(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -106,15 +106,13 @@ def _open_directory_chain(boundary: Path, relative: Path, error_message: str) ->
 def trusted_write_boundary(path: Path, managed_root: Path) -> Path:
     target = path.absolute()
     managed = managed_root.absolute()
-    candidates = (managed, Path.cwd().absolute(), Path.home().absolute(), Path(tempfile.gettempdir()).absolute())
-    boundaries: list[Path] = []
-    for candidate in candidates:
-        try:
-            target.relative_to(candidate)
-        except ValueError:
-            continue
-        boundaries.append(candidate)
-    return max(boundaries, key=lambda item: len(item.parts)) if boundaries else Path(target.anchor)
+    try:
+        relative = target.relative_to(managed)
+    except ValueError as exc:
+        raise ValueError("write target escapes managed root") from exc
+    if not relative.parts:
+        raise ValueError("confined mutation target cannot be its managed root")
+    return managed
 
 
 def _open_confined_parent(
@@ -152,8 +150,8 @@ def _open_confined_parent(
                 if not create_parents:
                     raise ValueError("confined mutation parent is missing") from None
                 os.mkdir(part, 0o700, dir_fd=descriptor)
-                os.fsync(descriptor)
                 created.append(current)
+                os.fsync(descriptor)
                 next_descriptor = os.open(
                     part,
                     os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
@@ -164,8 +162,17 @@ def _open_confined_parent(
             os.close(descriptor)
             descriptor = next_descriptor
         return descriptor, relative.name, tuple(created)
-    except Exception:
+    except Exception as original:
         os.close(descriptor)
+        cleanup_errors: list[Exception] = []
+        for created_path in reversed(created):
+            try:
+                identity = confined_path_identity(created_path, boundary)
+                confined_rmdir(created_path, boundary, identity)
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cleanup_errors:
+            raise ValueError("confined mutation parent cleanup failed") from original
         raise
 
 
@@ -484,7 +491,7 @@ def confined_ensure_parent(path: Path, managed_root: Path) -> tuple[Path, ...]:
     return created
 
 
-def confined_ensure_managed_root(managed_root: Path) -> bool:
+def confined_ensure_managed_root(managed_root: Path) -> tuple[Path, ...]:
     managed = managed_root.absolute()
     boundary = _ambient_trusted_boundary(managed)
     try:
@@ -494,9 +501,11 @@ def confined_ensure_managed_root(managed_root: Path) -> bool:
         )
     except OSError as exc:
         raise ValueError("managed root has a symlinked parent") from exc
-    created = False
+    created: list[Path] = []
+    current = boundary
     try:
-        for index, part in enumerate(managed.relative_to(boundary).parts):
+        for part in managed.relative_to(boundary).parts:
+            current /= part
             try:
                 next_descriptor = os.open(
                     part,
@@ -505,9 +514,8 @@ def confined_ensure_managed_root(managed_root: Path) -> bool:
                 )
             except FileNotFoundError:
                 os.mkdir(part, 0o700, dir_fd=descriptor)
+                created.append(current)
                 os.fsync(descriptor)
-                if index == len(managed.relative_to(boundary).parts) - 1:
-                    created = True
                 next_descriptor = os.open(
                     part,
                     os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
@@ -517,9 +525,24 @@ def confined_ensure_managed_root(managed_root: Path) -> bool:
                 raise ValueError("managed root is unsafe") from exc
             os.close(descriptor)
             descriptor = next_descriptor
-        return created
-    finally:
+        return tuple(created)
+    except Exception as original:
         os.close(descriptor)
+        descriptor = None
+        cleanup_errors: list[Exception] = []
+        for path in reversed(created):
+            try:
+                parent = path.parent
+                identity = confined_path_identity(path, parent)
+                confined_rmdir(path, parent, identity)
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cleanup_errors:
+            raise ValueError("managed root creation cleanup failed") from original
+        raise
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def _verify_identity_at(parent_fd: int, name: str, expected: ConfinedPathIdentity) -> None:
@@ -1592,6 +1615,30 @@ def _encoded_json(data: dict[str, Any]) -> bytes:
     return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
 
 
+def _cleanup_created_write_directories(
+    created_parents: tuple[Path, ...],
+    managed_root: Path,
+    created_managed_roots: tuple[Path, ...],
+    original: Exception,
+) -> None:
+    cleanup_errors: list[Exception] = []
+    for path in reversed(created_parents):
+        try:
+            identity = confined_path_identity(path, managed_root)
+            confined_rmdir(path, managed_root, identity)
+        except Exception as cleanup_error:
+            cleanup_errors.append(cleanup_error)
+    for path in reversed(created_managed_roots):
+        try:
+            parent = path.parent
+            identity = confined_path_identity(path, parent)
+            confined_rmdir(path, parent, identity)
+        except Exception as cleanup_error:
+            cleanup_errors.append(cleanup_error)
+    if cleanup_errors:
+        raise ValueError("confined write cleanup failed") from original
+
+
 def write_json(
     path: Path,
     data: dict[str, Any],
@@ -1600,8 +1647,15 @@ def write_json(
     expected: ConfinedPathIdentity | None = None,
 ) -> ConfinedPathIdentity | None:
     if managed_root is not None:
-        expected_identity = expected if expected is not None else confined_path_identity(path, managed_root)
-        return confined_atomic_write_bytes(path, _encoded_json(data), managed_root, expected_identity)
+        created_managed_roots = confined_ensure_managed_root(managed_root)
+        created_parents: tuple[Path, ...] = ()
+        try:
+            created_parents = confined_ensure_parent(path, managed_root)
+            expected_identity = expected if expected is not None else confined_path_identity(path, managed_root)
+            return confined_atomic_write_bytes(path, _encoded_json(data), managed_root, expected_identity)
+        except Exception as original:
+            _cleanup_created_write_directories(created_parents, managed_root, created_managed_roots, original)
+            raise
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2, ensure_ascii=False)
@@ -1612,6 +1666,12 @@ def write_json(
 def ensure_safe_write_target(path: Path, managed_root: Path) -> None:
     target = path.absolute()
     managed = managed_root.absolute()
+    try:
+        relative = target.relative_to(managed)
+    except ValueError as exc:
+        raise ValueError("write target escapes managed root") from exc
+    if not relative.parts:
+        raise ValueError("write target cannot be its managed root")
     if target.is_symlink():
         raise ValueError("write target is a symlink")
 
@@ -1622,28 +1682,17 @@ def ensure_safe_write_target(path: Path, managed_root: Path) -> None:
         if current_managed.is_symlink():
             raise ValueError("managed root has a symlinked parent")
 
-    candidates = (managed, Path.cwd().absolute(), Path.home().absolute(), Path(tempfile.gettempdir()).absolute())
-    boundaries: list[Path] = []
-    for candidate in candidates:
-        try:
-            target.relative_to(candidate)
-        except ValueError:
-            continue
-        boundaries.append(candidate)
-    boundary = max(boundaries, key=lambda item: len(item.parts)) if boundaries else Path(target.anchor)
-    relative = target.relative_to(boundary)
-
-    current = boundary
-    if boundary == managed and current.is_symlink():
+    current = managed
+    if current.is_symlink():
         raise ValueError("managed root is a symlink")
     for part in relative.parts[:-1]:
         current /= part
         if current.is_symlink():
             raise ValueError("write target has a symlinked parent")
     try:
-        target.parent.resolve(strict=False).relative_to(boundary.resolve(strict=False))
+        target.parent.resolve(strict=False).relative_to(managed.resolve(strict=False))
     except ValueError as exc:
-        raise ValueError("write target escapes trusted root") from exc
+        raise ValueError("write target escapes managed root") from exc
 
 
 def write_json_atomic(
@@ -1654,8 +1703,15 @@ def write_json_atomic(
     expected: ConfinedPathIdentity | None = None,
 ) -> ConfinedPathIdentity | None:
     if managed_root is not None:
-        expected_identity = expected if expected is not None else confined_path_identity(path, managed_root)
-        return confined_atomic_write_bytes(path, _encoded_json(data), managed_root, expected_identity)
+        created_managed_roots = confined_ensure_managed_root(managed_root)
+        created_parents: tuple[Path, ...] = ()
+        try:
+            created_parents = confined_ensure_parent(path, managed_root)
+            expected_identity = expected if expected is not None else confined_path_identity(path, managed_root)
+            return confined_atomic_write_bytes(path, _encoded_json(data), managed_root, expected_identity)
+        except Exception as original:
+            _cleanup_created_write_directories(created_parents, managed_root, created_managed_roots, original)
+            raise
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temp_path = Path(temp_name)

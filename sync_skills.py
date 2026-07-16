@@ -21,6 +21,7 @@ from lazy_skill_router_common import (
     codex_home,
     confined_atomic_write_bytes,
     confined_discard_staged,
+    confined_ensure_managed_root,
     confined_ensure_parent,
     confined_path_identity,
     confined_read_bytes,
@@ -205,10 +206,12 @@ def apply_json_bundle(items: tuple[JsonBundleItem, ...], managed_root: Path) -> 
             raise ValueError(f"unsafe sync target {path}: {exc}") from exc
 
     created_parents: list[Path] = []
+    created_managed_roots: tuple[Path, ...] = ()
     snapshots: dict[Path, tuple[bytes | None, int, ConfinedPathIdentity]] = {}
     staged_files: list[tuple[ConfinedStagedWrite, Path]] = []
     committed_identities: dict[Path, ConfinedPathIdentity] = {}
     try:
+        created_managed_roots = confined_ensure_managed_root(managed_root)
         for path in paths:
             for parent in confined_ensure_parent(path, managed_root):
                 if parent not in created_parents:
@@ -280,6 +283,13 @@ def apply_json_bundle(items: tuple[JsonBundleItem, ...], managed_root: Path) -> 
             try:
                 current = confined_path_identity(parent, managed_root)
                 confined_rmdir(parent, managed_root, current)
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        for created_root in reversed(created_managed_roots):
+            try:
+                root_parent = created_root.parent
+                current = confined_path_identity(created_root, root_parent)
+                confined_rmdir(created_root, root_parent, current)
             except Exception as cleanup_error:
                 cleanup_errors.append(cleanup_error)
         if cleanup_errors:
@@ -1002,12 +1012,13 @@ def main() -> int:
                 artifact_statuses["installManifest"]["status"] = "updated"
 
         if args.apply:
+            bundle_managed_root = codex_root if installed_target else manifest_path.absolute().parent
             preflight_paths = [manifest_path, index_path]
             if installed_target:
                 preflight_paths.append(install_manifest_path)
             try:
                 for target in preflight_paths:
-                    ensure_safe_write_target(target, codex_root)
+                    ensure_safe_write_target(target, bundle_managed_root)
             except ValueError as exc:
                 print(f"ERROR: sync bundle was not applied: unsafe sync target {target}: {exc}", file=sys.stderr)
                 return 1
@@ -1023,7 +1034,7 @@ def main() -> int:
             ):
                 bundle_items.append(JsonBundleItem("installManifest", install_manifest_path, install_manifest_data))
             try:
-                apply_json_bundle(tuple(bundle_items), codex_root)
+                apply_json_bundle(tuple(bundle_items), bundle_managed_root)
             except (OSError, ValueError) as exc:
                 print(f"ERROR: sync bundle was not applied: {exc}", file=sys.stderr)
                 return 1
@@ -1069,11 +1080,12 @@ def main() -> int:
 
     if args.manifest_output:
         manifest_path = Path(args.manifest_output).expanduser()
+        manifest_managed_root = manifest_path.absolute().parent
         try:
-            ensure_safe_write_target(manifest_path, codex_root)
+            ensure_safe_write_target(manifest_path, manifest_managed_root)
             apply_json_bundle(
                 (JsonBundleItem("inventory", manifest_path, current_manifest),),
-                codex_root,
+                manifest_managed_root,
             )
         except ValueError as exc:
             print(f"ERROR: unsafe manifest output target {manifest_path}: {exc}", file=sys.stderr)

@@ -68,7 +68,7 @@ class CapabilityCliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             inventory_path = root / "skills.manifest.json"
-            index_path = root / "capability-index.json"
+            index_path = root / "new" / "nested" / "capability-index.json"
             routes_path = root / "routes.json"
             write_inventory(inventory_path)
             routes_path.write_text(

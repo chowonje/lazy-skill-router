@@ -422,8 +422,9 @@ def build_command(args: argparse.Namespace) -> int:
         reason = ", ".join(inventory.reason_codes) or inventory.state
         raise ValueError(f"skill inventory is unavailable: {reason}")
     index = build_capability_index(inventory)
-    ensure_safe_write_target(output_path, root)
-    write_json_atomic(output_path, index)
+    output_managed_root = output_path.parent if args.output or args.inventory else root
+    ensure_safe_write_target(output_path, output_managed_root)
+    write_json_atomic(output_path, index, managed_root=output_managed_root)
     print(
         json.dumps(
             {

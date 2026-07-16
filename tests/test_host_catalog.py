@@ -38,7 +38,7 @@ class HostCatalogTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             draft_path = root / "host-catalog.draft.json"
-            output_path = root / "host-catalog.json"
+            output_path = root / "new" / "nested" / "host-catalog.json"
             draft_path.write_text(
                 json.dumps(
                     {

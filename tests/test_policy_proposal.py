@@ -870,7 +870,7 @@ class PolicyProposalTest(unittest.TestCase):
             inventory_path = root / "skills.manifest.json"
             proposal_path = root / "policy.proposal.json"
             base_path = root / "routes.json"
-            output_path = root / "routes.candidate.json"
+            output_path = root / "new" / "nested" / "routes.candidate.json"
             proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
             base = {
                 "version": 1,

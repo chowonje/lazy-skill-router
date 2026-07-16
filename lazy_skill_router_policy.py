@@ -1489,12 +1489,13 @@ def policy_main(argv: list[str]) -> int:
     if args.dry_run:
         print(json.dumps(compiled, ensure_ascii=False, indent=2))
         return 0
+    output_managed_root = output_path.parent if args.output else root
     try:
-        ensure_safe_write_target(output_path, root)
-    except ValueError as exc:
+        ensure_safe_write_target(output_path, output_managed_root)
+        write_json_atomic(output_path, compiled, managed_root=output_managed_root)
+    except (OSError, ValueError) as exc:
         print(f"ERROR: refusing unsafe policy write: {output_path}: {exc}", file=sys.stderr)
         return 1
-    write_json_atomic(output_path, compiled)
     for warning in validation.warnings:
         print(f"Warning: {warning}")
     print(

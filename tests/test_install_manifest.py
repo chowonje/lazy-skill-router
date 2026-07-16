@@ -259,6 +259,115 @@ class InstallManifestTest(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b"installed candidate\n")
             self.assertEqual(replacement_path.read_bytes(), replacement_bytes)
 
+    def test_atomic_write_rejects_target_outside_managed_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            managed_root = root / "managed"
+            managed_root.mkdir()
+            outside = root / "outside.txt"
+            original = b"outside sentinel\n"
+            outside.write_bytes(original)
+            outside_identity = common.confined_path_identity(outside, root)
+
+            with self.assertRaisesRegex(ValueError, "escapes managed root"):
+                common.confined_atomic_write_bytes(
+                    outside,
+                    b"unexpected replacement\n",
+                    managed_root,
+                    outside_identity,
+                )
+
+            self.assertEqual(outside.read_bytes(), original)
+
+    def test_managed_root_creation_removes_partial_ancestor_chain_on_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "first"
+            managed_root = first / "second"
+            real_mkdir = common.os.mkdir
+
+            def fail_second_directory(path, mode=0o777, *, dir_fd=None):
+                if path == "second":
+                    raise OSError("injected managed-root creation failure")
+                return real_mkdir(path, mode, dir_fd=dir_fd)
+
+            with (
+                mock.patch.object(common.os, "mkdir", side_effect=fail_second_directory),
+                self.assertRaisesRegex(OSError, "injected managed-root creation failure"),
+            ):
+                common.confined_ensure_managed_root(managed_root)
+
+            self.assertFalse(first.exists())
+
+    def test_parent_creation_removes_partial_chain_on_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            managed_root = root / "managed"
+            managed_root.mkdir()
+            first = managed_root / "first"
+            target = first / "second" / "output.json"
+            real_mkdir = common.os.mkdir
+
+            def fail_second_directory(path, mode=0o777, *, dir_fd=None):
+                if path == "second":
+                    raise OSError("injected parent creation failure")
+                return real_mkdir(path, mode, dir_fd=dir_fd)
+
+            with (
+                mock.patch.object(common.os, "mkdir", side_effect=fail_second_directory),
+                self.assertRaisesRegex(OSError, "injected parent creation failure"),
+            ):
+                common.confined_ensure_parent(target, managed_root)
+
+            self.assertFalse(first.exists())
+
+    def test_parent_creation_removes_directory_when_fsync_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            managed_root = root / "managed"
+            managed_root.mkdir()
+            created = managed_root / "created"
+            target = created / "output.json"
+            real_fsync = common.os.fsync
+            calls = 0
+
+            def fail_first_fsync(descriptor):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise OSError("injected parent fsync failure")
+                return real_fsync(descriptor)
+
+            with (
+                mock.patch.object(common.os, "fsync", side_effect=fail_first_fsync),
+                self.assertRaisesRegex(OSError, "injected parent fsync failure"),
+            ):
+                common.confined_ensure_parent(target, managed_root)
+
+            self.assertFalse(created.exists())
+
+    def test_managed_root_creation_removes_directory_when_fsync_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            managed_root = root / "managed"
+            real_fsync = common.os.fsync
+            calls = 0
+
+            def fail_first_fsync(descriptor):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise OSError("injected managed-root fsync failure")
+                return real_fsync(descriptor)
+
+            with (
+                mock.patch.object(common.os, "fsync", side_effect=fail_first_fsync),
+                self.assertRaisesRegex(OSError, "injected managed-root fsync failure"),
+            ):
+                common.confined_ensure_managed_root(managed_root)
+
+            self.assertFalse(managed_root.exists())
+
     def test_private_wrapper_is_removed_before_its_fd_is_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
