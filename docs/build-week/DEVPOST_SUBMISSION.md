@@ -18,6 +18,13 @@ Developer Tools
 Lazy Skill Router is a local, deterministic skill recommendation layer for Codex. It reads the current prompt and
 returns an `activate`, `propose`, or `abstain` decision while keeping recommendation separate from authorization.
 
+## Why it matters
+
+Codex can work with many specialized skills, but as that catalog grows, users must remember what each skill does,
+when to use it, and how to ask for it. I started Lazy Skill Router because choosing a workflow should not require
+memorizing an entire skill menu. The router makes that first decision local and inspectable: it recommends a focused
+skill, while Codex keeps the final decision.
+
 Before Build Week, I used Codex with GPT-5.6 to evolve the project into Architecture 3. In that design,
 deterministic routing and ActivationIR remain authoritative while capability-based Top-K retrieval runs only as a
 guarded, non-activating shadow lane.
@@ -36,6 +43,16 @@ lowering promotion thresholds.
 - Defers weak, answer-only, ambiguous, and fallback matches for agent review.
 - Ranks up to three capability candidates in a separate preview lane that cannot affect activation.
 - Installs, synchronizes, diagnoses, and removes its managed Codex hook files with explicit safety boundaries.
+
+## Demo
+
+The demo follows one complete workflow:
+
+1. Lazy Skill Router recommends the relevant workflow for a small CI Relay project.
+2. Project Mindmap maps the repository and shows the event-to-notification data flow.
+3. Ponytail applies the smallest correct retry-on-timeout change without changing the public API or adding a
+   dependency.
+4. A focused test and the project checks verify the behavior.
 
 ## How I used Codex and GPT-5.6
 
