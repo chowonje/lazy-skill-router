@@ -62,6 +62,12 @@ MISSING_PATH_IDENTITY: Final = ConfinedPathIdentity("missing")
 EMPTY_DIRECTORY_DIGEST: Final = "sha256:" + hashlib.sha256(b"[]").hexdigest()
 
 
+def _regular_read_flags() -> int:
+    """Open a prospective regular file without following links or blocking on a raced FIFO."""
+
+    return os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
+
+
 def _ambient_trusted_boundary(path: Path) -> Path:
     candidates = (
         Path.cwd().absolute(),
@@ -300,7 +306,7 @@ def _identity_at(parent_fd: int, name: str) -> ConfinedPathIdentity:
         return MISSING_PATH_IDENTITY
     mode = stat.S_IMODE(path_stat.st_mode)
     if stat.S_ISREG(path_stat.st_mode):
-        descriptor = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+        descriptor = os.open(name, _regular_read_flags(), dir_fd=parent_fd)
         try:
             opened_stat = os.fstat(descriptor)
             if (opened_stat.st_dev, opened_stat.st_ino) != (path_stat.st_dev, path_stat.st_ino):
@@ -394,7 +400,7 @@ def confined_read_bytes(
         _verify_identity_at(parent_fd, name, expected)
         if expected.kind != "file":
             raise ValueError("confined read requires a regular file")
-        descriptor = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+        descriptor = os.open(name, _regular_read_flags(), dir_fd=parent_fd)
         try:
             opened = os.fstat(descriptor)
             if (
@@ -427,6 +433,68 @@ def confined_read_bytes(
         _verify_identity_at(parent_fd, name, expected)
         return b"".join(chunks)
     finally:
+        os.close(parent_fd)
+
+
+def confined_read_regular_snapshot(
+    path: Path,
+    managed_root: Path,
+    max_bytes: int,
+) -> tuple[bytes | None, ConfinedPathIdentity]:
+    """Read one regular file through confined descriptors without following a raced path.
+
+    A file larger than ``max_bytes`` returns ``None`` content after reading at
+    most ``max_bytes + 1`` bytes. The returned identity is verified before and
+    after the read; its digest is populated only when the complete file fit.
+    """
+
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0:
+        raise ValueError("confined snapshot byte limit is invalid")
+    parent_fd, name, _ = _open_confined_parent(path, managed_root, create_parents=False)
+    descriptor: int | None = None
+    try:
+        initial = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if not stat.S_ISREG(initial.st_mode):
+            raise ValueError("confined snapshot requires a regular file")
+        descriptor = os.open(name, _regular_read_flags(), dir_fd=parent_fd)
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino, opened.st_size) != (
+            initial.st_dev,
+            initial.st_ino,
+            initial.st_size,
+        ):
+            raise ValueError("confined snapshot file changed while opening")
+        chunks: list[bytes] = []
+        remaining = max_bytes + 1
+        while remaining:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        content = b"".join(chunks)
+        final = os.fstat(descriptor)
+        current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if any(getattr(final, field) != getattr(opened, field) for field in stable_fields) or any(
+            getattr(current, field) != getattr(opened, field) for field in stable_fields
+        ):
+            raise ValueError("confined snapshot file changed while reading")
+        complete = len(content) <= max_bytes and len(content) == opened.st_size
+        digest = "sha256:" + hashlib.sha256(content).hexdigest() if complete else None
+        identity = ConfinedPathIdentity(
+            "available",
+            "file",
+            opened.st_dev,
+            opened.st_ino,
+            stat.S_IMODE(opened.st_mode),
+            opened.st_size,
+            digest,
+        )
+        return (content if complete else None), identity
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
         os.close(parent_fd)
 
 
@@ -1033,11 +1101,7 @@ def _copy_tree_plan(
     for entry in plan:
         _verify_identity_at(source_fd, entry.name, entry.identity)
         if entry.identity.kind == "file":
-            source_file_fd = os.open(
-                entry.name,
-                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
-                dir_fd=source_fd,
-            )
+            source_file_fd = os.open(entry.name, _regular_read_flags(), dir_fd=source_fd)
             destination_file_fd = os.open(
                 entry.name,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
@@ -1101,7 +1165,7 @@ def confined_copy_path_to_private(
     try:
         _verify_identity_at(parent_fd, name, expected)
         if expected.kind == "file":
-            source_fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+            source_fd = os.open(name, _regular_read_flags(), dir_fd=parent_fd)
             destination_fd = os.open(
                 backup,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
@@ -1519,7 +1583,7 @@ def backup_file(path: Path, managed_root: Path, label: str = "") -> Path | None:
                 os.close(parent_fd)
             parent_fd = next_fd
 
-        source_fd = os.open(relative.name, os.O_RDONLY | nofollow, dir_fd=parent_fd)
+        source_fd = os.open(relative.name, _regular_read_flags(), dir_fd=parent_fd)
         source_stat = os.fstat(source_fd)
         if not stat.S_ISREG(source_stat.st_mode) or (source_stat.st_dev, source_stat.st_ino) != (
             source_lstat.st_dev,

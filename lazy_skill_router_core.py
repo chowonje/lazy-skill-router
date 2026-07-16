@@ -30,14 +30,14 @@ from lazy_skill_router_scoring import (
 )
 
 DEFAULT_ANSWER_ONLY_PATTERNS: tuple[str, ...] = (
-    r"그냥\s*설명",
+    r"그냥\s{0,16}설명",
     r"설명만",
-    r"설명(?:해\s*줘|해주세요|해줘)",
+    r"설명(?:해\s{0,16}줘|해주세요|해줘)",
     r"\bexplain\b",
     r"don't change",
     r"do not change",
     r"no edit",
-    r"수정하지\s*마",
+    r"수정하지\s{0,16}마",
 )
 ACTIVATION_MODES = frozenset({"inject", "off", "shadow"})
 

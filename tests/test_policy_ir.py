@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import unittest
 from unittest import mock
 
@@ -30,6 +31,238 @@ def available_skill(name: str, canonical_id: str) -> dict[str, object]:
 
 
 class PolicyIRTest(unittest.TestCase):
+    def test_v1_policy_text_boundaries_fail_open_without_truncation(self) -> None:
+        def base_config() -> dict[str, object]:
+            return {
+                "routes": [
+                    {
+                        "name": "route",
+                        "intent": "intent",
+                        "primary": "primary",
+                        "supporting": ["supporting"],
+                        "verification": "verification",
+                        "patterns": [
+                            {
+                                "id": "pattern",
+                                "regex": "needle",
+                                "label": "label",
+                                "facet": "facet",
+                            }
+                        ],
+                        "activation": {"requiredFacets": ["facet"]},
+                        "lifecycle": {"state": "active", "proposalRevision": "revision"},
+                        "reason": "reason",
+                    }
+                ]
+            }
+
+        def route(config: dict[str, object]) -> dict[str, object]:
+            return config["routes"][0]  # type: ignore[index,return-value]
+
+        cases = (
+            ("route", "route_id_invalid", lambda config, value: route(config).__setitem__("name", value)),
+            ("intent", "route_intent_invalid", lambda config, value: route(config).__setitem__("intent", value)),
+            ("primary", "route_primary_invalid", lambda config, value: route(config).__setitem__("primary", value)),
+            (
+                "supporting",
+                "route_supporting_invalid",
+                lambda config, value: route(config).__setitem__("supporting", [value]),
+            ),
+            (
+                "verification",
+                "route_verification_invalid",
+                lambda config, value: route(config).__setitem__("verification", value),
+            ),
+            ("reason", "route_reason_invalid", lambda config, value: route(config).__setitem__("reason", value)),
+            (
+                "pattern-id",
+                "route_pattern_id_invalid",
+                lambda config, value: route(config)["patterns"][0].__setitem__("id", value),  # type: ignore[index,union-attr]
+            ),
+            (
+                "pattern-label",
+                "route_pattern_label_invalid",
+                lambda config, value: route(config)["patterns"][0].__setitem__("label", value),  # type: ignore[index,union-attr]
+            ),
+            (
+                "facet",
+                "route_pattern_facet_invalid",
+                lambda config, value: (
+                    route(config)["patterns"][0].__setitem__("facet", value),  # type: ignore[index,union-attr]
+                    route(config)["activation"].__setitem__("requiredFacets", [value]),  # type: ignore[union-attr]
+                ),
+            ),
+            (
+                "proposal-revision",
+                "route_proposal_revision_invalid",
+                lambda config, value: route(config)["lifecycle"].__setitem__("proposalRevision", value),  # type: ignore[union-attr]
+            ),
+            (
+                "allowed-skill",
+                "allowed_skills_invalid",
+                lambda config, value: (
+                    config.__setitem__("allowedSkills", [value]),
+                    route(config).__setitem__("primary", value),
+                ),
+            ),
+            (
+                "default-verification",
+                "default_verification_invalid",
+                lambda config, value: config.__setitem__("defaultVerification", value),
+            ),
+        )
+
+        for field, expected_code, mutate in cases:
+            with self.subTest(field=field, boundary="accepted"):
+                config = base_config()
+                mutate(config, "x" * 160)
+                parsed = parse_policy_config(config)
+                self.assertTrue(parsed.valid, parsed.findings)
+            with self.subTest(field=field, boundary="rejected"):
+                config = base_config()
+                mutate(config, "x" * 161)
+                parsed = parse_policy_config(config)
+                self.assertFalse(parsed.valid)
+                self.assertIn(expected_code, {finding.code for finding in parsed.findings})
+                self.assertIsNone(route_prompt("needle", config))
+
+        for size, expected_valid in ((160, True), (161, False)):
+            with self.subTest(field="unicode-route", size=size):
+                config = base_config()
+                route(config)["name"] = "가" * size
+                parsed = parse_policy_config(config)
+                self.assertEqual(parsed.valid, expected_valid)
+
+    def test_v2_policy_text_boundaries_cover_binding_forms_and_facets(self) -> None:
+        def base_config() -> dict[str, object]:
+            return {
+                "schemaVersion": 2,
+                "policyVersion": "policy",
+                "selection": {
+                    "mode": "ranked",
+                    "maxRecommendations": 1,
+                    "minMatchStrength": 0.5,
+                    "minScoreMargin": 0.1,
+                },
+                "skillBindings": {"capability": "skill"},
+                "routes": [
+                    {
+                        "id": "route",
+                        "intent": "intent",
+                        "capabilityRequirements": {"primary": ["capability"]},
+                        "match": {
+                            "any": [
+                                {
+                                    "id": "pattern",
+                                    "regex": "needle",
+                                    "label": "label",
+                                    "facet": "facet",
+                                }
+                            ]
+                        },
+                        "activation": {"requiredFacets": ["facet"]},
+                        "lifecycle": {"state": "active", "proposalRevision": "revision"},
+                        "reason": "reason",
+                    }
+                ],
+            }
+
+        def route(config: dict[str, object]) -> dict[str, object]:
+            return config["routes"][0]  # type: ignore[index,return-value]
+
+        def set_capability(config: dict[str, object], value: str) -> None:
+            config["skillBindings"] = {value: "skill"}
+            route(config)["capabilityRequirements"] = {"primary": [value]}
+
+        def set_fallback(config: dict[str, object], value: str) -> None:
+            config["fallbackRouteId"] = value
+            route(config)["id"] = value
+
+        cases = (
+            (
+                "policy-version",
+                "policy_version_invalid",
+                lambda config, value: config.__setitem__("policyVersion", value),
+            ),
+            ("route", "route_id_invalid", lambda config, value: route(config).__setitem__("id", value)),
+            ("fallback-route", "fallback_route_id_invalid", set_fallback),
+            ("intent", "route_intent_invalid", lambda config, value: route(config).__setitem__("intent", value)),
+            ("capability", "skill_binding_capability_invalid", set_capability),
+            (
+                "binding-string",
+                "skill_binding_name_invalid",
+                lambda config, value: config.__setitem__("skillBindings", {"capability": value}),
+            ),
+            (
+                "binding-object",
+                "skill_binding_name_invalid",
+                lambda config, value: config.__setitem__("skillBindings", {"capability": {"skill": value}}),
+            ),
+            (
+                "pattern-id",
+                "route_pattern_id_invalid",
+                lambda config, value: route(config)["match"]["any"][0].__setitem__("id", value),  # type: ignore[index,union-attr]
+            ),
+            (
+                "pattern-label",
+                "route_pattern_label_invalid",
+                lambda config, value: route(config)["match"]["any"][0].__setitem__("label", value),  # type: ignore[index,union-attr]
+            ),
+            (
+                "facet",
+                "route_pattern_facet_invalid",
+                lambda config, value: (
+                    route(config)["match"]["any"][0].__setitem__("facet", value),  # type: ignore[index,union-attr]
+                    route(config)["activation"].__setitem__("requiredFacets", [value]),  # type: ignore[union-attr]
+                ),
+            ),
+            (
+                "proposal-revision",
+                "route_proposal_revision_invalid",
+                lambda config, value: route(config)["lifecycle"].__setitem__("proposalRevision", value),  # type: ignore[union-attr]
+            ),
+            ("reason", "route_reason_invalid", lambda config, value: route(config).__setitem__("reason", value)),
+        )
+
+        for field, expected_code, mutate in cases:
+            with self.subTest(field=field, boundary="accepted"):
+                config = copy.deepcopy(base_config())
+                mutate(config, "x" * 160)
+                parsed = parse_policy_config(config)
+                self.assertTrue(parsed.valid, parsed.findings)
+            with self.subTest(field=field, boundary="rejected"):
+                config = copy.deepcopy(base_config())
+                mutate(config, "x" * 161)
+                parsed = parse_policy_config(config)
+                self.assertFalse(parsed.valid)
+                self.assertIn(expected_code, {finding.code for finding in parsed.findings})
+
+    def test_implicit_pattern_id_stays_within_policy_identifier_limit(self) -> None:
+        route_name = "x" * 160
+        parsed = parse_policy_config({"routes": [{"name": route_name, "primary": "skill", "patterns": ["needle"]}]})
+
+        self.assertTrue(parsed.valid, parsed.findings)
+        self.assertLessEqual(len(parsed.policy.routes[0].patterns[0].pattern_id), 160)
+
+    def test_v1_empty_or_null_intent_keeps_the_legacy_route_id_fallback(self) -> None:
+        for intent in ("", None):
+            with self.subTest(intent=intent):
+                parsed = parse_policy_config(
+                    {
+                        "routes": [
+                            {
+                                "name": "legacy-route",
+                                "intent": intent,
+                                "primary": "skill",
+                                "patterns": ["needle"],
+                            }
+                        ]
+                    }
+                )
+
+                self.assertTrue(parsed.valid, parsed.findings)
+                self.assertEqual(parsed.policy.routes[0].intent_id, "legacy-route")
+
     def test_capability_retrieval_algorithm_is_validated_by_shared_policy_parser(self) -> None:
         valid = parse_policy_config(
             {

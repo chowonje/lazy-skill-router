@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -109,6 +110,36 @@ class HookContractTest(unittest.TestCase):
 
     def test_hook_hard_abstains_for_router_meta_discussion(self) -> None:
         self.assert_quiet_fail_open({"prompt": "스킬을 왜 사용하게 되는지 설명해줘"})
+
+    def test_hook_fails_open_quietly_for_an_overlong_policy_identifier(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "routes.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "routes": [
+                            {
+                                "name": "x" * 161,
+                                "primary": "pdf",
+                                "patterns": ["oversized-policy"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [sys.executable, str(HOOK_PATH), "--config", str(config_path)],
+                input=json.dumps({"prompt": "oversized-policy"}),
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.stderr, "")
 
 
 if __name__ == "__main__":

@@ -374,28 +374,32 @@ def check_inventory_freshness(path: Path, codex_root: Path, agents_root: Path) -
 
 
 def check_install_manifest(path: Path, codex_root: Path) -> CheckResult:
+    required_managed = tuple(f"hooks/{name}" for name in HOOK_FILES)
     required_generated = (
         "lazy-skill-router/skills.manifest.json",
         f"lazy-skill-router/{DEFAULT_CAPABILITY_INDEX_NAME}",
     )
+    required_records = tuple((relative_path, "managed") for relative_path in required_managed) + tuple(
+        (relative_path, "generated") for relative_path in required_generated
+    )
     snapshot = load_install_manifest(path)
     if snapshot.state != "available":
-        for relative_path in required_generated:
+        for relative_path, ownership in required_records:
             records = tuple(artifact for artifact in snapshot.artifacts if artifact.get("path") == relative_path)
             if len(records) > 1:
                 return fail(
                     "install ownership manifest validates: "
-                    f"{relative_path} requires exactly one generated regular-file ownership record"
+                    f"{relative_path} requires exactly one {ownership} regular-file ownership record"
                 )
         reason = ", ".join(snapshot.reason_codes) if snapshot.reason_codes else snapshot.state
         return fail(f"install ownership manifest validates: {reason}")
 
-    for relative_path in required_generated:
+    for relative_path, ownership in required_records:
         records = tuple(artifact for artifact in snapshot.artifacts if artifact.get("path") == relative_path)
-        if len(records) != 1 or records[0].get("ownership") != "generated" or records[0].get("kind") != "file":
+        if len(records) != 1 or records[0].get("ownership") != ownership or records[0].get("kind") != "file":
             return fail(
                 "install ownership manifest validates: "
-                f"{relative_path} requires exactly one generated regular-file ownership record"
+                f"{relative_path} requires exactly one {ownership} regular-file ownership record"
             )
 
     physical_aliases = physical_artifact_aliases(snapshot, codex_root)

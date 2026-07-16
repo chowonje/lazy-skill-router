@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -193,6 +194,44 @@ class GenerateRoutesTest(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8"))["routes"][0]["primary"], "pdf")
             self.assertIn("generated 1 routes", completed.stdout)
+
+    def test_cli_rejects_symlink_output_without_touching_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            template_path = root / "routes.template.json"
+            output_path = root / "routes.json"
+            sentinel = root / "outside.json"
+            sentinel.write_text('{"sentinel": true}\n', encoding="utf-8")
+            os.symlink(sentinel, output_path)
+            write_skill(codex_home / "skills" / "pdf" / "SKILL.md", "pdf")
+            template_path.write_text(
+                json.dumps({"routes": [{"name": "pdf", "primaryCandidates": ["pdf"], "patterns": ["pdf"]}]}),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(GENERATE_PATH),
+                    "--template",
+                    str(template_path),
+                    "--output",
+                    str(output_path),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("symlink", completed.stderr.lower())
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), '{"sentinel": true}\n')
 
 
 if __name__ == "__main__":

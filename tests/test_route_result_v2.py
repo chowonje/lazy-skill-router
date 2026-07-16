@@ -10,6 +10,7 @@ from typing import Any
 
 from lazy_skill_router_contracts import hook_ir_v1, route_result_v2, structured_recommendation_v1
 from lazy_skill_router_core import dry_run_output
+from lazy_skill_router_policy_ir import parse_policy_config
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOK_PATH = ROOT / "lazy_skill_router.py"
@@ -30,6 +31,29 @@ def run_json(args: list[str]) -> dict[str, Any]:
 
 
 class RouteResultV2Test(unittest.TestCase):
+    def test_v1_policy_version_fields_are_bounded_in_parser_and_route_result(self) -> None:
+        base = {"routes": [{"name": "route", "primary": "skill", "patterns": ["needle"]}]}
+        cases = (
+            ("policyVersion", 160, 161),
+            ("version", 151, 152),
+        )
+
+        for field, accepted_size, rejected_size in cases:
+            with self.subTest(field=field, boundary="accepted"):
+                config = {**base, field: "x" * accepted_size}
+                parsed = parse_policy_config(config)
+                result = route_result_v2("needle", config)
+                self.assertTrue(parsed.valid, parsed.findings)
+                self.assertLessEqual(len(result["policy_version"]), 160)
+            with self.subTest(field=field, boundary="rejected"):
+                config = {**base, field: "x" * rejected_size}
+                parsed = parse_policy_config(config)
+                result = route_result_v2("needle", config)
+                self.assertFalse(parsed.valid)
+                self.assertIn("policy_version_invalid", {finding.code for finding in parsed.findings})
+                self.assertLessEqual(len(result["policy_version"]), 160)
+                self.assertNotIn("x" * rejected_size, json.dumps(result))
+
     def test_meta_abstention_suppresses_skill_lists_across_structured_contracts(self) -> None:
         prompt = "스킬을 왜 사용하게 되는지 설명해줘"
         config = load_default_config()

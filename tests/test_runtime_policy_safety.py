@@ -336,6 +336,16 @@ class PolicyScalarValidationTest(unittest.TestCase):
 
 
 class RouteRegexSafetyTest(unittest.TestCase):
+    def test_runtime_default_answer_only_patterns_pass_shared_policy_safety(self) -> None:
+        config = {
+            "answerOnlyPatterns": list(core.DEFAULT_ANSWER_ONLY_PATTERNS),
+            "routes": [v1_route(patterns=["safe-pattern"])],
+        }
+
+        parsed = parse_policy_config(config)
+
+        self.assertTrue(parsed.valid, parsed.findings)
+
     def test_unsafe_route_regexes_are_rejected_before_runtime_search(self) -> None:
         unsafe_patterns = (
             r"(a+)+$",
@@ -482,6 +492,41 @@ class RouteRegexSafetyTest(unittest.TestCase):
             with self.subTest(error=type(error).__name__):
                 with mock.patch.object(scoring.re, "search", side_effect=error):
                     self.assertEqual(matched_patterns("route", ("route",)), ())
+
+    def test_unanchored_variable_repeat_before_suffix_has_a_64_character_limit(self) -> None:
+        for regex in (r"A.*B", r"A[\s\S]*B", r"Aa*B", r"A.{0,65}B"):
+            with self.subTest(regex=regex):
+                parsed = parse_policy_config({"routes": [v1_route(patterns=[regex])]})
+
+                self.assertFalse(parsed.valid)
+                self.assertIn("route_pattern_regex_unsafe", {finding.code for finding in parsed.findings})
+
+        for regex in (r"A.{0,64}B", r"^A.*B", r"\AA.*B", r"A.*"):
+            with self.subTest(regex=regex):
+                parsed = parse_policy_config({"routes": [v1_route(patterns=[regex])]})
+
+                self.assertTrue(parsed.valid, parsed.findings)
+
+    def test_unanchored_repeat_suffix_limit_covers_nested_branch_and_assertion_forms(self) -> None:
+        for regex in (r"A(?:.*B)", r"(A.*)B", r"(?:A.*B|C)", r"A.*$"):
+            with self.subTest(regex=regex):
+                parsed = parse_policy_config({"routes": [v1_route(patterns=[regex])]})
+
+                self.assertFalse(parsed.valid)
+                self.assertIn("route_pattern_regex_unsafe", {finding.code for finding in parsed.findings})
+
+    def test_repeated_unanchored_variable_repeat_is_rejected_before_runtime_search(self) -> None:
+        patterns = [{"id": f"retry-{index}", "regex": r"A.*B"} for index in range(32)]
+        config = {"routes": [v1_route(patterns=patterns)]}
+
+        with mock.patch.object(scoring.re, "search") as search:
+            parsed = parse_policy_config(config)
+            matches = core.route_matches("A" * 4096, config)
+
+        self.assertFalse(parsed.valid)
+        self.assertIn("route_pattern_regex_unsafe", {finding.code for finding in parsed.findings})
+        self.assertEqual(matches, ())
+        search.assert_not_called()
 
     def test_serial_optional_repeats_are_rejected_before_runtime_search(self) -> None:
         regex = ("a?" * 20) + "b"

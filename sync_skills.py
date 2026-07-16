@@ -25,6 +25,7 @@ from lazy_skill_router_common import (
     confined_ensure_parent,
     confined_path_identity,
     confined_read_bytes,
+    confined_read_regular_snapshot,
     confined_replace_staged,
     confined_rmdir,
     confined_stage_bytes,
@@ -41,6 +42,7 @@ from lazy_skill_router_install_manifest import (
     sha256_bytes,
 )
 from lazy_skill_router_inventory import (
+    MAX_SKILL_DOCUMENT_BYTES,
     InventoryDiff,
     InventorySnapshot,
     build_inventory_manifest,
@@ -99,6 +101,16 @@ class SkillRecord:
     name: str
     path: Path
     description: str = ""
+    content_digest: str | None = None
+    content_digest_reason: str | None = None
+    snapshot_validated: bool = False
+
+
+@dataclass(frozen=True)
+class SkillFileCandidate:
+    path: Path
+    root_alias: str
+    root: Path
 
 
 @dataclass(frozen=True)
@@ -386,12 +398,8 @@ def frontmatter_scalar(value: str) -> str:
     return stripped
 
 
-def frontmatter_metadata(path: Path) -> tuple[str | None, str]:
-    try:
-        with path.open("rb") as handle:
-            prefix = handle.read(MAX_SKILL_FRONTMATTER_BYTES)
-    except OSError:
-        return None, ""
+def frontmatter_metadata_bytes(content: bytes) -> tuple[str | None, str]:
+    prefix = content[:MAX_SKILL_FRONTMATTER_BYTES]
     raw_lines = prefix.splitlines()
     if not raw_lines or raw_lines[0].strip() != b"---":
         return None, ""
@@ -444,6 +452,15 @@ def frontmatter_metadata(path: Path) -> tuple[str | None, str]:
     return name, description[:4000]
 
 
+def frontmatter_metadata(path: Path) -> tuple[str | None, str]:
+    try:
+        with path.open("rb") as handle:
+            prefix = handle.read(MAX_SKILL_FRONTMATTER_BYTES)
+    except OSError:
+        return None, ""
+    return frontmatter_metadata_bytes(prefix)
+
+
 def frontmatter_name(path: Path) -> str | None:
     name, _ = frontmatter_metadata(path)
     return name
@@ -469,8 +486,8 @@ def plugin_prefix(path: Path) -> str | None:
     return None
 
 
-def skill_name(path: Path, configured_name: str | None = None) -> str:
-    raw_name = configured_name or frontmatter_name(path) or path.parent.name
+def skill_name(path: Path, configured_name: str | None = None, *, metadata_loaded: bool = False) -> str:
+    raw_name = configured_name or (None if metadata_loaded else frontmatter_name(path)) or path.parent.name
     prefix = plugin_prefix(path)
     if prefix is None or raw_name.startswith(f"{prefix}:"):
         return raw_name
@@ -537,8 +554,8 @@ def candidate_issue(path: Path, root_alias: str, root: Path) -> SkillScanIssue |
 def scan_skill_files(
     codex_root: Path,
     agents_root: Path,
-) -> tuple[tuple[Path, ...], tuple[SkillScanIssue, ...]]:
-    files: list[Path] = []
+) -> tuple[tuple[SkillFileCandidate, ...], tuple[SkillScanIssue, ...]]:
+    files: list[SkillFileCandidate] = []
     issues: list[SkillScanIssue] = []
     for root_alias, root in scan_roots(codex_root, agents_root):
         if root.is_symlink():
@@ -567,25 +584,61 @@ def scan_skill_files(
             if issue is not None:
                 issues.append(issue)
             elif candidate.is_file():
-                files.append(candidate)
+                files.append(SkillFileCandidate(candidate, root_alias, root))
     return (
-        tuple(sorted(files)),
+        tuple(sorted(files, key=lambda candidate: candidate.path.as_posix())),
         tuple(sorted(issues, key=lambda issue: (issue.root_alias, issue.relative_locator, issue.reason_code))),
     )
 
 
 def skill_files(codex_root: Path, agents_root: Path) -> tuple[Path, ...]:
     files, _ = scan_skill_files(codex_root, agents_root)
-    return files
+    return tuple(candidate.path for candidate in files)
 
 
 def scan_installed_skills_with_issues(codex_root: Path, agents_root: Path) -> SkillScanResult:
     files, issues = scan_skill_files(codex_root, agents_root)
-    records = []
-    for path in files:
-        configured_name, description = frontmatter_metadata(path)
-        records.append(SkillRecord(skill_name(path, configured_name), path, description))
-    return SkillScanResult(tuple(sorted(records, key=lambda item: (item.name, item.path.as_posix()))), issues)
+    records: list[SkillRecord] = []
+    scan_issues = list(issues)
+    for candidate in files:
+        path = candidate.path
+        try:
+            content, identity = confined_read_regular_snapshot(
+                path,
+                candidate.root,
+                MAX_SKILL_DOCUMENT_BYTES,
+            )
+            if content is None:
+                configured_name, description = None, ""
+                digest = None
+                digest_reason = "skill_document_too_large"
+            else:
+                configured_name, description = frontmatter_metadata_bytes(content)
+                digest = identity.digest
+                digest_reason = None
+        except (OSError, ValueError):
+            reason = SKILL_DOCUMENT_SYMLINK if path.is_symlink() else SKILL_DOCUMENT_RESOLUTION_FAILED
+            scan_issues.append(SkillScanIssue(candidate.root_alias, relative_locator(path, candidate.root), reason))
+            continue
+        records.append(
+            SkillRecord(
+                skill_name(path, configured_name, metadata_loaded=True),
+                path,
+                description,
+                digest,
+                digest_reason,
+                True,
+            )
+        )
+    return SkillScanResult(
+        tuple(sorted(records, key=lambda item: (item.name, item.path.as_posix()))),
+        tuple(
+            sorted(
+                scan_issues,
+                key=lambda issue: (issue.root_alias, issue.relative_locator, issue.reason_code),
+            )
+        ),
+    )
 
 
 def scan_installed_skills(codex_root: Path, agents_root: Path) -> tuple[SkillRecord, ...]:

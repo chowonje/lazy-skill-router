@@ -12,7 +12,7 @@ from lazy_skill_router_core import (
     runtime_policy,
 )
 from lazy_skill_router_inventory import InventorySnapshot
-from lazy_skill_router_policy_ir import runtime_routes
+from lazy_skill_router_policy_ir import policy_identifier, runtime_routes
 from lazy_skill_router_scoring import RouteMatch, text_matches
 
 ROUTE_RESULT_CONTRACT_VERSION = 2
@@ -54,12 +54,13 @@ def min_score_margin(config: dict[str, Any]) -> float:
 
 def policy_version(config: dict[str, Any]) -> str:
     configured = config.get("policyVersion")
-    if isinstance(configured, str) and configured:
+    if policy_identifier(configured):
         return configured
     legacy = config.get("version", 1)
     if isinstance(legacy, bool) or not isinstance(legacy, (str, int, float)):
         legacy = 1
-    return f"route-v1:{legacy}"
+    candidate = f"route-v1:{legacy}"
+    return candidate if policy_identifier(candidate) else "route-v1:1"
 
 
 def score_margin(matches: tuple[RouteMatch, ...], index: int) -> float | None:

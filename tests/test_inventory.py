@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -16,7 +17,12 @@ import sync_skills as sync_module
 from lazy_skill_router_capability_index import load_capability_index
 from lazy_skill_router_contracts import structured_recommendation_v1
 from lazy_skill_router_install_manifest import manifest_revision
-from lazy_skill_router_inventory import build_inventory_manifest, diff_inventory, load_inventory_manifest
+from lazy_skill_router_inventory import (
+    MAX_SKILL_DOCUMENT_BYTES,
+    build_inventory_manifest,
+    diff_inventory,
+    load_inventory_manifest,
+)
 from sync_skills import SkillRecord, candidate_issue, scan_installed_skills, scan_installed_skills_with_issues
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +62,90 @@ def forbid_reads_from(sentinel: Path):
 
 
 class InventoryManifestTest(unittest.TestCase):
+    def test_inventory_uses_the_verified_skill_snapshot_after_a_later_path_swap(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "private-codex"
+            agents_home = root / "private-agents"
+            skill_path = codex_home / "skills" / "stable" / "SKILL.md"
+            outside = root / "outside" / "SKILL.md"
+            write_skill(skill_path, "stable", "ORIGINAL_BODY")
+            original_digest = "sha256:" + hashlib.sha256(skill_path.read_bytes()).hexdigest()
+            write_skill(outside, "outside-sentinel", "OUTSIDE_PRIVATE_CONTENT")
+            outside_digest = "sha256:" + hashlib.sha256(outside.read_bytes()).hexdigest()
+
+            result = scan_installed_skills_with_issues(codex_home, agents_home)
+            skill_path.unlink()
+            skill_path.symlink_to(outside)
+            manifest = build_inventory_manifest(result.records, codex_home, agents_home)
+
+        self.assertEqual(result.issues, ())
+        self.assertEqual(manifest["skills"][0]["configured_name"], "stable")
+        self.assertEqual(manifest["skills"][0]["content_digest"], original_digest)
+        self.assertNotEqual(manifest["skills"][0]["content_digest"], outside_digest)
+
+    def test_scanner_rejects_leaf_swapped_after_validation_without_exporting_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "private-codex"
+            agents_home = root / "private-agents"
+            skill_path = codex_home / "skills" / "raced" / "SKILL.md"
+            outside = root / "outside" / "SKILL.md"
+            write_skill(skill_path, "before-swap", "SAFE_BODY")
+            write_skill(outside, "outside-sentinel", "OUTSIDE_PRIVATE_CONTENT")
+            real_candidate_issue = sync_module.candidate_issue
+            swapped = False
+
+            def swap_after_validation(path: Path, root_alias: str, scan_root: Path):
+                nonlocal swapped
+                issue = real_candidate_issue(path, root_alias, scan_root)
+                if issue is None and path == skill_path and not swapped:
+                    path.unlink()
+                    path.symlink_to(outside)
+                    swapped = True
+                return issue
+
+            with mock.patch.object(sync_module, "candidate_issue", side_effect=swap_after_validation):
+                result = scan_installed_skills_with_issues(codex_home, agents_home)
+                manifest = build_inventory_manifest(result.records, codex_home, agents_home)
+
+            exported = json.dumps(manifest, ensure_ascii=False)
+
+        self.assertTrue(swapped)
+        self.assertEqual(result.records, ())
+        self.assertEqual(len(result.issues), 1)
+        self.assertIn(result.issues[0].reason_code, {"skill_document_symlink", "skill_document_resolution_failed"})
+        self.assertNotIn("outside-sentinel", exported)
+        self.assertNotIn("OUTSIDE_PRIVATE_CONTENT", exported)
+
+    def test_oversized_skill_snapshot_uses_directory_name_and_marks_document_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "private-codex"
+            agents_home = root / "private-agents"
+            skill_path = codex_home / "skills" / "oversized" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True)
+            with skill_path.open("wb") as handle:
+                handle.write(b"---\nname: hidden-frontmatter-name\ndescription: hidden-description\n---\n")
+                handle.truncate(MAX_SKILL_DOCUMENT_BYTES + 1)
+
+            result = scan_installed_skills_with_issues(codex_home, agents_home)
+            manifest = build_inventory_manifest(result.records, codex_home, agents_home)
+
+        self.assertEqual(result.issues, ())
+        self.assertEqual(len(result.records), 1)
+        self.assertEqual(result.records[0].name, "oversized")
+        self.assertEqual(result.records[0].description, "")
+        self.assertTrue(result.records[0].snapshot_validated)
+        self.assertIsNone(result.records[0].content_digest)
+        self.assertEqual(result.records[0].content_digest_reason, "skill_document_too_large")
+        skill = manifest["skills"][0]
+        self.assertEqual(skill["configured_name"], "oversized")
+        self.assertEqual(skill["description"], "")
+        self.assertIsNone(skill["content_digest"])
+        self.assertIn("skill_document_too_large", skill["availability"]["reason_codes"])
+        self.assertEqual(skill["availability"]["checks"]["skill_document"], "invalid")
+
     def test_default_sync_rejects_hardlink_ownership_alias_with_zero_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

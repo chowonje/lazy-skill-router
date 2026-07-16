@@ -971,6 +971,7 @@ class RouterABEvalTest(unittest.TestCase):
             external = root.parent / f"{root.name}-external.json"
             external.write_text("external bytes must never be hashed", encoding="utf-8")
             original_digest = eval_router_ab.digest_file_descriptor
+            stable_fingerprint = eval_router_ab.file_read_fingerprint(target.stat())
             swapped = False
 
             def swap_path_before_hash(file_fd: int) -> str:
@@ -982,14 +983,62 @@ class RouterABEvalTest(unittest.TestCase):
                 return original_digest(file_fd)
 
             try:
-                with mock.patch.object(
-                    eval_router_ab,
-                    "digest_file_descriptor",
-                    side_effect=swap_path_before_hash,
+                with (
+                    mock.patch.object(
+                        eval_router_ab,
+                        "digest_file_descriptor",
+                        side_effect=swap_path_before_hash,
+                    ),
+                    mock.patch.object(
+                        eval_router_ab,
+                        "file_read_fingerprint",
+                        return_value=stable_fingerprint,
+                    ),
                 ):
                     verification = eval_router_ab.verify_evidence_artifacts(evidence, root)
             finally:
                 external.unlink(missing_ok=True)
+
+        self.assertTrue(swapped)
+        self.assertEqual(verification["status"], "failed")
+        self.assertEqual(
+            verification["failures"],
+            [{"type": "independentHoldout", "reason": "file_changed_during_read"}],
+        )
+        self.assertEqual(len(verification["verifiedArtifactRevisions"]), 4)
+
+    def test_artifact_verifier_rejects_same_content_leaf_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            evidence = write_evidence_artifacts(root)
+            paths = dict(evidence.artifact_paths)
+            target = root / paths["independentHoldout"]
+            replacement = root / "replacement.json"
+            replacement.write_bytes(target.read_bytes())
+            original_digest = eval_router_ab.digest_file_descriptor
+            stable_fingerprint = eval_router_ab.file_read_fingerprint(target.stat())
+            swapped = False
+
+            def replace_path_before_hash(file_fd: int) -> str:
+                nonlocal swapped
+                if not swapped:
+                    os.replace(replacement, target)
+                    swapped = True
+                return original_digest(file_fd)
+
+            with (
+                mock.patch.object(
+                    eval_router_ab,
+                    "digest_file_descriptor",
+                    side_effect=replace_path_before_hash,
+                ),
+                mock.patch.object(
+                    eval_router_ab,
+                    "file_read_fingerprint",
+                    return_value=stable_fingerprint,
+                ),
+            ):
+                verification = eval_router_ab.verify_evidence_artifacts(evidence, root)
 
         self.assertTrue(swapped)
         self.assertEqual(verification["status"], "failed")

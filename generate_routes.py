@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lazy_skill_router_common import codex_home, load_json_object, write_json
+from lazy_skill_router_common import codex_home, load_json_object, write_json_atomic
 from lazy_skill_router_host_catalog import effective_skill_names, load_host_catalog, reconcile_inventory
 from lazy_skill_router_inventory import build_inventory_manifest
 from sync_skills import scan_installed_skills, string_list
@@ -182,6 +182,7 @@ def main() -> int:
     agents_root = Path(args.agents_home).expanduser()
     template_path = Path(args.template).expanduser()
     output_path = Path(args.output).expanduser() if args.output else codex_root / "lazy-skill-router" / "routes.json"
+    output_managed_root = output_path.parent if args.output else codex_root
 
     try:
         result = generate_config(
@@ -200,7 +201,11 @@ def main() -> int:
         print(f"generated {route_count} routes; skipped {len(result.skipped_routes)} routes", file=sys.stderr)
         return 0
 
-    write_json(output_path, result.config)
+    try:
+        write_json_atomic(output_path, result.config, managed_root=output_managed_root)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: cannot write generated routes: {exc}", file=sys.stderr)
+        return 1
     print(f"generated {route_count} routes at {output_path}; skipped {len(result.skipped_routes)} routes")
     return 0
 

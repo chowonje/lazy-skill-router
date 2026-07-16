@@ -42,7 +42,7 @@
       "supporting": [],
       "verification": "",
       "reason": "A smallest-correct-change implementation request was detected.",
-      "patterns": ["smallest correct change", "one retry", "no dependency", "minimal change.{0,80}no new dependenc"]
+      "patterns": ["smallest correct change", "one retry", "no dependency", "minimal change.{0,64}no new dependenc"]
     },
     {
       "name": "security-demo",

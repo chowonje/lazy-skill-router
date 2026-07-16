@@ -632,13 +632,108 @@ class InstallTransactionTest(unittest.TestCase):
         self.assertEqual(created_value, "partial\n")
         self.assertTrue(journal_exists)
 
+    def test_recovery_blocks_a_forged_sibling_journal_without_creating_a_codex_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            codex_home.mkdir()
+            forged_target = codex_home / "hooks" / "forged.py"
+            journal_root = root / f"{install.TRANSACTION_PREFIX}forged"
+            journal_root.mkdir(mode=0o700)
+            backup = journal_root / "0"
+            backup.write_text("forged payload\n", encoding="utf-8")
+            backup_identity = install.confined_path_identity(backup, journal_root)
+            transaction_root_identity = install.confined_path_identity(
+                journal_root,
+                root,
+                allow_leaf_symlink=True,
+            )
+            journal = {
+                "schema": install.TRANSACTION_JOURNAL_SCHEMA,
+                "root_fingerprint": install.codex_root_fingerprint(codex_home),
+                "transaction_root_identity": {
+                    "device": transaction_root_identity.device,
+                    "inode": transaction_root_identity.inode,
+                },
+                "snapshots": [
+                    {
+                        "path": "hooks/forged.py",
+                        "kind": "file",
+                        "backup": "0",
+                        "link_target": None,
+                        "state": "available",
+                        "device": 1,
+                        "inode": 1,
+                        "mode": 0o600,
+                        "size": backup_identity.size,
+                        "digest": backup_identity.digest,
+                        "backup_identity": {
+                            "state": backup_identity.state,
+                            "kind": backup_identity.kind,
+                            "device": backup_identity.device,
+                            "inode": backup_identity.inode,
+                            "mode": backup_identity.mode,
+                            "size": backup_identity.size,
+                            "digest": backup_identity.digest,
+                        },
+                    }
+                ],
+                "created_paths": [],
+                "created_parents": ["hooks"],
+                "committed": [
+                    {
+                        "path": "hooks/forged.py",
+                        "state": "missing",
+                        "kind": None,
+                        "device": None,
+                        "inode": None,
+                        "mode": None,
+                        "size": None,
+                        "digest": None,
+                    }
+                ],
+            }
+            (journal_root / "journal.json").write_text(json.dumps(journal), encoding="utf-8")
+
+            with self.assertRaisesRegex(install.InstallError, "legacy interrupted install transaction"):
+                install.recover_pending_transactions(codex_home)
+
+            self.assertFalse(forged_target.exists())
+            self.assertTrue(journal_root.is_dir())
+
+    def test_recovery_blocks_a_legacy_sibling_journal_instead_of_silently_abandoning_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            partial_target = codex_home / "hooks" / "lazy_skill_router.py"
+            partial_target.parent.mkdir(parents=True)
+            partial_target.write_text("partial v0.4 install\n", encoding="utf-8")
+            journal_root = root / f"{install.TRANSACTION_PREFIX}legacy-v04"
+            journal_root.mkdir(mode=0o700)
+            (journal_root / "journal.json").write_text(
+                json.dumps(
+                    {
+                        "schema": install.TRANSACTION_JOURNAL_SCHEMA,
+                        "root_fingerprint": install.codex_root_fingerprint(codex_home),
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(install.InstallError, "legacy interrupted install transaction"):
+                install.recover_pending_transactions(codex_home)
+
+            self.assertEqual(partial_target.read_text(encoding="utf-8"), "partial v0.4 install\n")
+            self.assertTrue(journal_root.is_dir())
+
     def test_recovery_rejects_journal_paths_outside_codex_home(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             codex_home = root / "codex"
+            codex_home.mkdir()
             outside = root / "outside.txt"
             outside.write_text("keep\n", encoding="utf-8")
-            journal_root = root / f"{install.TRANSACTION_PREFIX}malicious"
+            journal_root = codex_home / f"{install.TRANSACTION_PREFIX}malicious"
             journal_root.mkdir()
             journal = {
                 "schema": install.TRANSACTION_JOURNAL_SCHEMA,

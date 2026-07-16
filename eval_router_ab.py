@@ -926,6 +926,18 @@ def file_read_fingerprint(file_stat: os.stat_result) -> tuple[int, int, int, int
     )
 
 
+def path_resolves_to_identity(root_fd: int, relative_path: str, expected_identity: tuple[int, int]) -> bool:
+    path_fd: int | None = None
+    try:
+        path_fd = open_confined_evidence_artifact(root_fd, relative_path)
+        return file_identity(os.fstat(path_fd)) == expected_identity
+    except OSError:
+        return False
+    finally:
+        if path_fd is not None:
+            os.close(path_fd)
+
+
 def verify_evidence_artifacts(
     evidence: ExperimentEvidence,
     artifact_root: Path | None,
@@ -1036,6 +1048,10 @@ def verify_evidence_artifacts(
                 failures.append(evidence_verification_failure(evidence_type, "file_unreadable"))
                 continue
             if final_fingerprint != initial_fingerprint:
+                failures.append(evidence_verification_failure(evidence_type, "file_changed_during_read"))
+                continue
+            relative_path = paths[evidence_type]
+            if not path_resolves_to_identity(root_fd, relative_path, identity):
                 failures.append(evidence_verification_failure(evidence_type, "file_changed_during_read"))
                 continue
             if observed_revision != expected_revision:

@@ -51,50 +51,42 @@ jobs:
       - name: Verify judge demo
         run: |
           PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=scripts \
+            python3 scripts/test_judge_playground.py
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=scripts \
             python3 scripts/test_prepare_judge_demo.py
-          PYTHONDONTWRITEBYTECODE=1 examples/ci-relay-demo/scripts/verify.sh
           python3 -m json.tool docs/build-week/routes.judge-demo.json >/dev/null
           python3 -m json.tool examples/ci-relay-demo/fixtures/sample_ci_event.json >/dev/null
           python3 validate_routes.py docs/build-week/routes.judge-demo.json
 
-          temp_root="${TMPDIR:-/tmp}"
+          temp_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
           judge_root="$(mktemp -d "${temp_root%/}/lazy-skill-router-judge.XXXXXX")"
           trap 'rm -rf "$judge_root"' EXIT
 
-          python3 lazy_skill_router.py \
-            --config docs/build-week/routes.judge-demo.json \
-            --route-result-v2 \
-            "Map this repository as a project mind map. Show the data flow. Do not modify files." \
-            > "$judge_root/mindmap.json"
-          python3 lazy_skill_router.py \
-            --config docs/build-week/routes.judge-demo.json \
-            --route-result-v2 \
-            "Add one retry on TimeoutError. Make the smallest correct change and add no dependency." \
-            > "$judge_root/ponytail.json"
-          python3 lazy_skill_router.py \
-            --config docs/build-week/routes.judge-demo.json \
-            --route-result-v2 \
-            "Scan this CI relay for a concrete exploitable security vulnerability. Do not modify files." \
-            > "$judge_root/security.json"
+          before="$(git status --porcelain=v1)"
+          TMPDIR="$judge_root" \
+            PYTHONPYCACHEPREFIX="$judge_root/pycache" \
+            PYTHONDONTWRITEBYTECODE=1 \
+            python3 scripts/judge_playground.py --json > "$judge_root/result.json"
 
-          JUDGE_ROOT="$judge_root" python3 - <<'PY'
+          JUDGE_RESULT="$judge_root/result.json" python3 - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          root = Path(os.environ["JUDGE_ROOT"])
-          expected = {
-              "mindmap.json": ("project-mindmap", "propose", "answer_only"),
-              "ponytail.json": ("ponytail", "activate", "eligible"),
-              "security.json": ("codex-security:security-scan", "propose", "answer_only"),
-          }
-          for name, (skill, disposition, reason) in expected.items():
-              result = json.loads((root / name).read_text(encoding="utf-8"))
-              assert result["status"] == "matched"
-              assert result["recommendations"][0]["legacy_skill_projection"]["primary"] == skill
-              assert result["activation"]["disposition"] == disposition
-              assert result["activation"]["reasonCode"] == reason
+          result = json.loads(Path(os.environ["JUDGE_RESULT"]).read_text(encoding="utf-8"))
+          assert result["schema"] == "lazy-skill-router.judge-playground/v1"
+          assert [case["routeResult"]["activation"]["disposition"] for case in result["cases"]] == [
+              "propose",
+              "activate",
+              "abstain",
+          ]
+          assert all(case["authority"]["authority"] == "none" for case in result["cases"])
+          assert result["fixtureVerification"]["status"] == "passed"
+          assert result["fixtureVerification"]["checks"]["unitTests"] == 6
           PY
+
+          after="$(git status --porcelain=v1)"
+          test "$before" = "$after"
 
       - name: Compile Python files
         run: >
@@ -122,10 +114,14 @@ jobs:
           sync_skills.py
           eval_routes.py
           eval_capability_retrieval.py
+          eval_external_user_holdout.py
+          eval_portable_beta.py
           eval_router_ab.py
           materialize_router_ab_manifest.py
           preserve_router_ab_bundle.py
           lazy_skill_router_cli/cli.py
+          scripts/judge_playground.py
+          scripts/test_judge_playground.py
           tests/test_cli.py
           tests/test_activation_ir.py
           tests/test_capability_cli.py
@@ -137,6 +133,8 @@ jobs:
           tests/test_automated_shadow_evidence.py
           tests/test_preserve_router_ab_bundle.py
           tests/test_eval_routes.py
+          tests/test_external_user_holdout.py
+          tests/test_portable_beta_eval.py
           tests/test_fail_open_matrix.py
           tests/test_generate_routes.py
           tests/test_hook_contract.py
@@ -158,11 +156,26 @@ jobs:
           python3 -m json.tool routes.template.json >/dev/null
           python3 -m json.tool eval/router_ab_manifest.json >/dev/null
           python3 -m json.tool eval/capability_metadata_ko_pilot.json >/dev/null
+          python3 -m json.tool eval/portable_author_a.json >/dev/null
+          python3 -m json.tool eval/portable_author_b.json >/dev/null
+          python3 -m json.tool eval/portable_beta_manifest.json >/dev/null
+          python3 -m json.tool eval/portable_beta_manifest_2026-07-13.json >/dev/null
+          python3 -m json.tool docs/evaluation/portable-beta-report-2026-07-13.json >/dev/null
           python3 -m json.tool eval/results/router_ab_2026-07-13_corrected-control.json >/dev/null
           python3 -m json.tool eval/results/router_ab_2026-07-13_bilingual-pilot.json >/dev/null
           python3 -m json.tool eval/results/automated_shadow_evidence_2026-07-13.json >/dev/null
           python3 validate_routes.py routes.default.json
           python3 eval_routes.py eval/prompts.jsonl
+
+      - name: Check current portable beta quality blocker
+        run: |
+          mkdir -p .ci
+          status=0
+          python3 eval_portable_beta.py \
+            eval/portable_beta_manifest.json \
+            --output .ci/PORTABLE_BETA_REPORT.json || status=$?
+          test "$status" -eq 1
+          python3 -m json.tool .ci/PORTABLE_BETA_REPORT.json >/dev/null
 
       - name: Build skill sync fixture
         run: |
@@ -280,6 +293,13 @@ jobs:
           tar -xzf dist/*.tar.gz -C "$sdist_root"
           sdist_dir="$(find "$sdist_root" -mindepth 1 -maxdepth 1 -type d -print -quit)"
           test -n "$sdist_dir"
+          test -f "$sdist_dir/eval_portable_beta.py"
+          test -f "$sdist_dir/eval/portable_author_a.json"
+          test -f "$sdist_dir/eval/portable_author_b.json"
+          test -f "$sdist_dir/eval/portable_beta_manifest.json"
+          test -f "$sdist_dir/eval/portable_beta_manifest_2026-07-13.json"
+          test -f "$sdist_dir/docs/evaluation/portable-beta-gate-2026-07-13.md"
+          test -f "$sdist_dir/docs/evaluation/portable-beta-report-2026-07-13.json"
           (cd "$sdist_dir" && python3 -m unittest discover -s tests -p "test*.py")
 
       - name: Check wheel and pipx CLI smoke
