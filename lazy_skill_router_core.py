@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from lazy_skill_router_activation import ActivationIR, activation_ir_dict, decide_activation
-from lazy_skill_router_common import codex_home, debug
+from lazy_skill_router_common import MAX_ROUTABLE_PROMPT_CHARS, codex_home, debug
 from lazy_skill_router_inventory import InventorySnapshot
-from lazy_skill_router_logging import log_decision
-from lazy_skill_router_policy_ir import PolicyIR, parse_policy_config, resolve_policy, runtime_routes
+from lazy_skill_router_policy_ir import (
+    REGEX_ERRORS,
+    PolicyIR,
+    normalize_v1_leading_positive_lookahead,
+    parse_policy_config,
+    resolve_policy,
+    route_pattern_risk,
+    runtime_routes,
+)
 from lazy_skill_router_scoring import (
     Route,
     RouteMatch,
@@ -32,6 +40,21 @@ DEFAULT_ANSWER_ONLY_PATTERNS: tuple[str, ...] = (
     r"수정하지\s*마",
 )
 ACTIVATION_MODES = frozenset({"inject", "off", "shadow"})
+
+
+def prompt_is_too_long(prompt: str) -> bool:
+    return len(prompt) > MAX_ROUTABLE_PROMPT_CHARS
+
+
+def reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON number is unsupported: {value}")
+
+
+def finite_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON number is unsupported: {value}")
+    return parsed
 
 
 def activation_mode(config: dict[str, Any]) -> str:
@@ -66,13 +89,17 @@ def candidate_config_paths(script_path: Path, explicit_path: str | None) -> list
 def load_json(path: Path) -> dict[str, Any] | None:
     try:
         with path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
+            data = json.load(
+                handle,
+                parse_constant=reject_json_constant,
+                parse_float=finite_json_float,
+            )
     except FileNotFoundError:
         return None
     except OSError as exc:
         debug(f"failed to read {path}: {exc}")
         return None
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, ValueError) as exc:
         debug(f"invalid JSON in {path}: {exc}")
         return None
 
@@ -148,7 +175,26 @@ def parse_routes(config: dict[str, Any], inventory: InventorySnapshot | None = N
 
 def answer_only_patterns(config: dict[str, Any]) -> tuple[str, ...]:
     configured = tuple_of_strings(config.get("answerOnlyPatterns"))
-    return configured or DEFAULT_ANSWER_ONLY_PATTERNS
+    if not configured:
+        return DEFAULT_ANSWER_ONLY_PATTERNS
+    normalized_patterns: list[str] = []
+    for pattern in configured:
+        normalized, anchored = (
+            normalize_v1_leading_positive_lookahead(pattern)
+            if config.get("schemaVersion", 1) == 1
+            else (pattern, False)
+        )
+        try:
+            risk = route_pattern_risk(
+                normalized,
+                allow_leading_positive_lookahead=anchored,
+            )
+        except REGEX_ERRORS:
+            return DEFAULT_ANSWER_ONLY_PATTERNS
+        if risk is not None:
+            return DEFAULT_ANSWER_ONLY_PATTERNS
+        normalized_patterns.append(normalized)
+    return tuple(normalized_patterns)
 
 
 def show_router_notice(config: dict[str, Any]) -> bool:
@@ -247,6 +293,8 @@ def ranked_matches_for_routes(
     routes: list[Route],
     schema_version: int,
 ) -> tuple[RouteMatch, ...]:
+    if prompt_is_too_long(prompt):
+        return ()
     if schema_version == 2:
         return ranked_route_matches_v2(prompt, routes, config)
     return ranked_route_matches(prompt, routes, config)
@@ -256,6 +304,7 @@ def shadow_candidate_would_win(
     candidate: RouteMatch,
     active_matches: tuple[RouteMatch, ...],
     schema_version: int,
+    route_order: dict[str, int] | None = None,
 ) -> bool:
     if not active_matches:
         return True
@@ -274,7 +323,8 @@ def shadow_candidate_would_win(
         return candidate_rank > active_rank
     if schema_version == 2:
         return candidate.route.name < active.route.name
-    return False
+    order = route_order or {}
+    return order.get(candidate.route.name, len(order)) < order.get(active.route.name, len(order))
 
 
 def route_matches_with_shadow_competition(
@@ -282,10 +332,13 @@ def route_matches_with_shadow_competition(
     config: dict[str, Any],
     inventory: InventorySnapshot | None = None,
 ) -> tuple[tuple[RouteMatch, ...], tuple[RouteMatch, ...], tuple[str, ...]]:
+    if prompt_is_too_long(prompt):
+        return (), (), ()
     policy = runtime_policy(config, inventory)
     if policy is None:
         return (), (), ()
     routes = runtime_routes(policy)
+    route_order = {route.name: index for index, route in enumerate(routes)}
     active_routes = [route for route in routes if route.lifecycle_state == "active"]
     shadow_routes = [route for route in routes if route.lifecycle_state == "shadow"]
     active_matches = ranked_matches_for_routes(prompt, config, active_routes, policy.schema_version)
@@ -293,7 +346,7 @@ def route_matches_with_shadow_competition(
     promotion_winners = tuple(
         candidate.route.name
         for candidate in shadow_matches[:3]
-        if shadow_candidate_would_win(candidate, active_matches, policy.schema_version)
+        if shadow_candidate_would_win(candidate, active_matches, policy.schema_version, route_order)
     )
     return active_matches, shadow_matches, promotion_winners
 
@@ -343,6 +396,8 @@ def activation_for_matches(
     matches: tuple[RouteMatch, ...],
     config: dict[str, Any],
 ) -> ActivationIR:
+    if prompt_is_too_long(prompt):
+        return decide_activation(prompt, (), config, answer_only=False)
     return decide_activation(
         prompt,
         matches,
@@ -356,6 +411,8 @@ def activation_for_prompt(
     config: dict[str, Any],
     inventory: InventorySnapshot | None = None,
 ) -> ActivationIR:
+    if prompt_is_too_long(prompt):
+        return decide_activation(prompt, (), config, answer_only=False)
     return activation_for_matches(prompt, route_matches(prompt, config, inventory), config)
 
 
@@ -384,22 +441,30 @@ def dry_run_output(
     config: dict[str, Any],
     inventory: InventorySnapshot | None = None,
 ) -> dict[str, Any]:
+    if prompt_is_too_long(prompt):
+        activation = decide_activation(prompt, (), config, answer_only=False)
+        return {
+            "shouldInject": False,
+            "reason": f"Prompt exceeds the {MAX_ROUTABLE_PROMPT_CHARS}-character routing limit.",
+            "confidence": 0.0,
+            "score": 0.0,
+            "matchedSignals": [],
+            "matchedPatterns": [],
+            "matchedPatternIds": [],
+            "candidates": [],
+            "answerOnly": False,
+            "requestMode": activation.intent_frame.request_mode,
+            "shouldActivate": False,
+            "activationDecision": activation.disposition,
+            "activationReason": activation.reason_code,
+            "activation": activation_ir_dict(activation),
+        }
     matches, shadow_matches, promotion_winners = route_matches_with_shadow_competition(prompt, config, inventory)
     match = matches[0] if matches else None
     answer_only_pattern_matched = text_matches(prompt, answer_only_patterns(config))
     activation = decide_activation(prompt, matches, config, answer_only=answer_only_pattern_matched)
     request_mode = activation.intent_frame.request_mode
     answer_only = request_mode == "answer-only"
-    log_decision(
-        prompt,
-        match,
-        config,
-        candidates=matches[:3],
-        shadow_candidates=shadow_matches[:3],
-        shadow_would_win=promotion_winners,
-        activation_disposition=activation.disposition,
-        activation_reason=activation.reason_code,
-    )
     if match is None:
         result = {
             "shouldInject": False,

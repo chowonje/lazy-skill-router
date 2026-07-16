@@ -18,6 +18,7 @@ from lazy_skill_router_core import (
     dry_run_output,
     format_context,
     load_config,
+    prompt_is_too_long,
     route_matches_with_shadow_competition,
     show_router_notice,
 )
@@ -200,9 +201,15 @@ def capability_log_fields(
     raw_reasons = result.get("reasonCodes")
     reason_codes = tuple(str(reason) for reason in raw_reasons[:8]) if isinstance(raw_reasons, list) else ()
     revision = result.get("indexRevision")
+    algorithm = result.get("algorithm")
+    implementation_revision = result.get("implementationRevision")
     status = result.get("status")
     return {
         "capability_index_revision": revision if isinstance(revision, str) else None,
+        "capability_retrieval_algorithm": algorithm if isinstance(algorithm, str) else None,
+        "capability_retrieval_implementation_revision": (
+            implementation_revision if isinstance(implementation_revision, str) else None
+        ),
         "capability_candidate_skill_ids": tuple(candidate_ids),
         "capability_candidate_observations": tuple(candidate_observations),
         "capability_retrieval_latency_ms": latency_ms,
@@ -254,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     output_group.add_argument(
         "--capability-shadow-json",
         action="store_true",
-        help="Print the capability retrieval v1 shadow diagnostic.",
+        help="Print the configured capability retrieval shadow diagnostic.",
     )
     parser.add_argument("prompt_text", nargs="?", help="Prompt text for --dry-run.")
     args = parser.parse_args(argv)
@@ -269,12 +276,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     prompt, event = prompt_and_event(args.prompt, args.prompt_text)
-    if not isinstance(prompt, str) or not prompt.strip():
+    if not isinstance(prompt, str):
         return 0
-    inventory = inventory_for_config(config, args.inventory)
+    input_rejected = prompt_is_too_long(prompt)
+    if not input_rejected and not prompt.strip():
+        return 0
+    inventory = None if input_rejected else inventory_for_config(config, args.inventory)
 
     if args.capability_shadow_json:
-        from lazy_skill_router_retrieval import retrieve_capabilities
+        from lazy_skill_router_retrieval import PRODUCT_PREVIEW_ALGORITHM, retrieve_capabilities
 
         legacy_matches, _, _ = route_matches_with_shadow_competition(prompt, config, inventory)
         legacy_match = legacy_matches[0] if legacy_matches else None
@@ -286,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             force=True,
             legacy_route=legacy_match.route.name if legacy_match is not None else None,
             legacy_primary=legacy_match.route.primary if legacy_match is not None else None,
+            algorithm=PRODUCT_PREVIEW_ALGORITHM,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
@@ -313,6 +324,19 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.perf_counter()
     mode = activation_mode(config)
+    if input_rejected:
+        log_decision(
+            prompt,
+            None,
+            config,
+            hook_event=event,
+            mode=mode,
+            injected=False,
+            decision_status="input-rejected",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            runtime_revision=code_revision,
+        )
+        return 0
     if mode == "off":
         retrieval_result, retrieval_latency_ms = capability_shadow_measurement(
             prompt,

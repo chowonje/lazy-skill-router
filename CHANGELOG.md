@@ -4,14 +4,17 @@
 
 ### Capability Retrieval Shadow
 
-- Adds revision-bound `capability-index/v1` build/validate commands and dependency-free lexical Top-K retrieval over
-  bounded inventory metadata.
+- Adds revision-bound `capability-index/v2` product builds with explicit feature-extractor provenance. Loaders retain
+  v1 support only for frozen replay inputs.
+- Adds the opt-in `lexical-bm25-char3-anchored/v2` product preview while keeping Top-K outside route ranking,
+  activation, and model-visible hook context.
+- Shows the same non-activating preview in the plain human `route` output only when an action prompt has no legacy
+  route; structured contracts remain unchanged unless the explicit capability diagnostic is requested.
 - Adds an opt-in `capabilityRetrieval.mode: shadow` lane whose results never affect legacy route ranking,
   `ActivationIR`, or model-visible hook context.
 - Adds redacted `retrieval-result/v1` diagnostics and privacy-preserving latency/candidate measurement fields; raw
   prompts, descriptions, matched substrings, and search tokens are excluded.
-- Makes missing, invalid, symlinked, or stale indexes fail open and adds doctor warnings without declaring legacy
-  routing unhealthy.
+- Makes missing, invalid, symlinked, or stale indexes fail open at routing time and fail installed-state doctor checks.
 - Adds 12 English contrast fixtures and a separate Recall@3/Top-1 evaluator while preserving the 127-case legacy
   corpus; Korean-only catalog recall remains an explicitly documented first-tranche gap.
 - Adds a frozen 240-case paired legacy-vs-retrieval evaluator and prompt-redacted result artifact. The first synthetic
@@ -89,11 +92,18 @@
   regex forms, and overlapping positive examples.
 - Stage and promotion re-check the current inventory and host-catalog revisions. Promotion evidence is bound to the
   exact config revision and only counts shadow decisions that would win after activation.
-- App-generated regexes use a restricted, bounded subset; unbounded quantifiers, quantified alternation, lookaround,
-  and backreferences are rejected.
-- Custom activation regexes use a conservative subset, with only the exact audited bundled defaults allowlisted.
-- Sync apply writes only the inventory manifest. Policy compilation writes a separate candidate file, and stage and
-  promotion back up the active route config before mutation.
+- Rejects prompts longer than 4,096 characters before regex, inventory, or retrieval work and emits only a redacted
+  `input-rejected` measurement status from the actual hook.
+- Applies one bounded regex validator across route, answer-only, and activation patterns. It rejects backreferences,
+  conditionals, nested repeats, quantified alternation, unsafe repeat paths, and non-finite or out-of-range policy
+  numbers; only exact audited compatibility tuples are exempt.
+- Default-path sync transactionally aligns the inventory, capability index, and install-manifest digests. Custom output
+  refreshes only the requested inventory and sibling index without claiming default ownership. Policy compilation
+  writes a separate candidate file, and stage and promotion back up the active route config before mutation.
+- Removes journal writes from dry-run, structured diagnostics, recommendations, ActivationIR, HookIR, and capability
+  preview. Only the actual hook records measurement events.
+- Packages the public evaluation tools, frozen JSON/JSONL fixtures, evaluation documentation, and tests through an
+  explicit sdist allowlist so the extracted source distribution can run its full suite without bundling result reports.
 - Skill scanning rejects leaf symlinks, symlinked parents, and metadata outside the selected root before reading it;
   additive `scanIssues` expose only relative locators and reason codes.
 - Hook context uses validated pattern IDs and a fixed router-owned reason, so descriptions and proposal v1 reason/label

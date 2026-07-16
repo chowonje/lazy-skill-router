@@ -58,12 +58,16 @@ class LoggingTest(unittest.TestCase):
                 ),
                 capability_retrieval_latency_ms=1.25,
                 capability_retrieval_status="matched",
+                capability_retrieval_algorithm="lexical-bm25-char3-anchored/v2",
+                capability_retrieval_implementation_revision="sha256:" + "a" * 64,
                 retrieval_top1="pdf",
             )
             record = read_records(path)[0]
 
         observation = record["routingObservation"]
         self.assertEqual(record["schema"], "lazy-skill-router.measurement-event/v1")
+        self.assertEqual(record["retrievalAlgorithm"], "lexical-bm25-char3-anchored/v2")
+        self.assertEqual(record["retrievalImplementationRevision"], "sha256:" + "a" * 64)
         self.assertEqual(observation["schema"], ROUTING_OBSERVATION_SCHEMA)
         self.assertEqual(len(observation["retrieval"]["candidates"]), 3)
         self.assertEqual(len(observation["retrieval"]["candidates"][0]["evidenceIds"]), 8)

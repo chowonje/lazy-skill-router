@@ -60,6 +60,8 @@ def shadow_event(
     candidates: tuple[str, ...] = ("ponytail", "code-review"),
     signal: dict[str, object] | None = None,
     retrieval_revision: str = revision("index"),
+    retrieval_algorithm: str = "lexical-bm25-char3/v1",
+    retrieval_implementation_revision: str = revision("retrieval-implementation"),
     config_revision: str = revision("config"),
 ) -> dict[str, object]:
     candidate_observations = tuple({"skillId": name, "evidenceIds": ()} for name in candidates)
@@ -83,6 +85,8 @@ def shadow_event(
         "catalogRevision": revision("catalog"),
         "runtimeRevision": revision("runtime"),
         "retrievalStatus": "matched",
+        "retrievalAlgorithm": retrieval_algorithm,
+        "retrievalImplementationRevision": retrieval_implementation_revision,
         "routingObservation": observation,
         "automatedObjectiveSignal": signal or automated_objective_signal_v1(expected),
     }
@@ -194,6 +198,16 @@ class AutomatedShadowEvidenceTest(unittest.TestCase):
         self.assertEqual(evidence["observed"]["explicitReferenceRecallAt3"], 1.0)
         self.assertEqual(evidence["observed"]["explicitReferenceTop1Accuracy"], 1.0)
         self.assertEqual(evidence["observed"]["retrievalRevisions"], [revision("index")])
+        self.assertEqual(
+            evidence["observed"]["retrievalContexts"],
+            [
+                {
+                    "algorithm": "lexical-bm25-char3/v1",
+                    "implementationRevision": revision("retrieval-implementation"),
+                    "indexRevision": revision("index"),
+                }
+            ],
+        )
         self.assertEqual(evidence["observed"]["decisionContextCount"], 1)
         self.assertEqual(evidence["collectionBlockers"], [])
         self.assertIn("explicit_reference_scope_only", evidence["promotionBlockers"])
@@ -245,12 +259,41 @@ class AutomatedShadowEvidenceTest(unittest.TestCase):
                 for offset in range(100)
             ]
         )
+        mixed_retrieval_context = build_automated_shadow_evidence(
+            [
+                shadow_event(
+                    offset,
+                    retrieval_algorithm=("lexical-bm25-char3/v1" if offset < 50 else "lexical-bm25-char3-anchored/v2"),
+                )
+                for offset in range(100)
+            ]
+        )
 
         self.assertNotEqual(index_a["revision"], index_b["revision"])
         self.assertEqual(mixed_index["collectionStatus"], "blocked")
         self.assertIn("mixed_retrieval_revisions", mixed_index["collectionBlockers"])
         self.assertEqual(mixed_context["collectionStatus"], "blocked")
         self.assertIn("mixed_decision_contexts", mixed_context["collectionBlockers"])
+        self.assertEqual(mixed_retrieval_context["collectionStatus"], "blocked")
+        self.assertIn("mixed_retrieval_contexts", mixed_retrieval_context["collectionBlockers"])
+
+    def test_missing_retrieval_implementation_context_fails_collection(self) -> None:
+        event = shadow_event(1)
+        event.pop("retrievalImplementationRevision")
+        invalid_algorithm = shadow_event(2)
+        invalid_algorithm["retrievalAlgorithm"] = []
+
+        evidence = build_automated_shadow_evidence([event])
+        invalid_algorithm_evidence = build_automated_shadow_evidence([invalid_algorithm])
+
+        self.assertEqual(evidence["collectionStatus"], "blocked")
+        self.assertIn("retrieval_context_missing_or_invalid", evidence["collectionBlockers"])
+        self.assertEqual(evidence["observed"]["invalidRetrievalContexts"], 1)
+        self.assertEqual(invalid_algorithm_evidence["collectionStatus"], "blocked")
+        self.assertIn(
+            "retrieval_context_missing_or_invalid",
+            invalid_algorithm_evidence["collectionBlockers"],
+        )
 
     def test_conflicts_are_not_double_counted_as_duplicates(self) -> None:
         first = shadow_event(1, candidates=("ponytail",))

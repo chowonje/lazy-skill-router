@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,12 +12,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
+import sync_skills as sync_module
+from lazy_skill_router_capability_index import load_capability_index
 from lazy_skill_router_contracts import structured_recommendation_v1
+from lazy_skill_router_install_manifest import manifest_revision
 from lazy_skill_router_inventory import build_inventory_manifest, diff_inventory, load_inventory_manifest
 from sync_skills import SkillRecord, candidate_issue, scan_installed_skills, scan_installed_skills_with_issues
 
 ROOT = Path(__file__).resolve().parents[1]
 SYNC_PATH = ROOT / "sync_skills.py"
+INSTALL_PATH = ROOT / "install.py"
+DOCTOR_PATH = ROOT / "doctor.py"
 HOOK_PATH = ROOT / "lazy_skill_router.py"
 CLI_MODULE = "lazy_skill_router_cli.cli"
 
@@ -48,6 +56,158 @@ def forbid_reads_from(sentinel: Path):
 
 
 class InventoryManifestTest(unittest.TestCase):
+    def test_default_sync_rejects_hardlink_ownership_alias_with_zero_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            installed = subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALL_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+            self.assertEqual(installed.returncode, 0, installed.stderr)
+            generated_root = codex_home / "lazy-skill-router"
+            tracked_paths = (
+                generated_root / "skills.manifest.json",
+                generated_root / "capability-index.json",
+                generated_root / "install.manifest.json",
+            )
+            manifest_path = tracked_paths[2]
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            runtime_record = next(
+                artifact for artifact in manifest["artifacts"] if artifact.get("path") == "hooks/lazy_skill_router.py"
+            )
+            alias_path = codex_home / "hooks" / "lazy_skill_router_alias.py"
+            os.link(codex_home / str(runtime_record["path"]), alias_path)
+            alias_record = dict(runtime_record)
+            alias_record["path"] = "hooks/lazy_skill_router_alias.py"
+            manifest["artifacts"].append(alias_record)
+            manifest["revision"] = manifest_revision(manifest["artifacts"], manifest["registration"])
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+            before = {path: path.read_bytes() for path in tracked_paths}
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SYNC_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--apply",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("physical aliases", result.stderr)
+            self.assertEqual({path: path.read_bytes() for path in tracked_paths}, before)
+
+    def test_sync_rejects_parent_swap_after_final_preflight_without_touching_sentinels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            routes_path = root / "routes.json"
+            write_skill(codex_home / "skills" / "pdf" / "SKILL.md", "pdf")
+            routes_path.write_text(
+                json.dumps({"allowedSkills": ["pdf"], "routes": [{"name": "pdf", "primary": "pdf"}]}),
+                encoding="utf-8",
+            )
+            output_parent = root / "output"
+            output_parent.mkdir()
+            manifest_path = output_parent / "skills.manifest.json"
+            moved_parent = root / "moved-output"
+            outside = root / "outside"
+            outside.mkdir()
+            sentinel_bytes = b'{"sentinel":"keep"}\n'
+            outside_manifest = outside / "skills.manifest.json"
+            outside_index = outside / "capability-index.json"
+            outside_manifest.write_bytes(sentinel_bytes)
+            outside_index.write_bytes(sentinel_bytes)
+            real_stage_bytes = sync_module._stage_bytes
+            swapped = False
+
+            def swap_parent_after_preflight(path: Path, content: bytes, mode: int, *args, **kwargs):
+                nonlocal swapped
+                if not swapped:
+                    output_parent.rename(moved_parent)
+                    output_parent.symlink_to(outside, target_is_directory=True)
+                    swapped = True
+                return real_stage_bytes(path, content, mode, *args, **kwargs)
+
+            argv = [
+                "sync_skills.py",
+                "--codex-home",
+                str(codex_home),
+                "--agents-home",
+                str(agents_home),
+                "--routes",
+                str(routes_path),
+                "--manifest",
+                str(manifest_path),
+                "--apply",
+            ]
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(sys, "argv", argv),
+                mock.patch.object(sync_module, "_stage_bytes", side_effect=swap_parent_after_preflight),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                result = sync_module.main()
+
+            outside_manifest_after = outside_manifest.read_bytes()
+            outside_index_after = outside_index.read_bytes()
+
+        self.assertEqual(result, 1, stdout.getvalue() + stderr.getvalue())
+        self.assertEqual(outside_manifest_after, sentinel_bytes)
+        self.assertEqual(outside_index_after, sentinel_bytes)
+
+    def test_sync_rejects_leaf_swap_after_staging_without_touching_sentinel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            destination = root / "skills.manifest.json"
+            destination.write_text('{"original":true}\n', encoding="utf-8")
+            sentinel = root / "outside.json"
+            sentinel_bytes = b'{"sentinel":"keep"}\n'
+            sentinel.write_bytes(sentinel_bytes)
+            item = sync_module.JsonBundleItem("inventory", destination, {"updated": True})
+            real_replace = sync_module.replace_staged_file
+            swapped = False
+
+            def swap_leaf_after_staging(staged, target: Path, *args, **kwargs) -> None:
+                nonlocal swapped
+                if not swapped:
+                    target.unlink()
+                    target.symlink_to(sentinel)
+                    swapped = True
+                real_replace(staged, target, *args, **kwargs)
+
+            with (
+                mock.patch.object(sync_module, "replace_staged_file", side_effect=swap_leaf_after_staging),
+                self.assertRaises(sync_module.SyncBundleRollbackError),
+            ):
+                sync_module.apply_json_bundle((item,), root)
+
+            sentinel_after = sentinel.read_bytes()
+
+        self.assertEqual(sentinel_after, sentinel_bytes)
+
     def test_candidate_resolving_outside_root_is_rejected_with_a_redacted_locator(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -533,7 +693,7 @@ class InventoryManifestTest(unittest.TestCase):
         self.assertEqual(payload["routeReferencesMissing"], [])
         self.assertEqual(payload["resolvedReferences"], [])
 
-    def test_sync_plan_is_read_only_and_apply_updates_only_the_manifest(self) -> None:
+    def test_sync_plan_is_read_only_and_custom_apply_updates_inventory_and_index(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             codex_home = root / "codex"
@@ -589,13 +749,16 @@ class InventoryManifestTest(unittest.TestCase):
             )
 
             snapshot = load_inventory_manifest(manifest_path)
+            index = load_capability_index(manifest_path.with_name("capability-index.json"))
             final_routes_bytes = routes_path.read_bytes()
 
         self.assertEqual(plan.returncode, 0, plan.stderr)
         self.assertIn("read-only; no files changed", plan.stdout)
         self.assertEqual(apply.returncode, 0, apply.stderr)
         self.assertEqual(snapshot.state, "available")
-        self.assertIn("manifest updated; routes preserved", apply.stdout)
+        self.assertEqual(index.state, "available")
+        self.assertEqual(index.inventory_revision, snapshot.revision)
+        self.assertIn("inventory/index bundle updated; routes preserved", apply.stdout)
         self.assertEqual(final_routes_bytes, routes_bytes)
 
     def test_sync_apply_honors_manifest_output_destination(self) -> None:
@@ -633,11 +796,490 @@ class InventoryManifestTest(unittest.TestCase):
             )
 
             snapshot = load_inventory_manifest(manifest_path)
+            index = load_capability_index(manifest_path.with_name("capability-index.json"))
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(snapshot.state, "available")
+        self.assertEqual(index.state, "available")
         self.assertFalse(default_manifest_path.exists())
         self.assertIn(str(manifest_path), completed.stdout)
+
+    def test_sync_apply_rejects_a_symlinked_custom_parent_without_writing_outside(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            routes_path = root / "routes.json"
+            outside = root / "outside"
+            outside.mkdir()
+            linked_output = root / "linked-output"
+            linked_output.symlink_to(outside, target_is_directory=True)
+            manifest_path = linked_output / "skills.manifest.json"
+            write_skill(codex_home / "skills" / "pdf" / "SKILL.md", "pdf")
+            routes_path.write_text(
+                json.dumps({"allowedSkills": ["pdf"], "routes": [{"name": "pdf", "primary": "pdf"}]}),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SYNC_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--routes",
+                    str(routes_path),
+                    "--manifest",
+                    str(manifest_path),
+                    "--apply",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+            outside_entries = tuple(outside.iterdir())
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("unsafe sync target", completed.stderr)
+        self.assertEqual(outside_entries, ())
+
+    def test_default_sync_apply_rejects_a_symlinked_codex_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            real_parent = root / "real-parent"
+            real_codex_home = real_parent / "codex"
+            agents_home = root / "agents"
+            install = subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALL_PATH),
+                    "--codex-home",
+                    str(real_codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr)
+            linked_parent = root / "linked-parent"
+            linked_parent.symlink_to(real_parent, target_is_directory=True)
+            linked_codex_home = linked_parent / "codex"
+            artifact_paths = (
+                real_codex_home / "lazy-skill-router" / "skills.manifest.json",
+                real_codex_home / "lazy-skill-router" / "capability-index.json",
+                real_codex_home / "lazy-skill-router" / "install.manifest.json",
+            )
+            before = {path: path.read_bytes() for path in artifact_paths}
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SYNC_PATH),
+                    "--codex-home",
+                    str(linked_codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--apply",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+            after = {path: path.read_bytes() for path in artifact_paths}
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("unsafe sync target", completed.stderr)
+        self.assertEqual(after, before)
+
+    def test_sync_strict_failure_is_zero_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            routes_path = root / "routes.json"
+            manifest_path = root / "output" / "skills.manifest.json"
+            routes_path.write_text(
+                json.dumps(
+                    {
+                        "allowedSkills": ["missing"],
+                        "routes": [{"name": "missing", "primary": "missing", "patterns": ["missing"]}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SYNC_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--routes",
+                    str(routes_path),
+                    "--manifest",
+                    str(manifest_path),
+                    "--strict",
+                    "--apply",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertFalse(manifest_path.exists())
+        self.assertFalse(manifest_path.with_name("capability-index.json").exists())
+
+    def test_default_sync_apply_requires_an_install_ownership_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            routes_path = root / "routes.json"
+            manifest_path = codex_home / "lazy-skill-router" / "skills.manifest.json"
+            write_skill(codex_home / "skills" / "pdf" / "SKILL.md", "pdf")
+            routes_path.write_text(
+                json.dumps({"allowedSkills": ["pdf"], "routes": [{"name": "pdf", "primary": "pdf"}]}),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SYNC_PATH),
+                    "--codex-home",
+                    str(codex_home),
+                    "--agents-home",
+                    str(agents_home),
+                    "--routes",
+                    str(routes_path),
+                    "--apply",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("install ownership manifest", completed.stderr)
+        self.assertFalse(manifest_path.exists())
+
+    def test_custom_sync_rejects_owned_path_collisions_and_aliases_with_zero_writes(self) -> None:
+        for collision_kind in ("sibling", "casefold", "hardlink", "owned-directory"):
+            with self.subTest(collision_kind=collision_kind), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                codex_home = root / "codex"
+                agents_home = root / "agents"
+                installed = subprocess.run(
+                    [
+                        sys.executable,
+                        str(INSTALL_PATH),
+                        "--codex-home",
+                        str(codex_home),
+                        "--agents-home",
+                        str(agents_home),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    cwd=ROOT,
+                )
+                self.assertEqual(installed.returncode, 0, installed.stderr)
+                default_parent = codex_home / "lazy-skill-router"
+                default_inventory = default_parent / "skills.manifest.json"
+                default_index = default_parent / "capability-index.json"
+                install_manifest = default_parent / "install.manifest.json"
+                if collision_kind == "sibling":
+                    custom_manifest = default_parent / "custom-inventory.json"
+                elif collision_kind == "casefold":
+                    custom_manifest = default_parent / "Skills.Manifest.JSON"
+                elif collision_kind == "hardlink":
+                    custom_parent = root / "custom"
+                    custom_parent.mkdir()
+                    custom_manifest = custom_parent / "skills.manifest.json"
+                    os.link(default_inventory, custom_manifest)
+                else:
+                    custom_manifest = codex_home / "skills" / "personal-skill-router" / "custom-inventory.json"
+                owned_before = {
+                    default_inventory: default_inventory.read_bytes(),
+                    default_index: default_index.read_bytes(),
+                    install_manifest: install_manifest.read_bytes(),
+                }
+
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        str(SYNC_PATH),
+                        "--codex-home",
+                        str(codex_home),
+                        "--agents-home",
+                        str(agents_home),
+                        "--manifest",
+                        str(custom_manifest),
+                        "--apply",
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    cwd=ROOT,
+                )
+                owned_after = {path: path.read_bytes() for path in owned_before}
+                sibling_index = custom_manifest.with_name("capability-index.json")
+
+                self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+                self.assertIn("custom sync target collides", completed.stderr)
+                self.assertEqual(owned_after, owned_before)
+                if collision_kind not in {"casefold", "hardlink"}:
+                    self.assertFalse(custom_manifest.exists())
+                if sibling_index != default_index:
+                    self.assertFalse(sibling_index.exists())
+
+    def test_sync_bundle_rolls_back_every_replacement_phase(self) -> None:
+        for failure_phase in (1, 2, 3):
+            with self.subTest(failure_phase=failure_phase), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                paths = (
+                    root / "skills.manifest.json",
+                    root / "capability-index.json",
+                    root / "install.manifest.json",
+                )
+                originals = {}
+                for index, path in enumerate(paths):
+                    content = (json.dumps({"original": index}, sort_keys=True) + "\n").encode()
+                    path.write_bytes(content)
+                    originals[path] = content
+                items = tuple(
+                    sync_module.JsonBundleItem(f"artifact-{index}", path, {"updated": index})
+                    for index, path in enumerate(paths)
+                )
+                real_replace = sync_module.replace_staged_file
+                replacement_count = 0
+
+                def injected_replace(
+                    staged: Path,
+                    destination: Path,
+                    failure_phase: int = failure_phase,
+                    real_replace=real_replace,
+                ) -> None:
+                    nonlocal replacement_count
+                    replacement_count += 1
+                    if replacement_count == failure_phase:
+                        raise OSError(f"injected replacement failure {failure_phase}")
+                    real_replace(staged, destination)
+
+                with (
+                    mock.patch.object(sync_module, "replace_staged_file", side_effect=injected_replace),
+                    self.assertRaisesRegex(OSError, "injected replacement failure"),
+                ):
+                    sync_module.apply_json_bundle(items, root)
+
+                self.assertEqual({path: path.read_bytes() for path in paths}, originals)
+                self.assertEqual(tuple(root.glob(".*.sync-*")), ())
+
+    def test_sync_bundle_attempts_every_restore_and_leaves_partial_state_doctor_detectable(self) -> None:
+        for failed_restore_index in range(3):
+            with self.subTest(failed_restore_index=failed_restore_index), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                codex_home = root / "codex"
+                agents_home = root / "agents"
+                installed = subprocess.run(
+                    [
+                        sys.executable,
+                        str(INSTALL_PATH),
+                        "--codex-home",
+                        str(codex_home),
+                        "--agents-home",
+                        str(agents_home),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    cwd=ROOT,
+                )
+                self.assertEqual(installed.returncode, 0, installed.stderr)
+                generated_root = codex_home / "lazy-skill-router"
+                paths = (
+                    generated_root / "skills.manifest.json",
+                    generated_root / "capability-index.json",
+                    generated_root / "install.manifest.json",
+                )
+                originals = {path: path.read_bytes() for path in paths}
+                items = tuple(
+                    sync_module.JsonBundleItem(f"artifact-{index}", path, {"invalid": index})
+                    for index, path in enumerate(paths)
+                )
+                real_replace = sync_module.replace_staged_file
+                real_restore = sync_module._restore_bundle_snapshot
+                replacement_count = 0
+                total_paths = len(paths)
+                restore_attempts: list[Path] = []
+                failed_path = paths[failed_restore_index]
+
+                def fail_after_all_replacements(
+                    staged,
+                    destination: Path,
+                    *args,
+                    real_replace=real_replace,
+                    total_paths=total_paths,
+                    **kwargs,
+                ) -> None:
+                    nonlocal replacement_count
+                    real_replace(staged, destination, *args, **kwargs)
+                    replacement_count += 1
+                    if replacement_count == total_paths:
+                        raise OSError("injected post-commit failure")
+
+                def fail_one_restore(
+                    path: Path,
+                    *args,
+                    restore_attempts=restore_attempts,
+                    failed_path=failed_path,
+                    real_restore=real_restore,
+                    **kwargs,
+                ) -> None:
+                    restore_attempts.append(path)
+                    if path == failed_path:
+                        raise OSError(f"injected restore failure: {path.name}")
+                    real_restore(path, *args, **kwargs)
+
+                with (
+                    mock.patch.object(
+                        sync_module,
+                        "replace_staged_file",
+                        side_effect=fail_after_all_replacements,
+                    ),
+                    mock.patch.object(sync_module, "_restore_bundle_snapshot", side_effect=fail_one_restore),
+                    self.assertRaises(sync_module.SyncBundleRollbackError),
+                ):
+                    sync_module.apply_json_bundle(items, codex_home)
+
+                doctor = subprocess.run(
+                    [
+                        sys.executable,
+                        str(DOCTOR_PATH),
+                        "--codex-home",
+                        str(codex_home),
+                        "--agents-home",
+                        str(agents_home),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    cwd=ROOT,
+                )
+
+                self.assertEqual(set(restore_attempts), set(paths))
+                self.assertNotEqual(failed_path.read_bytes(), originals[failed_path])
+                self.assertEqual(doctor.returncode, 1, doctor.stdout)
+
+    def test_sync_rollback_preserves_concurrent_replacement_and_restores_other_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            paths = tuple(root / f"artifact-{index}.json" for index in range(3))
+            originals = {path: f'{{"original":{index}}}\n'.encode() for index, path in enumerate(paths)}
+            for path, content in originals.items():
+                path.write_bytes(content)
+            items = tuple(
+                sync_module.JsonBundleItem(f"artifact-{index}", path, {"updated": index})
+                for index, path in enumerate(paths)
+            )
+            concurrent_path = paths[1]
+            concurrent_bytes = b'{"user":"concurrent replacement"}\n'
+            real_replace = sync_module.replace_staged_file
+            replacement_count = 0
+
+            def replace_all_then_inject_user_write(staged, destination: Path):
+                nonlocal replacement_count
+                result = real_replace(staged, destination)
+                replacement_count += 1
+                if replacement_count == len(paths):
+                    concurrent_path.unlink()
+                    concurrent_path.write_bytes(concurrent_bytes)
+                    raise OSError("injected failure after concurrent replacement")
+                return result
+
+            with (
+                mock.patch.object(
+                    sync_module,
+                    "replace_staged_file",
+                    side_effect=replace_all_then_inject_user_write,
+                ),
+                self.assertRaises(sync_module.SyncBundleRollbackError),
+            ):
+                sync_module.apply_json_bundle(items, root)
+
+            self.assertEqual(concurrent_path.read_bytes(), concurrent_bytes)
+            self.assertEqual(paths[0].read_bytes(), originals[paths[0]])
+            self.assertEqual(paths[2].read_bytes(), originals[paths[2]])
+
+    def test_sync_bundle_failure_removes_created_managed_root_ancestors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            created_ancestor = root / "created-ancestor"
+            managed_root = created_ancestor / "managed"
+            target = managed_root / "artifact.json"
+            item = sync_module.JsonBundleItem("artifact", target, {"updated": True})
+
+            with (
+                mock.patch.object(sync_module, "_stage_bytes", side_effect=OSError("injected stage failure")),
+                self.assertRaisesRegex(OSError, "injected stage failure"),
+            ):
+                sync_module.apply_json_bundle((item,), managed_root)
+
+            self.assertFalse(managed_root.exists())
+            self.assertFalse(created_ancestor.exists())
+
+    def test_sync_apply_json_reports_each_artifact_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            routes_path = root / "routes.json"
+            manifest_path = root / "output" / "skills.manifest.json"
+            write_skill(codex_home / "skills" / "pdf" / "SKILL.md", "pdf")
+            routes_path.write_text(
+                json.dumps({"allowedSkills": ["pdf"], "routes": [{"name": "pdf", "primary": "pdf"}]}),
+                encoding="utf-8",
+            )
+            command = [
+                sys.executable,
+                str(SYNC_PATH),
+                "--codex-home",
+                str(codex_home),
+                "--agents-home",
+                str(agents_home),
+                "--routes",
+                str(routes_path),
+                "--manifest",
+                str(manifest_path),
+                "--apply",
+                "--json",
+            ]
+
+            first = subprocess.run(command, check=False, capture_output=True, text=True, cwd=ROOT)
+            second = subprocess.run(command, check=False, capture_output=True, text=True, cwd=ROOT)
+            first_artifacts = json.loads(first.stdout)["artifacts"]
+            second_artifacts = json.loads(second.stdout)["artifacts"]
+
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(first_artifacts["inventory"]["status"], "updated")
+        self.assertEqual(first_artifacts["capabilityIndex"]["status"], "updated")
+        self.assertEqual(first_artifacts["installManifest"]["status"], "not-applicable")
+        self.assertEqual(second_artifacts["inventory"]["status"], "unchanged")
+        self.assertEqual(second_artifacts["capabilityIndex"]["status"], "unchanged")
+        self.assertEqual(second_artifacts["installManifest"]["status"], "not-applicable")
 
     def test_source_and_packaged_cli_use_the_same_explicit_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

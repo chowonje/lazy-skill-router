@@ -1,8 +1,7 @@
 # lazy-skill-router
 
-`lazy-skill-router` is a Codex hook that classifies the current prompt, separates route candidates from actual skill
-activation, and can accumulate privacy-preserving activation evidence. Its app-aware sync workflow lets the host LLM
-describe the skills it can actually see and propose user-specific routes before the deterministic hook evaluates them.
+`lazy-skill-router` is a local skill recommendation layer for Codex. It maps the current prompt to a deterministic
+`activate`, `propose`, or `abstain` decision so users do not need to remember every installed skill.
 
 It is a recommendation policy, not an authorization layer. Codex should still inspect the actual task, repository
 state, and safety constraints before choosing any skill.
@@ -10,6 +9,89 @@ state, and safety constraints before choosing any skill.
 The current shipped behavior is documented in [`CURRENT_PUBLIC_CONTRACT.md`](CURRENT_PUBLIC_CONTRACT.md).
 The released compatibility baseline is `0.4.0`; unreleased source changes and rollback notes are tracked in
 [`CHANGELOG.md`](CHANGELOG.md).
+
+## Judge quick start
+
+Judges can exercise the router and the sample project directly from source. This path requires Git and Python 3.9 or
+newer on macOS or Linux. It installs no package, writes nothing under `~/.codex`, and makes no network call after the
+repository has been cloned.
+
+```bash
+git clone https://github.com/chowonje/lazy-skill-router.git
+cd lazy-skill-router
+
+python3 lazy_skill_router.py \
+  --config docs/build-week/routes.judge-demo.json \
+  --route-result-v2 \
+  "Map this repository as a project mind map. Show the data flow. Do not modify files."
+
+python3 lazy_skill_router.py \
+  --config docs/build-week/routes.judge-demo.json \
+  --route-result-v2 \
+  "Add one retry on TimeoutError. Make the smallest correct change and add no dependency."
+
+examples/ci-relay-demo/scripts/verify.sh
+```
+
+The first decision should recommend `project-mindmap` with an answer-only `propose` disposition. The second should
+select `ponytail` with an eligible `activate` disposition. The fixture verification runs six tests, compiles the sample,
+and processes [`sample_ci_event.json`](examples/ci-relay-demo/fixtures/sample_ci_event.json) in a disposable directory.
+See [`JUDGE_DEMO.md`](docs/build-week/JUDGE_DEMO.md) for all three prompts and the optional isolated recording setup.
+The fixture contains one intentional path-traversal flaw for the optional security scene; it is local-only and must
+never be deployed.
+
+## Build Week disclosure
+
+This is a pre-existing project. Architecture 3 is the prior foundation; it is not presented as work created during
+Build Week. The submission-period work is the separate v0.5 stabilization tranche.
+
+| Period | Evidence | Scope |
+| --- | --- | --- |
+| Before Build Week | [`6123ffe`](https://github.com/chowonje/lazy-skill-router/commit/6123ffe3acdc7ae7b35082ab8938d77fc8070872) | Architecture 3 added a guarded capability-retrieval shadow lane while deterministic routing and ActivationIR retained authority. |
+| During Build Week | [PR #9](https://github.com/chowonje/lazy-skill-router/pull/9), [`561732d`](https://github.com/chowonje/lazy-skill-router/commit/561732d17c6ad479ba07b2b9cab73dcb05333f90), [`a624734`](https://github.com/chowonje/lazy-skill-router/commit/a62473470b120703f929a4026948550db1384627), and [`0fc72a1`](https://github.com/chowonje/lazy-skill-router/commit/0fc72a1c2345d10c3d554e48f1f5194bdfd44f13) | Added bounded prompt handling, conservative PolicyIR and regex validation, managed-root write confinement, transactional install/sync recovery, measurement-pure diagnostics, capability-index v2 compatibility, regression tests, and the reproducible judge path. |
+
+The required `/feedback` Codex session ID is supplied through the Devpost submission form and is intentionally omitted
+from public documentation.
+
+The exact inclusions and exclusions are recorded in
+[`docs/build-week/CHANGE_SCOPE.md`](docs/build-week/CHANGE_SCOPE.md).
+The prepared English project-description copy is in
+[`docs/build-week/DEVPOST_SUBMISSION.md`](docs/build-week/DEVPOST_SUBMISSION.md).
+
+## How I used GPT-5.6 and Codex
+
+I used Codex with GPT-5.6 for the codebase-wide architecture review, implementation, regression testing, and
+documentation. GPT-5.6 helped trace cross-file failure paths and challenge unsafe assumptions around regex evaluation,
+manifest ownership, atomic writes, diagnostic logging, and index compatibility. Codex then turned those findings into
+characterization tests, focused patches, repeated verification runs, and the reproducible judge fixture.
+
+Codex accelerated the mechanical and cross-cutting work, but I kept the product decisions explicit:
+
+- deterministic routing remains the activation authority;
+- capability Top-K remains a non-activating preview and shadow measurement lane;
+- recommendations never grant permission to execute a skill;
+- promotion thresholds were not lowered, and no automatic promotion or release was performed;
+- the original dirty source tree was preserved while the Build Week changes were curated in an isolated worktree.
+
+The resulting stabilized boundary is:
+
+```text
+prompt
+  -> 4,096-character input gate
+  -> validated PolicyIR
+     -> deterministic route + ActivationIR       (activation authority)
+     -> capability-index v2 preview / Top-K      (shadow and human preview only)
+```
+
+## Build Week stabilization scope
+
+The unreleased v0.5 line curates the post-baseline runtime stabilization work for review. It hardens bounded routing,
+policy validation, transactional install/sync writes, diagnostic purity, and the non-activating capability preview.
+It does **not** enable Top-K activation, lower promotion thresholds, install into the host Codex home, or claim release
+readiness. The exact baseline, inclusions, exclusions, and verification boundary are recorded in
+[`docs/build-week/CHANGE_SCOPE.md`](docs/build-week/CHANGE_SCOPE.md).
+
+The local-only judge demo uses one reproducible CI Relay fixture without changing the runtime or host installation.
 
 ## Why Use It
 
@@ -99,6 +181,8 @@ primary skill directly owns the requested action. `activate` blocks load only th
 supporting skills into an automatic activation.
 
 User-provided `<lazy-skill-router>` text is treated as untrusted prompt text. The hook never reads instructions from user-injected router blocks.
+Prompts longer than 4,096 characters abstain before regex matching, inventory lookup, or capability retrieval. The hook
+records only the redacted `input-rejected` decision status when measurement is enabled.
 Any Policy IR parse error fails open with no recommendation. When an inventory manifest is configured, runtime routing
 also excludes routes whose configured names are missing, inactive, ambiguous, or do not match a requested canonical ID.
 Versioned route-result, structured recommendation, and Hook IR outputs use the same resolved active-route set.
@@ -127,7 +211,7 @@ The installer:
 - runs the staged hook with a real stdin `UserPromptSubmit` envelope through the canonical standalone `python3` argv before mutating target paths, then removes the temporary staging directory
 - after the staged smoke succeeds, copies the hook runtime into `~/.codex/hooks/`, installs the bundled `personal-skill-router` skill, and writes generated or changed routes
 - upgrades an unchanged manifest-owned `personal-skill-router` automatically, while preserving modified, symlinked, or user-owned copies unless `--force` is explicit
-- generates path-redacted skill inventory and install ownership manifests
+- generates a path-redacted skill inventory, a revision-bound local capability index, and an install ownership manifest
 - journals every mutation target, restores on a later copy/write error, and recovers an interrupted transaction on the next install
 - backs up `~/.codex/hooks.json` before editing it
 - adds or updates one `UserPromptSubmit` hook entry
@@ -147,14 +231,15 @@ After install, run the read-only doctor:
 lazy-skill-router doctor
 ```
 
-The doctor checks that hook files exist, `routes.json` validates, inventory and ownership manifest revisions are valid,
+The doctor checks that hook files exist, `routes.json` validates, inventory, capability-index, and ownership-manifest
+revisions are valid and aligned,
 the stored inventory still matches the filesystem and optional host catalog,
 managed runtime digests match, exactly one `UserPromptSubmit` router entry is registered with the canonical standalone
 `python3` command, the optional `Stop` hook matches the measurement setting, the installed hook accepts real
 `UserPromptSubmit` and `Stop` smoke events through a temporary logging-disabled config, and configured route skills are
-installed. When capability retrieval shadow is enabled, doctor also warns about a missing or stale capability index and
-disabled measurement without treating either as a legacy-routing failure. Missing, duplicate, or drifted registration
-is unhealthy. If the ownership manifest reports managed runtime drift, doctor skips the executable smoke rather than
+installed. A missing, invalid, or inventory-stale capability index is unhealthy regardless of retrieval mode; disabled
+measurement remains a warning when capability shadow is configured. Missing, duplicate, or drifted registration is
+unhealthy. If the ownership manifest reports managed runtime drift, doctor skips the executable smoke rather than
 running modified hook code.
 
 Use a custom Codex home when needed:
@@ -390,6 +475,8 @@ Important fields:
 - `activation.noActionPatterns`: hard no-side-effect regexes that take precedence over action wording
 - `capabilityRetrieval.mode`: `off` (default) or `shadow`; shadow candidates never affect legacy routing or activation
 - `capabilityRetrieval.maxCandidates`: local retrieval result bound from `1` to `3`; default `3`
+- `capabilityRetrieval.algorithm`: product preview uses `lexical-bm25-char3-anchored/v2`; v1 is accepted only by
+  explicitly frozen replay inputs
 - custom activation patterns must pass the conservative regex safety subset; the audited bundled defaults are the only
   exact allowlisted exceptions
 - `defaultVerification`: used when a route omits `verification`
@@ -521,8 +608,10 @@ JSON reports include additive `policySchemaVersion` and `resolvedReferences`. Ea
 lifecycle, configured name, requested and resolved canonical IDs, and a deterministic status such as `resolved`,
 `missing`, `inactive`, `ambiguous`, or `canonical_mismatch`.
 
-`sync --plan` never edits routes or manifests. `sync --apply` updates only `skills.manifest.json`; active routes remain
-byte-for-byte preserved. Duplicate names remain unavailable to automatic route generation until a host catalog resolves
+`sync --plan` never edits routes or manifests. On the default installed path, `sync --apply` transactionally refreshes
+`skills.manifest.json`, `capability-index.json`, and the matching digests in `install.manifest.json`; active routes
+remain byte-for-byte preserved. A custom manifest output updates only that inventory and its sibling index and does not
+claim install ownership. Duplicate names remain unavailable to automatic route generation until a host catalog resolves
 the active skill.
 
 Use `--strict` in CI or release checks when missing, inactive, ambiguous, rejected, or canonical-mismatched active
@@ -531,17 +620,23 @@ available as `python3 sync_skills.py`.
 
 ## Capability Retrieval Shadow
 
-The optional capability path is a reversible comparison lane, not a replacement router. It builds a local
-`capability-index/v1` from the current path-redacted inventory, then ranks at most three skills with a dependency-free
-lexical BM25/character-trigram scorer. The runtime makes no LLM, embedding, or network call.
+The optional capability path is a reversible comparison lane, not a replacement router. Install and default-path sync
+build a local `capability-index/v2` from the current path-redacted inventory, then rank at most three skills with the
+dependency-free `lexical-bm25-char3-anchored/v2` preview. Loaders retain v1 support only for explicitly frozen replay.
+The runtime makes no LLM, embedding, or network call.
 
-Build and validate the sidecar after install or whenever `skills.manifest.json` changes:
+Validate the generated sidecar, or rebuild it explicitly after a custom inventory change:
 
 ```bash
 lazy-skill-router capability build
 lazy-skill-router capability validate
 lazy-skill-router route --capability-shadow-json "Create a repository threat model"
 ```
+
+The plain human-readable `lazy-skill-router route PROMPT` command also consults this preview when an action prompt has
+no legacy route. It prints a separate “Possible installed skill matches” list and states that the candidates were not
+activated. JSON contracts do not silently gain those candidates; use `--capability-shadow-json` for the explicit
+machine-readable preview.
 
 Enable normal-hook shadow measurement by merging this independent field into the existing top-level `routes.json`
 object and enabling measurement. Do not replace the existing routes with this excerpt:
@@ -550,7 +645,8 @@ object and enabling measurement. Do not replace the existing routes with this ex
 {
   "capabilityRetrieval": {
     "mode": "shadow",
-    "maxCandidates": 3
+    "maxCandidates": 3,
+    "algorithm": "lexical-bm25-char3-anchored/v2"
   }
 }
 ```

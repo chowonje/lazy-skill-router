@@ -392,12 +392,13 @@ def catalog_main(argv: list[str]) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     output_path = Path(args.output).expanduser() if args.output else root / "host-catalog.json"
+    output_managed_root = output_path.parent if args.output else root
     try:
-        ensure_safe_write_target(output_path, root)
-    except ValueError as exc:
+        ensure_safe_write_target(output_path, output_managed_root)
+        write_json_atomic(output_path, catalog, managed_root=output_managed_root)
+    except (OSError, ValueError) as exc:
         print(f"ERROR: refusing unsafe catalog write: {output_path}: {exc}", file=sys.stderr)
         return 1
-    write_json_atomic(output_path, catalog)
     print(f"Built host catalog with {len(catalog['skills'])} skills at {output_path}")
     print(f"Revision: {catalog['revision']}")
     return 0

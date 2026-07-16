@@ -13,6 +13,7 @@ from typing import Any
 from lazy_skill_router_common import (
     backup_file,
     codex_home,
+    confined_path_identity,
     ensure_safe_write_target,
     load_json_object,
     write_json_atomic,
@@ -1290,6 +1291,7 @@ def policy_main(argv: list[str]) -> int:
         return 0
 
     base_path = Path(args.base_routes).expanduser() if args.base_routes else default_path(root, "routes.json")
+    base_managed_root = base_path.parent if args.base_routes else root
     candidate_path = (
         Path(args.candidate).expanduser() if args.candidate else default_path(root, "routes.candidate.json")
     )
@@ -1331,12 +1333,22 @@ def policy_main(argv: list[str]) -> int:
             print("Result: dry-run; no files changed" if args.dry_run else "Result: read-only; no files changed")
             return 0
         try:
-            ensure_safe_write_target(base_path, root)
+            ensure_safe_write_target(base_path, base_managed_root)
         except ValueError as exc:
             print(f"ERROR: refusing unsafe policy write: {base_path}: {exc}", file=sys.stderr)
             return 1
-        backup = backup_file(base_path, label="policy-stage")
-        write_json_atomic(base_path, candidate)
+        try:
+            base_identity = confined_path_identity(base_path, base_managed_root)
+            backup = backup_file(base_path, base_managed_root, label="policy-stage")
+            write_json_atomic(
+                base_path,
+                candidate,
+                managed_root=base_managed_root,
+                expected=base_identity,
+            )
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: confined policy write failed: {exc}", file=sys.stderr)
+            return 1
         print(f"Staged shadow routes at {base_path}")
         if backup is not None:
             print(f"Backup: {backup}")
@@ -1344,6 +1356,7 @@ def policy_main(argv: list[str]) -> int:
 
     if args.command in {"feedback", "promote"}:
         config_path = Path(args.candidate).expanduser() if args.candidate else default_path(root, "routes.json")
+        config_managed_root = config_path.parent if args.candidate else root
         if not args.route_id:
             parser.error(f"--route-id is required for policy {args.command}")
         try:
@@ -1429,7 +1442,7 @@ def policy_main(argv: list[str]) -> int:
             print("Result: dry-run; no files changed")
             return 0
         try:
-            ensure_safe_write_target(config_path, root)
+            ensure_safe_write_target(config_path, config_managed_root)
         except ValueError as exc:
             print(f"ERROR: refusing unsafe policy write: {config_path}: {exc}", file=sys.stderr)
             return 1
@@ -1438,8 +1451,18 @@ def policy_main(argv: list[str]) -> int:
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
-        backup = backup_file(config_path, label="policy-promote")
-        write_json_atomic(config_path, promoted)
+        try:
+            config_identity = confined_path_identity(config_path, config_managed_root)
+            backup = backup_file(config_path, config_managed_root, label="policy-promote")
+            write_json_atomic(
+                config_path,
+                promoted,
+                managed_root=config_managed_root,
+                expected=config_identity,
+            )
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: confined policy write failed: {exc}", file=sys.stderr)
+            return 1
         print(f"Promoted route to active: {args.route_id}")
         if backup is not None:
             print(f"Backup: {backup}")
@@ -1466,12 +1489,13 @@ def policy_main(argv: list[str]) -> int:
     if args.dry_run:
         print(json.dumps(compiled, ensure_ascii=False, indent=2))
         return 0
+    output_managed_root = output_path.parent if args.output else root
     try:
-        ensure_safe_write_target(output_path, root)
-    except ValueError as exc:
+        ensure_safe_write_target(output_path, output_managed_root)
+        write_json_atomic(output_path, compiled, managed_root=output_managed_root)
+    except (OSError, ValueError) as exc:
         print(f"ERROR: refusing unsafe policy write: {output_path}: {exc}", file=sys.stderr)
         return 1
-    write_json_atomic(output_path, compiled)
     for warning in validation.warnings:
         print(f"Warning: {warning}")
     print(

@@ -38,7 +38,7 @@ class HostCatalogTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             draft_path = root / "host-catalog.draft.json"
-            output_path = root / "host-catalog.json"
+            output_path = root / "new" / "nested" / "host-catalog.json"
             draft_path.write_text(
                 json.dumps(
                     {
@@ -580,7 +580,7 @@ class HostCatalogTest(unittest.TestCase):
         self.assertEqual(doctor.returncode, 1)
         self.assertIn("[FAIL] skill sync checked: 1 active route skills missing", doctor.stdout)
 
-    def test_doctor_warns_when_host_catalog_changed_after_inventory_sync(self) -> None:
+    def test_doctor_fails_when_host_catalog_changed_after_inventory_sync(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             codex_home = root / "codex"
@@ -636,11 +636,11 @@ class HostCatalogTest(unittest.TestCase):
                 cwd=ROOT,
             )
 
-        self.assertEqual(doctor.returncode, 0, doctor.stderr)
-        self.assertIn("[WARN] skill inventory freshness checked", doctor.stdout)
+        self.assertEqual(doctor.returncode, 1, doctor.stderr)
+        self.assertIn("[FAIL] skill inventory freshness checked", doctor.stdout)
         self.assertIn("host catalog changed", doctor.stdout)
 
-    def test_sync_apply_is_expected_generated_inventory_drift_not_managed_runtime_drift(self) -> None:
+    def test_sync_apply_refreshes_generated_bundle_ownership(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             codex_home = root / "codex"
@@ -711,7 +711,8 @@ class HostCatalogTest(unittest.TestCase):
 
         self.assertEqual(sync.returncode, 0, sync.stderr)
         self.assertEqual(doctor.returncode, 0, doctor.stdout)
-        self.assertIn("[WARN] install ownership manifest validates with generated config drift", doctor.stdout)
+        self.assertIn("[OK] capability index validates", doctor.stdout)
+        self.assertIn("[OK] install ownership manifest validates", doctor.stdout)
         self.assertIn("[OK] hook smoke test passed", doctor.stdout)
 
 

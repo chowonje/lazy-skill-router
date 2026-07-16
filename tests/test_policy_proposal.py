@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import lazy_skill_router_policy as policy_module
 from lazy_skill_router_core import dry_run_output
 from lazy_skill_router_host_catalog import build_host_catalog, load_host_catalog, reconcile_inventory
 from lazy_skill_router_inventory import (
@@ -126,6 +130,70 @@ def policy_v2_fixture(root: Path) -> tuple[dict, InventorySnapshot, dict]:
 
 
 class PolicyProposalTest(unittest.TestCase):
+    def test_policy_stage_rejects_parent_swap_after_backup_without_touching_sentinel(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, snapshot, proposal = policy_fixture(root)
+            inventory = json.loads((root / "skills.manifest.json").read_text(encoding="utf-8"))
+            validation = validate_policy_proposal(proposal, inventory, snapshot)
+            base = {
+                "version": 1,
+                "allowedSkills": ["verification-gate"],
+                "routes": [{"name": "github", "primary": "verification-gate", "patterns": ["github"]}],
+            }
+            active_parent = root / "active"
+            active_parent.mkdir()
+            base_path = active_parent / "routes.json"
+            base_path.write_text(json.dumps(base), encoding="utf-8")
+            candidate_path = root / "routes.candidate.json"
+            candidate_path.write_text(
+                json.dumps(compile_policy(base, validation.proposal, validation.revision)),
+                encoding="utf-8",
+            )
+            outside = root / "outside"
+            outside.mkdir()
+            sentinel = outside / "routes.json"
+            sentinel_bytes = b'{"sentinel":"keep"}\n'
+            sentinel.write_bytes(sentinel_bytes)
+            moved_parent = root / "moved-active"
+            real_write_json_atomic = policy_module.write_json_atomic
+            swapped = False
+
+            def swap_parent_after_preflight(path: Path, data: dict[str, object], **kwargs) -> None:
+                nonlocal swapped
+                if path == base_path and not swapped:
+                    active_parent.rename(moved_parent)
+                    active_parent.symlink_to(outside, target_is_directory=True)
+                    swapped = True
+                real_write_json_atomic(path, data, **kwargs)
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(policy_module, "write_json_atomic", side_effect=swap_parent_after_preflight),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                result = policy_module.policy_main(
+                    [
+                        "stage",
+                        "--codex-home",
+                        str(root / "codex"),
+                        "--base-routes",
+                        str(base_path),
+                        "--candidate",
+                        str(candidate_path),
+                        "--inventory",
+                        str(root / "skills.manifest.json"),
+                        "--apply",
+                    ]
+                )
+
+            sentinel_after = sentinel.read_bytes()
+
+        self.assertEqual(result, 1, stdout.getvalue() + stderr.getvalue())
+        self.assertEqual(sentinel_after, sentinel_bytes)
+
     def test_v2_proposal_normalizes_canonical_bindings_and_compiles_to_shadow(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -802,7 +870,7 @@ class PolicyProposalTest(unittest.TestCase):
             inventory_path = root / "skills.manifest.json"
             proposal_path = root / "policy.proposal.json"
             base_path = root / "routes.json"
-            output_path = root / "routes.candidate.json"
+            output_path = root / "new" / "nested" / "routes.candidate.json"
             proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
             base = {
                 "version": 1,

@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 from lazy_skill_router_common import (
+    ConfinedPathIdentity,
     backup_file,
     canonical_hook_command,
     codex_home,
     command_matches_any,
+    confined_path_identity,
+    confined_remove_path,
     load_hooks,
     registered_hook_command,
     write_json,
@@ -49,17 +51,18 @@ def remove_hook_entries(
     return removed
 
 
-def remove_path(path: Path, *, dry_run: bool) -> str:
+def remove_path(
+    path: Path,
+    codex_root: Path,
+    *,
+    dry_run: bool,
+    expected: ConfinedPathIdentity,
+) -> str:
     if not path.exists() and not path.is_symlink():
         return f"missing {path}"
     if dry_run:
         return f"would remove {path}"
-    if path.is_symlink():
-        path.unlink()
-    elif path.is_dir():
-        shutil.rmtree(path)
-    else:
-        path.unlink()
+    confined_remove_path(path, codex_root, expected)
     return f"removed {path}"
 
 
@@ -98,7 +101,10 @@ def remove_manifest_artifacts(codex_root: Path, manifest_path: Path, *, dry_run:
             continue
         state = artifact_state(codex_root, artifact)
         if state == "matching":
-            actions.append(remove_path(path, dry_run=dry_run))
+            identity = confined_path_identity(path, codex_root)
+            if identity.kind != artifact.get("kind") or identity.digest != artifact.get("digest"):
+                raise ValueError(f"owned artifact changed before removal: {path}")
+            actions.append(remove_path(path, codex_root, dry_run=dry_run, expected=identity))
         elif state == "symlink":
             actions.append(f"kept symlink {ownership} artifact {path}")
             protected = True
@@ -111,7 +117,15 @@ def remove_manifest_artifacts(codex_root: Path, manifest_path: Path, *, dry_run:
     if protected:
         actions.append(f"kept ownership manifest {manifest_path} for remaining artifacts")
     else:
-        actions.append(remove_path(manifest_path, dry_run=dry_run))
+        manifest_identity = confined_path_identity(manifest_path, codex_root)
+        actions.append(
+            remove_path(
+                manifest_path,
+                codex_root,
+                dry_run=dry_run,
+                expected=manifest_identity,
+            )
+        )
     return actions
 
 
@@ -158,18 +172,28 @@ def main() -> int:
     )
 
     actions: list[str] = []
-    if removed:
-        actions.append(f"remove {removed} hook entry from {hooks_json}")
-        if not args.dry_run:
-            backup = backup_file(hooks_json, "uninstall")
-            write_json(hooks_json, data)
-            if backup:
-                actions.append(f"backup {backup}")
-    else:
-        actions.append("no lazy-skill-router hook entry found")
+    try:
+        if removed:
+            actions.append(f"remove {removed} hook entry from {hooks_json}")
+            if not args.dry_run:
+                hooks_identity = confined_path_identity(hooks_json, codex_root)
+                backup = backup_file(hooks_json, codex_root, "uninstall")
+                write_json(
+                    hooks_json,
+                    data,
+                    managed_root=codex_root,
+                    expected=hooks_identity,
+                )
+                if backup:
+                    actions.append(f"backup {backup}")
+        else:
+            actions.append("no lazy-skill-router hook entry found")
 
-    if args.remove_files:
-        actions.extend(remove_manifest_artifacts(codex_root, manifest_path, dry_run=args.dry_run))
+        if args.remove_files:
+            actions.extend(remove_manifest_artifacts(codex_root, manifest_path, dry_run=args.dry_run))
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: confined uninstall mutation failed: {exc}", file=sys.stderr)
+        return 1
 
     print("lazy-skill-router uninstall summary:")
     for action in actions:

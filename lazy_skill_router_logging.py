@@ -357,6 +357,8 @@ def log_decision(
     capability_candidate_observations: Iterable[dict[str, Any]] = (),
     capability_retrieval_latency_ms: float | None = None,
     capability_retrieval_status: str | None = None,
+    capability_retrieval_algorithm: str | None = None,
+    capability_retrieval_implementation_revision: str | None = None,
     capability_retrieval_reason_codes: Iterable[str] = (),
     retrieval_top1: str | None = None,
     automated_expected_skill_ids: Iterable[str] = (),
@@ -403,6 +405,8 @@ def log_decision(
             {
                 "retrievalRevision": capability_index_revision,
                 "retrievalStatus": capability_retrieval_status,
+                "retrievalAlgorithm": bounded_identifier(capability_retrieval_algorithm),
+                "retrievalImplementationRevision": bounded_identifier(capability_retrieval_implementation_revision),
                 "capabilityCandidateSkillIds": list(capability_candidate_skill_ids)[:3],
                 "capabilityRetrievalLatencyMs": (
                     round(max(0.0, capability_retrieval_latency_ms), 3)

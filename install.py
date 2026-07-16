@@ -5,8 +5,6 @@ import copy
 import difflib
 import hashlib
 import json
-import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -23,15 +21,34 @@ from generate_routes import (
     generated_route_count,
     installed_skill_names,
 )
+from lazy_skill_router_capability_index import DEFAULT_CAPABILITY_INDEX_NAME, build_capability_index
 from lazy_skill_router_common import (
+    EMPTY_DIRECTORY_DIGEST,
+    MISSING_PATH_IDENTITY,
+    ConfinedPathIdentity,
     backup_file,
     canonical_hook_command,
     codex_home,
     command_matches_any,
+    confined_atomic_write_bytes,
+    confined_copy_path_to_private,
+    confined_create_private_directory,
+    confined_create_symlink,
+    confined_directory_names,
+    confined_ensure_managed_root,
+    confined_ensure_parent,
+    confined_list_private_directories,
+    confined_path_identity,
+    confined_read_bytes,
+    confined_readlink,
+    confined_remove_path,
+    confined_replace_tree,
+    confined_rmdir,
     load_hooks,
     load_json_object,
     registered_hook_command,
     write_json,
+    write_json_atomic,
 )
 from lazy_skill_router_host_catalog import load_host_catalog, reconcile_inventory
 from lazy_skill_router_install_manifest import (
@@ -40,9 +57,16 @@ from lazy_skill_router_install_manifest import (
     build_install_manifest,
     confined_path,
     load_install_manifest,
+    path_kind_and_digest,
+    physical_artifact_aliases,
     safe_relative_path,
+    sha256_bytes,
 )
-from lazy_skill_router_inventory import build_inventory_manifest
+from lazy_skill_router_inventory import (
+    InventorySnapshot,
+    build_inventory_manifest,
+    inventory_revision,
+)
 from lazy_skill_router_policy_ir import parse_policy_config, select_smoke_primary
 from sync_skills import scan_installed_skills
 from validate_routes import validate_config
@@ -79,6 +103,8 @@ class PathSnapshot:
     kind: str
     backup: Path | None = None
     link_target: str | None = None
+    identity: ConfinedPathIdentity = MISSING_PATH_IDENTITY
+    backup_identity: ConfinedPathIdentity | None = None
 
 
 def checked_install_path(codex_root: Path, path: Path, *, allow_leaf_symlink: bool) -> Path:
@@ -96,29 +122,60 @@ class InstallMutation:
         self.snapshots: list[PathSnapshot] = []
         self.created_paths: list[Path] = []
         self.created_parents: set[Path] = set()
+        self.committed_identities: dict[Path, ConfinedPathIdentity] = {}
         self.temp_dir: Path | None = None
+        self.temp_identity: ConfinedPathIdentity | None = None
+        self.journal_identity: ConfinedPathIdentity | None = None
 
     def __enter__(self) -> InstallMutation:
         for path in self.targets:
             checked_install_path(self.codex_root, path, allow_leaf_symlink=True)
-        self.codex_root.parent.mkdir(parents=True, exist_ok=True)
-        self.temp_dir = Path(tempfile.mkdtemp(prefix=TRANSACTION_PREFIX, dir=self.codex_root.parent))
-        backup_root = self.temp_dir
         self._record_created_parents()
-        for index, path in enumerate(self.targets):
-            backup = backup_root / str(index)
-            if path.is_symlink():
-                self.snapshots.append(PathSnapshot(path, "symlink", link_target=os.readlink(path)))
-            elif path.is_file():
-                shutil.copy2(path, backup)
-                self.snapshots.append(PathSnapshot(path, "file", backup=backup))
-            elif path.is_dir():
-                shutil.copytree(path, backup, symlinks=True)
-                self.snapshots.append(PathSnapshot(path, "directory", backup=backup))
-            else:
-                self.snapshots.append(PathSnapshot(path, "missing"))
-        self.write_journal()
-        return self
+        confined_ensure_managed_root(self.codex_root)
+        self.temp_dir, self.temp_identity = confined_create_private_directory(
+            self.codex_root.parent,
+            TRANSACTION_PREFIX,
+        )
+        backup_root = self.temp_dir
+        try:
+            for index, path in enumerate(self.targets):
+                backup = backup_root / str(index)
+                identity = confined_path_identity(
+                    path,
+                    self.codex_root,
+                    allow_leaf_symlink=True,
+                    missing_parent_is_missing=True,
+                )
+                if identity.kind == "symlink":
+                    self.snapshots.append(
+                        PathSnapshot(
+                            path,
+                            "symlink",
+                            link_target=confined_readlink(path, self.codex_root, identity),
+                            identity=identity,
+                        )
+                    )
+                elif identity.kind in {"file", "directory"}:
+                    confined_copy_path_to_private(path, self.codex_root, identity, backup)
+                    backup_identity = confined_path_identity(backup, self.temp_dir)
+                    self.snapshots.append(
+                        PathSnapshot(
+                            path,
+                            str(identity.kind),
+                            backup=backup,
+                            identity=identity,
+                            backup_identity=backup_identity,
+                        )
+                    )
+                elif identity.state == "missing":
+                    self.snapshots.append(PathSnapshot(path, "missing", identity=identity))
+                else:
+                    raise InstallError(f"unsupported install target kind: {path}")
+            self.write_journal()
+            return self
+        except Exception:
+            self.cleanup_temp_dir()
+            raise
 
     def _record_created_parents(self) -> None:
         for target in self.targets:
@@ -133,7 +190,13 @@ class InstallMutation:
     def track_created(self, path: Path | None) -> None:
         if path is not None:
             self.created_paths.append(path)
+            identity = confined_path_identity(path, self.codex_root, allow_leaf_symlink=True)
+            self.committed_identities[path] = identity
             self.write_journal()
+
+    def record_committed(self, path: Path, identity: ConfinedPathIdentity) -> None:
+        self.committed_identities[path] = identity
+        self.write_journal()
 
     def journal_relative(self, path: Path) -> str:
         try:
@@ -143,9 +206,10 @@ class InstallMutation:
         return relative.as_posix() if relative.parts else "."
 
     def write_journal(self) -> None:
-        if self.temp_dir is None:
+        if self.temp_dir is None or self.temp_identity is None:
             raise InstallError("transaction journal unavailable")
         transaction_root = self.temp_dir
+        current_root = self.current_temp_root_identity()
         snapshots = []
         for snapshot in self.snapshots:
             backup = snapshot.backup.relative_to(transaction_root).as_posix() if snapshot.backup is not None else None
@@ -155,66 +219,239 @@ class InstallMutation:
                     "kind": snapshot.kind,
                     "backup": backup,
                     "link_target": snapshot.link_target,
+                    "state": snapshot.identity.state,
+                    "device": snapshot.identity.device,
+                    "inode": snapshot.identity.inode,
+                    "mode": snapshot.identity.mode,
+                    "size": snapshot.identity.size,
+                    "digest": snapshot.identity.digest,
+                    "backup_identity": (
+                        {
+                            "state": snapshot.backup_identity.state,
+                            "kind": snapshot.backup_identity.kind,
+                            "device": snapshot.backup_identity.device,
+                            "inode": snapshot.backup_identity.inode,
+                            "mode": snapshot.backup_identity.mode,
+                            "size": snapshot.backup_identity.size,
+                            "digest": snapshot.backup_identity.digest,
+                        }
+                        if snapshot.backup_identity is not None
+                        else None
+                    ),
                 }
             )
         journal = {
             "schema": TRANSACTION_JOURNAL_SCHEMA,
             "root_fingerprint": codex_root_fingerprint(self.codex_root),
+            "transaction_root_identity": {
+                "device": current_root.device,
+                "inode": current_root.inode,
+            },
             "snapshots": snapshots,
             "created_paths": [self.journal_relative(path) for path in self.created_paths],
             "created_parents": [
                 self.journal_relative(path)
                 for path in sorted(self.created_parents, key=lambda item: len(item.parts), reverse=True)
             ],
+            "committed": [
+                {
+                    "path": self.journal_relative(path),
+                    "state": identity.state,
+                    "kind": identity.kind,
+                    "device": identity.device,
+                    "inode": identity.inode,
+                    "mode": identity.mode,
+                    "size": identity.size,
+                    "digest": identity.digest,
+                }
+                for path, identity in sorted(
+                    self.committed_identities.items(),
+                    key=lambda item: item[0].as_posix(),
+                )
+            ],
         }
         journal_path = transaction_root / "journal.json"
-        temp_path = transaction_root / "journal.json.tmp"
-        with temp_path.open("w", encoding="utf-8") as handle:
-            json.dump(journal, handle, ensure_ascii=False, sort_keys=True)
-            handle.write("\n")
-        os.replace(temp_path, journal_path)
+        journal_identity = confined_path_identity(journal_path, transaction_root)
+        written_identity = write_json_atomic(
+            journal_path,
+            journal,
+            managed_root=transaction_root,
+            expected=journal_identity,
+        )
+        if written_identity is None:
+            raise InstallError("transaction journal write did not return an identity")
+        self.journal_identity = written_identity
 
-    @staticmethod
-    def remove_current(path: Path) -> None:
-        if path.is_symlink():
-            path.unlink()
-        elif path.is_dir():
-            shutil.rmtree(path)
-        elif path.exists():
-            path.unlink()
+    def remove_current(self, path: Path) -> None:
+        current = confined_path_identity(
+            path,
+            self.codex_root,
+            allow_leaf_symlink=True,
+            missing_parent_is_missing=True,
+        )
+        if current.state != "missing":
+            confined_remove_path(path, self.codex_root, current)
 
     def rollback(self) -> None:
-        for path in (*self.created_paths, *(snapshot.path for snapshot in self.snapshots)):
-            checked_install_path(self.codex_root, path, allow_leaf_symlink=True)
-        for parent in self.created_parents:
-            if parent == self.codex_root:
-                if parent.is_symlink():
-                    raise InstallError("unsafe rollback target: Codex home became a symlink")
-            else:
-                checked_install_path(self.codex_root, parent, allow_leaf_symlink=False)
+        rollback_errors: list[Exception] = []
         for path in reversed(self.created_paths):
-            self.remove_current(path)
+            try:
+                current = confined_path_identity(
+                    path,
+                    self.codex_root,
+                    allow_leaf_symlink=True,
+                    missing_parent_is_missing=True,
+                )
+                expected = self.committed_identities.get(path)
+                if expected is not None and current != expected:
+                    raise InstallError(f"rollback target changed; preserving concurrent replacement: {path}")
+                if current.state != "missing":
+                    confined_remove_path(path, self.codex_root, current)
+            except Exception as exc:
+                rollback_errors.append(exc)
         for snapshot in reversed(self.snapshots):
-            self.remove_current(snapshot.path)
-            if snapshot.kind == "file" and snapshot.backup is not None:
-                snapshot.path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(snapshot.backup, snapshot.path)
-            elif snapshot.kind == "directory" and snapshot.backup is not None:
-                snapshot.path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(snapshot.backup, snapshot.path, symlinks=True)
-            elif snapshot.kind == "symlink" and snapshot.link_target is not None:
-                snapshot.path.parent.mkdir(parents=True, exist_ok=True)
-                os.symlink(snapshot.link_target, snapshot.path)
+            try:
+                current = confined_path_identity(
+                    snapshot.path,
+                    self.codex_root,
+                    allow_leaf_symlink=True,
+                    missing_parent_is_missing=True,
+                )
+                if current == snapshot.identity:
+                    continue
+                expected = self.committed_identities.get(snapshot.path)
+                if expected is None:
+                    raise InstallError(
+                        f"rollback target changed without a committed installer identity; "
+                        f"preserving concurrent replacement: {snapshot.path}"
+                    )
+                if current != expected:
+                    raise InstallError(f"rollback target changed; preserving concurrent replacement: {snapshot.path}")
+                if current.state != "missing":
+                    confined_remove_path(snapshot.path, self.codex_root, current)
+                confined_ensure_parent(snapshot.path, self.codex_root)
+                if snapshot.kind == "file" and snapshot.backup is not None:
+                    copy_file(
+                        snapshot.backup,
+                        snapshot.path,
+                        dry_run=False,
+                        codex_root=self.codex_root,
+                        source_root=self.temp_dir or snapshot.backup.parent,
+                        source_expected=snapshot.backup_identity,
+                    )
+                elif snapshot.kind == "directory" and snapshot.backup is not None:
+                    confined_replace_tree(
+                        snapshot.backup,
+                        snapshot.path,
+                        self.codex_root,
+                        MISSING_PATH_IDENTITY,
+                        source_root=self.temp_dir or snapshot.backup.parent,
+                        source_expected=snapshot.backup_identity,
+                    )
+                elif snapshot.kind == "symlink" and snapshot.link_target is not None:
+                    confined_create_symlink(
+                        snapshot.path,
+                        self.codex_root,
+                        snapshot.link_target,
+                        MISSING_PATH_IDENTITY,
+                    )
+            except Exception as exc:
+                rollback_errors.append(exc)
         for parent in sorted(self.created_parents, key=lambda path: len(path.parts), reverse=True):
-            if parent.is_dir() and not any(parent.iterdir()):
-                parent.rmdir()
+            try:
+                if parent == self.codex_root:
+                    if parent.is_symlink():
+                        raise InstallError("unsafe rollback target: Codex home became a symlink")
+                    continue
+                current = confined_path_identity(
+                    parent,
+                    self.codex_root,
+                    allow_leaf_symlink=True,
+                    missing_parent_is_missing=True,
+                )
+                if current.kind == "directory" and current.digest == EMPTY_DIRECTORY_DIGEST:
+                    confined_rmdir(parent, self.codex_root, current)
+            except Exception as exc:
+                rollback_errors.append(exc)
+        if rollback_errors:
+            details = "; ".join(str(error) for error in rollback_errors)
+            raise InstallError(f"install rollback was incomplete: {details}")
+
+    def current_temp_root_identity(self) -> ConfinedPathIdentity:
+        if self.temp_dir is None or self.temp_identity is None:
+            raise InstallError("transaction root identity is unavailable")
+        current = confined_path_identity(
+            self.temp_dir,
+            self.temp_dir.parent,
+            allow_leaf_symlink=True,
+        )
+        if current.kind != "directory" or (current.device, current.inode) != (
+            self.temp_identity.device,
+            self.temp_identity.inode,
+        ):
+            raise InstallError("transaction root identity changed; preserving replacement")
+        return current
+
+    def cleanup_temp_dir(self) -> None:
+        if self.temp_dir is None:
+            return
+        transaction_root = self.temp_dir
+        self.current_temp_root_identity()
+        cleanup_errors: list[Exception] = []
+        for snapshot in self.snapshots:
+            if snapshot.backup is None:
+                continue
+            try:
+                current = confined_path_identity(
+                    snapshot.backup,
+                    transaction_root,
+                    allow_leaf_symlink=True,
+                    missing_parent_is_missing=True,
+                )
+                if current.state == "missing":
+                    continue
+                if snapshot.backup_identity is None or current != snapshot.backup_identity:
+                    raise InstallError(
+                        f"transaction backup identity changed; preserving replacement: {snapshot.backup}"
+                    )
+                confined_remove_path(snapshot.backup, transaction_root, current)
+            except Exception as exc:
+                cleanup_errors.append(exc)
+        if cleanup_errors:
+            details = "; ".join(str(error) for error in cleanup_errors)
+            raise InstallError(f"transaction cleanup was incomplete: {details}")
+
+        current_root = self.current_temp_root_identity()
+        names = confined_directory_names(transaction_root, transaction_root.parent, current_root)
+        expected_names = {"journal.json"} if self.journal_identity is not None else set()
+        unexpected_names = tuple(sorted(set(names) - expected_names))
+        if unexpected_names:
+            raise InstallError(
+                "transaction root contains unexpected entries; preserving root: " + ", ".join(unexpected_names)
+            )
+        if self.journal_identity is not None:
+            journal_path = transaction_root / "journal.json"
+            current_journal = confined_path_identity(
+                journal_path,
+                transaction_root,
+                allow_leaf_symlink=True,
+            )
+            if current_journal != self.journal_identity:
+                raise InstallError("transaction journal identity changed; preserving replacement")
+            confined_remove_path(journal_path, transaction_root, current_journal)
+
+        current_root = self.current_temp_root_identity()
+        if confined_directory_names(transaction_root, transaction_root.parent, current_root):
+            raise InstallError("transaction root is not empty; preserving root")
+        confined_rmdir(transaction_root, transaction_root.parent, current_root)
+        self.temp_dir = None
+        self.temp_identity = None
+        self.journal_identity = None
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
         if exc_type is not None:
             self.rollback()
-        if self.temp_dir is not None:
-            shutil.rmtree(self.temp_dir)
-            self.temp_dir = None
+        self.cleanup_temp_dir()
         return False
 
 
@@ -256,16 +493,33 @@ def transaction_from_journal(
     codex_root: Path,
     transaction_root: Path,
     journal: dict[str, Any],
+    transaction_root_identity: ConfinedPathIdentity,
+    journal_identity: ConfinedPathIdentity,
 ) -> InstallMutation:
     snapshots_value = journal.get("snapshots")
     created_paths_value = journal.get("created_paths", [])
     created_parents_value = journal.get("created_parents", [])
+    committed_value = journal.get("committed", [])
     if not isinstance(snapshots_value, list):
         raise InstallError("transaction journal snapshots are invalid")
-    if not isinstance(created_paths_value, list) or not isinstance(created_parents_value, list):
+    if (
+        not isinstance(created_paths_value, list)
+        or not isinstance(created_parents_value, list)
+        or not isinstance(committed_value, list)
+    ):
         raise InstallError("transaction journal created paths are invalid")
 
     transaction = InstallMutation(codex_root, ())
+    transaction.temp_dir = transaction_root
+    transaction.temp_identity = transaction_root_identity
+    transaction.journal_identity = journal_identity
+    raw_root_identity = journal.get("transaction_root_identity")
+    if (
+        not isinstance(raw_root_identity, dict)
+        or raw_root_identity.get("device") != transaction_root_identity.device
+        or raw_root_identity.get("inode") != transaction_root_identity.inode
+    ):
+        raise InstallError("transaction root identity changed")
     for raw_snapshot in snapshots_value:
         if not isinstance(raw_snapshot, dict):
             raise InstallError("transaction journal snapshot is invalid")
@@ -279,6 +533,7 @@ def transaction_from_journal(
             raise InstallError("transaction journal snapshot kind is invalid")
         backup_value = raw_snapshot.get("backup")
         backup = None
+        backup_identity = None
         if backup_value is not None:
             backup = recovered_path(
                 transaction_root,
@@ -287,10 +542,78 @@ def transaction_from_journal(
             )
             if not backup.exists():
                 raise InstallError("transaction journal backup is invalid")
+            raw_backup_identity = raw_snapshot.get("backup_identity")
+            if raw_backup_identity is not None:
+                if not isinstance(raw_backup_identity, dict):
+                    raise InstallError("transaction journal backup identity is invalid")
+                backup_state = raw_backup_identity.get("state")
+                backup_kind = raw_backup_identity.get("kind")
+                backup_digest = raw_backup_identity.get("digest")
+                backup_numeric = tuple(raw_backup_identity.get(field) for field in ("device", "inode", "mode", "size"))
+                if (
+                    backup_state != "available"
+                    or backup_kind not in {"file", "directory"}
+                    or not isinstance(backup_digest, str)
+                    or not all(isinstance(value, int) for value in backup_numeric)
+                ):
+                    raise InstallError("transaction journal backup identity is invalid")
+                backup_identity = ConfinedPathIdentity(
+                    backup_state,
+                    backup_kind,
+                    *backup_numeric,
+                    backup_digest,
+                )
+                if confined_path_identity(backup, transaction_root) != backup_identity:
+                    raise InstallError("transaction journal backup identity changed")
+            else:
+                backup_identity = confined_path_identity(backup, transaction_root)
         link_target = raw_snapshot.get("link_target")
         if link_target is not None and not isinstance(link_target, str):
             raise InstallError("transaction journal symlink target is invalid")
-        transaction.snapshots.append(PathSnapshot(snapshot_path, kind, backup, link_target))
+        mode = raw_snapshot.get("mode")
+        digest = raw_snapshot.get("digest")
+        if kind == "missing":
+            identity = MISSING_PATH_IDENTITY
+        else:
+            state = raw_snapshot.get("state")
+            device = raw_snapshot.get("device")
+            inode = raw_snapshot.get("inode")
+            size = raw_snapshot.get("size")
+            if not isinstance(mode, int):
+                if backup is not None:
+                    mode = backup.lstat().st_mode & 0o7777
+                else:
+                    mode = 0o777
+            if not isinstance(digest, str):
+                if backup is not None:
+                    backup_kind, digest = path_kind_and_digest(backup)
+                    if backup_kind != kind:
+                        raise InstallError("transaction journal backup kind is invalid")
+                elif kind == "symlink" and link_target is not None:
+                    digest = sha256_bytes(link_target.encode())
+                else:
+                    raise InstallError("transaction journal snapshot digest is invalid")
+            if state == "available" and not all(isinstance(value, int) for value in (device, inode, size)):
+                raise InstallError("transaction journal snapshot identity is invalid")
+            identity = ConfinedPathIdentity(
+                "available",
+                kind,
+                device if isinstance(device, int) else None,
+                inode if isinstance(inode, int) else None,
+                mode=mode,
+                size=size if isinstance(size, int) else None,
+                digest=digest,
+            )
+        transaction.snapshots.append(
+            PathSnapshot(
+                snapshot_path,
+                kind,
+                backup,
+                link_target,
+                identity,
+                backup_identity,
+            )
+        )
 
     transaction.created_paths = [
         recovered_path(codex_root, value, allow_leaf_symlink=True) for value in created_paths_value
@@ -304,33 +627,98 @@ def transaction_from_journal(
         )
         for value in created_parents_value
     }
+    for raw_committed in committed_value:
+        if not isinstance(raw_committed, dict):
+            raise InstallError("transaction journal committed identity is invalid")
+        committed_path = recovered_path(
+            codex_root,
+            raw_committed.get("path"),
+            allow_leaf_symlink=True,
+        )
+        state = raw_committed.get("state")
+        kind = raw_committed.get("kind")
+        if state not in {"available", "missing"}:
+            raise InstallError("transaction journal committed state is invalid")
+        if state == "available" and kind not in {"file", "directory", "symlink"}:
+            raise InstallError("transaction journal committed kind is invalid")
+        numeric_fields = ("device", "inode", "mode", "size")
+        if any(
+            raw_committed.get(field) is not None and not isinstance(raw_committed.get(field), int)
+            for field in numeric_fields
+        ):
+            raise InstallError("transaction journal committed identity is invalid")
+        digest = raw_committed.get("digest")
+        if digest is not None and not isinstance(digest, str):
+            raise InstallError("transaction journal committed digest is invalid")
+        transaction.committed_identities[committed_path] = ConfinedPathIdentity(
+            state,
+            kind,
+            raw_committed.get("device"),
+            raw_committed.get("inode"),
+            raw_committed.get("mode"),
+            raw_committed.get("size"),
+            digest,
+        )
     return transaction
 
 
 def recover_pending_transactions(codex_root: Path, *, dry_run: bool = False) -> int:
     parent = codex_root.parent
-    if not parent.is_dir():
-        return 0
     recovered = 0
     fingerprint = codex_root_fingerprint(codex_root)
-    for transaction_root in sorted(parent.glob(f"{TRANSACTION_PREFIX}*")):
+    for transaction_root, enumerated_identity in confined_list_private_directories(parent, TRANSACTION_PREFIX):
         journal_path = transaction_root / "journal.json"
-        if transaction_root.is_symlink() or not transaction_root.is_dir():
-            continue
-        if journal_path.is_symlink() or not journal_path.is_file():
+        current_enumerated = confined_path_identity(
+            transaction_root,
+            parent,
+            allow_leaf_symlink=True,
+        )
+        if current_enumerated != enumerated_identity:
+            raise InstallError("transaction root changed after enumeration")
+        journal_identity = confined_path_identity(
+            journal_path,
+            transaction_root,
+            allow_leaf_symlink=True,
+            missing_parent_is_missing=True,
+        )
+        if journal_identity.kind != "file":
             continue
         try:
-            journal = json.loads(journal_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            initial_root_identity = confined_path_identity(
+                transaction_root,
+                parent,
+                allow_leaf_symlink=True,
+            )
+            journal = json.loads(confined_read_bytes(journal_path, transaction_root, journal_identity))
+            transaction_root_identity = confined_path_identity(
+                transaction_root,
+                parent,
+                allow_leaf_symlink=True,
+            )
+            if (
+                transaction_root_identity.device,
+                transaction_root_identity.inode,
+            ) != (
+                initial_root_identity.device,
+                initial_root_identity.inode,
+            ):
+                raise InstallError("transaction root identity changed while reading journal")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
             raise InstallError(f"cannot read pending transaction journal: {journal_path}") from exc
         if not isinstance(journal, dict) or journal.get("schema") != TRANSACTION_JOURNAL_SCHEMA:
             continue
         if journal.get("root_fingerprint") != fingerprint:
             continue
-        transaction = transaction_from_journal(codex_root, transaction_root, journal)
+        transaction = transaction_from_journal(
+            codex_root,
+            transaction_root,
+            journal,
+            transaction_root_identity,
+            journal_identity,
+        )
         if not dry_run:
             transaction.rollback()
-            shutil.rmtree(transaction_root)
+            transaction.cleanup_temp_dir()
         recovered += 1
     return recovered
 
@@ -557,82 +945,150 @@ def hooks_json_diff(current: dict[str, Any], planned: dict[str, Any], path: Path
     return tuple(difflib.unified_diff(before, after, fromfile=str(path), tofile=f"{path} (planned)", lineterm=""))
 
 
-def copy_file(source: Path, destination: Path, *, dry_run: bool, codex_root: Path | None = None) -> None:
+def nearest_existing_destination_root(path: Path) -> Path:
+    current = path.absolute().parent
+    while not current.exists() and current != current.parent:
+        current = current.parent
+    if not current.is_dir():
+        raise InstallError(f"install destination has no safe existing parent: {path}")
+    return current
+
+
+def copy_file(
+    source: Path,
+    destination: Path,
+    *,
+    dry_run: bool,
+    codex_root: Path | None = None,
+    mutation: InstallMutation | None = None,
+    source_root: Path | None = None,
+    source_expected: ConfinedPathIdentity | None = None,
+) -> ConfinedPathIdentity | None:
     if dry_run:
-        return
+        return None
     if codex_root is not None:
         checked_install_path(codex_root, destination, allow_leaf_symlink=False)
     elif destination.is_symlink():
         raise InstallError(f"refusing to overwrite symlink: {destination}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
+    trusted_source_root = (
+        source_root
+        if source_root is not None
+        else PROJECT_ROOT
+        if source == PROJECT_ROOT or PROJECT_ROOT in source.parents
+        else source.parent
+    )
+    try:
+        source_identity = (
+            source_expected if source_expected is not None else confined_path_identity(source, trusted_source_root)
+        )
+    except (OSError, ValueError) as exc:
+        raise InstallError(f"install source is unsafe: {source}") from exc
+    if source_identity.kind != "file":
+        raise InstallError(f"install source is not a trusted regular file: {source}")
+    source_bytes = confined_read_bytes(source, trusted_source_root, source_identity)
+    destination_root = codex_root if codex_root is not None else nearest_existing_destination_root(destination)
+    confined_ensure_parent(destination, destination_root)
+    expected = confined_path_identity(destination, destination_root)
+    installed_identity = confined_atomic_write_bytes(
+        destination,
+        source_bytes,
+        destination_root,
+        expected,
+        mode=source_identity.mode,
+    )
+    if mutation is not None:
+        mutation.record_committed(destination, installed_identity)
+    return installed_identity
 
 
-def copy_hook_runtime(hook_path: Path, *, dry_run: bool, codex_root: Path | None = None) -> None:
-    copy_file(HOOK_SOURCE, hook_path, dry_run=dry_run, codex_root=codex_root)
+def copy_hook_runtime(
+    hook_path: Path,
+    *,
+    dry_run: bool,
+    codex_root: Path | None = None,
+    mutation: InstallMutation | None = None,
+) -> None:
+    copy_file(HOOK_SOURCE, hook_path, dry_run=dry_run, codex_root=codex_root, mutation=mutation)
     copy_file(
         CORE_SOURCE,
         hook_path.parent / "lazy_skill_router_core.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         COMMON_SOURCE,
         hook_path.parent / "lazy_skill_router_common.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         LOGGING_SOURCE,
         hook_path.parent / "lazy_skill_router_logging.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         SCORING_SOURCE,
         hook_path.parent / "lazy_skill_router_scoring.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         CONTRACTS_SOURCE,
         hook_path.parent / "lazy_skill_router_contracts.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         INVENTORY_SOURCE,
         hook_path.parent / "lazy_skill_router_inventory.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         POLICY_IR_SOURCE,
         hook_path.parent / "lazy_skill_router_policy_ir.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         ACTIVATION_SOURCE,
         hook_path.parent / "lazy_skill_router_activation.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         CAPABILITY_INDEX_SOURCE,
         hook_path.parent / "lazy_skill_router_capability_index.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
     copy_file(
         RETRIEVAL_SOURCE,
         hook_path.parent / "lazy_skill_router_retrieval.py",
         dry_run=dry_run,
         codex_root=codex_root,
+        mutation=mutation,
     )
 
 
-def copy_skill(destination: Path, *, force: bool, dry_run: bool, codex_root: Path | None = None) -> str:
+def copy_skill(
+    destination: Path,
+    *,
+    force: bool,
+    dry_run: bool,
+    codex_root: Path | None = None,
+    mutation: InstallMutation | None = None,
+) -> str:
     exists = destination.exists() or destination.is_symlink()
     if exists and not force:
         return "would keep existing skill" if dry_run else "kept existing skill"
@@ -642,16 +1098,34 @@ def copy_skill(destination: Path, *, force: bool, dry_run: bool, codex_root: Pat
         raise InstallError(f"refusing to overwrite symlink: {destination}")
     if dry_run:
         return "would upgrade existing skill" if exists else "would copy skill"
-    if destination.exists():
-        shutil.rmtree(destination)
-    shutil.copytree(SKILL_SOURCE, destination)
+    destination_root = codex_root if codex_root is not None else nearest_existing_destination_root(destination)
+    confined_ensure_parent(destination, destination_root)
+    expected = confined_path_identity(destination, destination_root)
+    installed_identity = confined_replace_tree(
+        SKILL_SOURCE,
+        destination,
+        destination_root,
+        expected,
+        source_root=PROJECT_ROOT,
+    )
+    if mutation is not None:
+        mutation.record_committed(destination, installed_identity)
     return "upgraded existing skill" if exists else "copied skill"
 
 
-def write_skill_inventory(destination: Path, codex_root: Path, agents_root: Path, *, dry_run: bool) -> None:
+def write_skill_inventory(
+    destination: Path,
+    codex_root: Path,
+    agents_root: Path,
+    *,
+    dry_run: bool,
+    mutation: InstallMutation | None = None,
+) -> dict[str, Any] | None:
     if dry_run:
-        return
+        return None
     checked_install_path(codex_root, destination, allow_leaf_symlink=False)
+    confined_ensure_parent(destination, codex_root)
+    expected = confined_path_identity(destination, codex_root)
     records = scan_installed_skills(codex_root, agents_root)
     manifest = build_inventory_manifest(records, codex_root, agents_root)
     host_catalog_path = destination.with_name("host-catalog.json")
@@ -661,12 +1135,80 @@ def write_skill_inventory(destination: Path, codex_root: Path, agents_root: Path
         raise InstallError(f"cannot use invalid host catalog: {reason}")
     if host_catalog.state == "available":
         manifest = reconcile_inventory(manifest, host_catalog)
-    write_json(destination, manifest)
+    installed_identity = write_json(
+        destination,
+        manifest,
+        managed_root=codex_root,
+        expected=expected,
+    )
+    if mutation is not None and installed_identity is not None:
+        mutation.record_committed(destination, installed_identity)
+    return manifest
 
 
-def write_install_json(codex_root: Path, destination: Path, data: dict[str, Any]) -> None:
+def write_capability_index(
+    destination: Path,
+    inventory_path: Path,
+    codex_root: Path,
+    *,
+    dry_run: bool,
+    inventory_data: dict[str, Any] | None = None,
+    mutation: InstallMutation | None = None,
+) -> None:
+    if dry_run:
+        return
     checked_install_path(codex_root, destination, allow_leaf_symlink=False)
-    write_json(destination, data)
+    confined_ensure_parent(destination, codex_root)
+    expected = confined_path_identity(destination, codex_root)
+    if inventory_data is None:
+        inventory_identity = confined_path_identity(inventory_path, codex_root)
+        raw_inventory = confined_read_bytes(inventory_path, codex_root, inventory_identity)
+        parsed_inventory = json.loads(raw_inventory)
+        if not isinstance(parsed_inventory, dict):
+            raise InstallError("generated inventory manifest is not an object")
+        inventory_data = parsed_inventory
+    skills = inventory_data.get("skills")
+    revision = inventory_data.get("revision")
+    if (
+        not isinstance(skills, list)
+        or not all(isinstance(skill, dict) for skill in skills)
+        or not isinstance(revision, str)
+        or revision != inventory_revision(skills)
+    ):
+        raise InstallError("generated inventory manifest is invalid")
+    inventory = InventorySnapshot("available", revision, tuple(skills))
+    index = build_capability_index(inventory)
+    installed_identity = write_json_atomic(
+        destination,
+        index,
+        managed_root=codex_root,
+        expected=expected,
+    )
+    if mutation is not None and installed_identity is not None:
+        mutation.record_committed(destination, installed_identity)
+
+
+def write_install_json(
+    codex_root: Path,
+    destination: Path,
+    data: dict[str, Any],
+    *,
+    expected: ConfinedPathIdentity | None = None,
+    mutation: InstallMutation | None = None,
+) -> ConfinedPathIdentity:
+    checked_install_path(codex_root, destination, allow_leaf_symlink=False)
+    expected_identity = expected if expected is not None else confined_path_identity(destination, codex_root)
+    installed_identity = write_json(
+        destination,
+        data,
+        managed_root=codex_root,
+        expected=expected_identity,
+    )
+    if installed_identity is None:
+        raise InstallError(f"confined install write did not return an identity: {destination}")
+    if mutation is not None:
+        mutation.record_committed(destination, installed_identity)
+    return installed_identity
 
 
 def previous_ownership(snapshot: InstallManifestSnapshot, relative_path: str, default: str) -> str:
@@ -693,6 +1235,7 @@ def install_artifacts(
     hook_destination: Path,
     routes_destination: Path,
     inventory_destination: Path,
+    capability_index_destination: Path,
     skill_destination: Path,
     *,
     route_ownership: str,
@@ -712,6 +1255,7 @@ def install_artifacts(
         (hook_dir / "lazy_skill_router_capability_index.py", "managed"),
         (hook_dir / "lazy_skill_router_retrieval.py", "managed"),
         (inventory_destination, "generated"),
+        (capability_index_destination, "generated"),
         (routes_destination, route_ownership),
         (skill_destination, skill_ownership),
     )
@@ -888,6 +1432,7 @@ def smoke_probe_config(route_config: dict[str, Any]) -> dict[str, Any]:
                             }
                         ]
                     },
+                    "lifecycle": {"state": "active"},
                 }
             ],
         }
@@ -990,6 +1535,7 @@ def main() -> int:
     hook_destination = codex_root / "hooks" / "lazy_skill_router.py"
     routes_destination = codex_root / "lazy-skill-router" / "routes.json"
     inventory_destination = codex_root / "lazy-skill-router" / "skills.manifest.json"
+    capability_index_destination = inventory_destination.with_name(DEFAULT_CAPABILITY_INDEX_NAME)
     install_manifest_destination = codex_root / "lazy-skill-router" / "install.manifest.json"
     skill_destination = codex_root / "skills" / "personal-skill-router"
 
@@ -1009,6 +1555,13 @@ def main() -> int:
         checked_install_path(codex_root, install_manifest_destination, allow_leaf_symlink=False)
         current_hooks = load_hooks(hooks_json)
         previous_manifest = load_install_manifest(install_manifest_destination)
+        if previous_manifest.state == "invalid":
+            reason = ", ".join(previous_manifest.reason_codes) or "invalid"
+            raise InstallError(f"cannot install from invalid ownership manifest: {reason}")
+        manifest_aliases = physical_artifact_aliases(previous_manifest, codex_root)
+        if manifest_aliases:
+            detail = ", ".join(f"{left} = {right}" for left, right in manifest_aliases)
+            raise InstallError(f"install ownership manifest contains physical aliases: {detail}")
         prompt_owned_commands = owned_hook_commands(previous_manifest, "UserPromptSubmit", hook_command)
         stop_owned_commands = owned_hook_commands(previous_manifest, "Stop", stop_hook_command)
         reject_duplicate_lazy_router_hooks(current_hooks, prompt_owned_commands, stop_owned_commands)
@@ -1040,6 +1593,7 @@ def main() -> int:
                     hook_destination,
                     routes_destination,
                     inventory_destination,
+                    capability_index_destination,
                     skill_destination,
                     route_ownership="preserved",
                     skill_ownership="preserved",
@@ -1050,7 +1604,13 @@ def main() -> int:
         )
         mutation_context = nullcontext(None) if args.dry_run else InstallMutation(codex_root, target_paths)
         with mutation_context as mutation:
-            copy_hook_runtime(hook_destination, dry_run=args.dry_run, codex_root=codex_root)
+            active_mutation = mutation if isinstance(mutation, InstallMutation) else None
+            copy_hook_runtime(
+                hook_destination,
+                dry_run=args.dry_run,
+                codex_root=codex_root,
+                mutation=active_mutation,
+            )
             actions.append(f"copy hook {hook_destination}")
             actions.append(f"copy hook core {hook_destination.parent / 'lazy_skill_router_core.py'}")
             actions.append(f"copy hook common {hook_destination.parent / 'lazy_skill_router_common.py'}")
@@ -1071,19 +1631,45 @@ def main() -> int:
                 force=args.force or auto_upgrade_skill,
                 dry_run=args.dry_run,
                 codex_root=codex_root,
+                mutation=active_mutation,
             )
             actions.append(f"{skill_state} {skill_destination}")
-            write_skill_inventory(inventory_destination, codex_root, agents_root, dry_run=args.dry_run)
+            inventory_data = write_skill_inventory(
+                inventory_destination,
+                codex_root,
+                agents_root,
+                dry_run=args.dry_run,
+                mutation=active_mutation,
+            )
             actions.append(f"write skill inventory manifest {inventory_destination}")
+            write_capability_index(
+                capability_index_destination,
+                inventory_destination,
+                codex_root,
+                dry_run=args.dry_run,
+                inventory_data=inventory_data,
+                mutation=active_mutation,
+            )
+            actions.append(f"write capability index {capability_index_destination}")
 
             if route_action == "keep":
                 if (notice_changed or activation_changed or measurement_changed) and not args.dry_run:
-                    write_install_json(codex_root, routes_destination, route_config)
+                    write_install_json(
+                        codex_root,
+                        routes_destination,
+                        route_config,
+                        mutation=active_mutation,
+                    )
                 actions.append(f"keep existing routes {routes_destination}")
                 actions.append(f"validate existing routes {routes_destination}")
             else:
                 if not args.dry_run:
-                    write_install_json(codex_root, routes_destination, route_config)
+                    write_install_json(
+                        codex_root,
+                        routes_destination,
+                        route_config,
+                        mutation=active_mutation,
+                    )
                 actions.append(f"generate routes {routes_destination}")
                 actions.append(f"validate generated routes {routes_destination}")
             if notice_changed:
@@ -1115,6 +1701,7 @@ def main() -> int:
                         hook_destination,
                         routes_destination,
                         inventory_destination,
+                        capability_index_destination,
                         skill_destination,
                         route_ownership=route_ownership,
                         skill_ownership=skill_ownership,
@@ -1122,7 +1709,12 @@ def main() -> int:
                     hook_command,
                     stop_hook_command=stop_hook_command if measurement_enabled else None,
                 )
-                write_install_json(codex_root, install_manifest_destination, manifest)
+                write_install_json(
+                    codex_root,
+                    install_manifest_destination,
+                    manifest,
+                    mutation=active_mutation,
+                )
                 actions.append(f"write install ownership manifest {install_manifest_destination}")
 
             if args.dry_run:
@@ -1164,10 +1756,17 @@ def main() -> int:
                 )
                 if hook_state in {"added", "updated"} or stop_hook_state in {"added", "updated", "removed"}:
                     checked_install_path(codex_root, hooks_json, allow_leaf_symlink=False)
-                    backup = backup_file(hooks_json)
+                    hooks_identity = confined_path_identity(hooks_json, codex_root)
+                    backup = backup_file(hooks_json, codex_root)
                     if isinstance(mutation, InstallMutation):
                         mutation.track_created(backup)
-                    write_install_json(codex_root, hooks_json, data)
+                    write_install_json(
+                        codex_root,
+                        hooks_json,
+                        data,
+                        expected=hooks_identity,
+                        mutation=active_mutation,
+                    )
                     if backup:
                         actions.append(f"backup {backup}")
                     actions.append(f"{hook_state} hook entry in {hooks_json}")

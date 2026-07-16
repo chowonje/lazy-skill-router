@@ -5,12 +5,15 @@ import json
 from pathlib import Path
 from typing import Any, Final
 
-from eval_router_ab import parse_manifest, require_exact_fields, require_object
+from eval_router_ab import parse_manifest, require_exact_fields, require_fields, require_object
 
 OVERLAY_SCHEMA: Final = "lazy-skill-router.router-ab-manifest-overlay/v1"
 OVERLAY_FIELDS: Final = frozenset({"schema", "baseManifestRevision", "patch"})
 PATCH_FIELDS: Final = frozenset({"frozen", "evidence"})
-FROZEN_PATCH_FIELDS: Final = frozenset({"inventoryRevision", "indexRevision"})
+FROZEN_PATCH_REQUIRED_FIELDS: Final = frozenset({"inventoryRevision", "indexRevision"})
+FROZEN_PATCH_FIELDS: Final = FROZEN_PATCH_REQUIRED_FIELDS | frozenset(
+    {"indexSchema", "retrievalAlgorithm", "experimentCodeRevision"}
+)
 EVIDENCE_PATCH_FIELDS: Final = frozenset({"metadataProvenance"})
 
 
@@ -37,7 +40,12 @@ def materialize_manifest(base: dict[str, Any], overlay: dict[str, Any]) -> tuple
     require_exact_fields(patch, PATCH_FIELDS, "overlay.patch")
     frozen_patch = require_object(patch["frozen"], "overlay.patch.frozen")
     evidence_patch = require_object(patch["evidence"], "overlay.patch.evidence")
-    require_exact_fields(frozen_patch, FROZEN_PATCH_FIELDS, "overlay.patch.frozen")
+    require_fields(
+        frozen_patch,
+        required=FROZEN_PATCH_REQUIRED_FIELDS,
+        allowed=FROZEN_PATCH_FIELDS,
+        location="overlay.patch.frozen",
+    )
     require_exact_fields(evidence_patch, EVIDENCE_PATCH_FIELDS, "overlay.patch.evidence")
 
     materialized = json.loads(json.dumps(base, ensure_ascii=False))

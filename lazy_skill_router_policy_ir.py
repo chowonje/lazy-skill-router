@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
+try:  # Python 3.9-3.14 expose the same parser under this private compatibility module.
+    from re import _parser as _regex_parser
+except ImportError:  # pragma: no cover - retained for older supported Python builds.
+    import sre_parse as _regex_parser  # type: ignore[no-redef]
+
+from lazy_skill_router_common import MAX_ROUTABLE_PROMPT_CHARS
 from lazy_skill_router_scoring import CapabilityRequirements, Route, RouteActivation, RoutePattern
 
 SUPPORTED_POLICY_SCHEMAS = frozenset({1, 2})
@@ -13,7 +20,23 @@ BASE_PATTERN_ID_PATTERN = re.compile(r"^[^\s\x00-\x1f\x7f<>]+$")
 FACET_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ACTIVATION_SCOPES = frozenset({"turn", "phase", "task"})
 ROUTE_ACTIVATION_MODES = frozenset({"auto", "propose-only"})
+CAPABILITY_RETRIEVAL_ALGORITHMS = frozenset({"lexical-bm25-char3/v1", "lexical-bm25-char3-anchored/v2"})
 MAX_ACTIVATION_PATTERN_LENGTH = 300
+MAX_ROUTE_PATTERN_LENGTH = 300
+MAX_PATTERNS_PER_ROUTE = 32
+MAX_PATTERNS_PER_POLICY = 512
+MAX_BOUNDED_REPEAT = 256
+MAX_REPEAT_NODES_PER_BRANCH = 8
+MAX_VARIABLE_REPEAT_PATHS_PER_BRANCH = 2 * (MAX_ROUTABLE_PROMPT_CHARS + 1)
+MAX_REGEX_SEARCH_WORK_PER_PATTERN = 2_048
+MAX_UNTRUSTED_REGEX_SEARCH_WORK_PER_POLICY = 768
+MAX_REGEX_SEARCH_WORK_PER_POLICY = 24_576
+LEADING_UNBOUNDED_REPEAT_WORK = 256
+ROUTE_PRIORITY_MIN = -20.0
+ROUTE_PRIORITY_MAX = 20.0
+ROUTE_WEIGHT_MIN = -1.0
+ROUTE_WEIGHT_MAX = 1.0
+PATTERN_WEIGHT_MAX = 3.0
 # Deliberately duplicated instead of importing the runtime defaults: changing a
 # trusted exception must also cross this validation boundary in review.
 SHIPPED_ACTIVATION_PATTERN_BUNDLES = {
@@ -45,6 +68,61 @@ ACTIVATION_LOOKAROUND_TOKENS = ("(?=", "(?!", "(?<=", "(?<!")
 ACTIVATION_CHARACTER_CLASS_PATTERN = re.compile(r"\[(?:\\.|[^\]])*\]")
 ACTIVATION_ESCAPED_TOKEN_PATTERN = re.compile(r"\\.")
 ACTIVATION_UNSUPPORTED_QUANTIFIER_PATTERN = re.compile(r"[*+?{}]")
+BOUNDED_REPEAT_PATTERN = re.compile(r"(?<!\\)\{(?P<minimum>\d+)(?:,(?P<maximum>\d*))?\}")
+REGEX_ERRORS = (re.error, RecursionError, OverflowError)
+_REGEX_REPEAT_OPS = frozenset(
+    operation
+    for operation in (
+        getattr(_regex_parser, "MAX_REPEAT", None),
+        getattr(_regex_parser, "MIN_REPEAT", None),
+        getattr(_regex_parser, "POSSESSIVE_REPEAT", None),
+    )
+    if operation is not None
+)
+_REGEX_LOOKAROUND_OPS = frozenset(
+    operation
+    for operation in (
+        getattr(_regex_parser, "ASSERT", None),
+        getattr(_regex_parser, "ASSERT_NOT", None),
+    )
+    if operation is not None
+)
+_REGEX_BACKREFERENCE_OPS = frozenset(
+    operation
+    for operation in (
+        getattr(_regex_parser, "GROUPREF", None),
+        getattr(_regex_parser, "GROUPREF_EXISTS", None),
+    )
+    if operation is not None
+)
+
+# These are exact compatibility exceptions for the checked-in v1 route table.
+# Route id, field, and full regex are all part of the key so the exception
+# cannot be widened by a merely similar expression.
+SHIPPED_ROUTE_PATTERN_EXCEPTIONS = frozenset(
+    {
+        ("pdf", "patterns", r"(?<![A-Za-z0-9_])pdf(?![A-Za-z0-9_])"),
+        ("github-ci", "patterns", r"\baction(s)?\b.*(?:fail|실패)"),
+        (
+            "docs",
+            "excludePatterns",
+            (
+                r"^(?=.*(?:(?:(?<![A-Za-z0-9_])(?:fix|implement|patch|edit|add|change|update|create|apply)"
+                r"(?![A-Za-z0-9_])|(?:고치|수정|구현|추가|변경|적용))\s*"
+                r"(?:(?:the|a|an|this|that|new|small|helper|python|새|새로운)\s+){0,3}"
+                r"(?:(?<![A-Za-z0-9_])(?:code|bug|function|class|patch)(?![A-Za-z0-9_])|"
+                r"(?:코드|버그|함수|클래스|패치))(?:을|를|은|는|이|가)?|"
+                r"(?:(?<![A-Za-z0-9_])(?:code|bug|function|class|patch)(?![A-Za-z0-9_])|"
+                r"(?:코드|버그|함수|클래스|패치))(?:을|를|은|는|이|가)?\s*"
+                r"(?:(?<![A-Za-z0-9_])(?:fix|implement|patch|edit|add|change|update|create|apply)"
+                r"(?![A-Za-z0-9_])|(?:고치|수정|구현|추가|변경|적용))))"
+                r"(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그))"
+            ),
+        ),
+        ("codex-config", "patterns", r"현재\s*작업.*평가"),
+        ("codex-config", "patterns", r"작업.*문제.*같"),
+    }
+)
 
 
 class InventoryResolver(Protocol):
@@ -163,33 +241,338 @@ def strings(value: Any) -> tuple[str, ...]:
 
 
 def number(value: Any, default: float = 0.0) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if not is_number(value):
         return default
     return float(value)
 
 
 def is_number(value: Any) -> bool:
-    return not isinstance(value, bool) and isinstance(value, (int, float))
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return False
 
 
-def activation_pattern_risk(pattern: str, compiled: re.Pattern[str] | None = None) -> str | None:
-    if len(pattern) > MAX_ACTIVATION_PATTERN_LENGTH:
-        return f"pattern exceeds {MAX_ACTIVATION_PATTERN_LENGTH} characters"
+def route_pattern_is_shipped_exception(route_id: str, field: str, pattern: str) -> bool:
+    return (route_id, field, pattern) in SHIPPED_ROUTE_PATTERN_EXCEPTIONS
+
+
+def _sequence_contains_operation(sequence: Any, operations: frozenset[Any]) -> bool:
+    for operation, argument in sequence:
+        if operation in operations:
+            return True
+        if operation in _REGEX_REPEAT_OPS and _sequence_contains_operation(argument[2], operations):
+            return True
+        if operation is getattr(_regex_parser, "SUBPATTERN", None) and _sequence_contains_operation(
+            argument[-1], operations
+        ):
+            return True
+        if operation is getattr(_regex_parser, "BRANCH", None):
+            if any(_sequence_contains_operation(branch, operations) for branch in argument[1]):
+                return True
+        if operation in _REGEX_LOOKAROUND_OPS and _sequence_contains_operation(argument[1], operations):
+            return True
+        if operation is getattr(_regex_parser, "ATOMIC_GROUP", None) and _sequence_contains_operation(
+            argument, operations
+        ):
+            return True
+    return False
+
+
+def _unbounded_repeat_count(sequence: Any) -> int:
+    count = 0
+    for operation, argument in sequence:
+        if operation in _REGEX_REPEAT_OPS:
+            if argument[1] == _regex_parser.MAXREPEAT:
+                count += 1
+            continue
+        if operation is getattr(_regex_parser, "SUBPATTERN", None):
+            count += _unbounded_repeat_count(argument[-1])
+        elif operation is getattr(_regex_parser, "BRANCH", None):
+            count += max((_unbounded_repeat_count(branch) for branch in argument[1]), default=0)
+        elif operation is getattr(_regex_parser, "ATOMIC_GROUP", None):
+            count += _unbounded_repeat_count(argument)
+    return count
+
+
+def _repeat_node_count(sequence: Any) -> int:
+    count = 0
+    for operation, argument in sequence:
+        if operation in _REGEX_REPEAT_OPS:
+            count += 1 + _repeat_node_count(argument[2])
+        elif operation is getattr(_regex_parser, "SUBPATTERN", None):
+            count += _repeat_node_count(argument[-1])
+        elif operation is getattr(_regex_parser, "BRANCH", None):
+            count += max((_repeat_node_count(branch) for branch in argument[1]), default=0)
+        elif operation in _REGEX_LOOKAROUND_OPS:
+            count += _repeat_node_count(argument[1])
+        elif operation is getattr(_regex_parser, "ATOMIC_GROUP", None):
+            count += _repeat_node_count(argument)
+    return count
+
+
+def _capped_repeat_path_product(left: int, right: int) -> int:
+    if left > MAX_VARIABLE_REPEAT_PATHS_PER_BRANCH // right:
+        return MAX_VARIABLE_REPEAT_PATHS_PER_BRANCH + 1
+    return left * right
+
+
+def _variable_repeat_paths(sequence: Any) -> int:
+    paths = 1
+    for operation, argument in sequence:
+        operation_paths = 1
+        if operation in _REGEX_REPEAT_OPS:
+            minimum, maximum, nested = argument
+            if minimum == maximum:
+                choices = 1
+            elif maximum == _regex_parser.MAXREPEAT:
+                choices = MAX_ROUTABLE_PROMPT_CHARS + 1
+            else:
+                choices = maximum - minimum + 1
+            operation_paths = _capped_repeat_path_product(choices, _variable_repeat_paths(nested))
+        elif operation is getattr(_regex_parser, "SUBPATTERN", None):
+            operation_paths = _variable_repeat_paths(argument[-1])
+        elif operation is getattr(_regex_parser, "BRANCH", None):
+            operation_paths = max((_variable_repeat_paths(branch) for branch in argument[1]), default=1)
+        paths = _capped_repeat_path_product(paths, operation_paths)
+    return paths
+
+
+def _repeat_choice_count(argument: Any) -> int | None:
+    minimum, maximum, _ = argument
+    if minimum == maximum:
+        return None
+    if maximum == _regex_parser.MAXREPEAT:
+        return MAX_ROUTABLE_PROMPT_CHARS + 1
+    return maximum - minimum + 1
+
+
+def _repeat_choice_paths(sequence: Any) -> list[list[int]]:
+    path_limit = MAX_REGEX_SEARCH_WORK_PER_PATTERN + 1
+    paths: list[list[int]] = [[]]
+    for operation, argument in sequence:
+        if operation in _REGEX_REPEAT_OPS:
+            choices = _repeat_choice_count(argument)
+            operation_paths = [[choices]] if choices is not None else [[]]
+        elif operation is getattr(_regex_parser, "SUBPATTERN", None):
+            operation_paths = _repeat_choice_paths(argument[-1])
+        elif operation is getattr(_regex_parser, "BRANCH", None):
+            operation_paths = []
+            for branch in argument[1]:
+                operation_paths.extend(_repeat_choice_paths(branch))
+                if len(operation_paths) >= path_limit:
+                    operation_paths = operation_paths[:path_limit]
+                    break
+        else:
+            operation_paths = [[]]
+
+        combined: list[list[int]] = []
+        for prefix in paths:
+            for suffix in operation_paths:
+                combined.append([*prefix, *suffix])
+                if len(combined) >= path_limit:
+                    break
+            if len(combined) >= path_limit:
+                break
+        paths = combined
+    return paths
+
+
+def _repeat_path_work(choices: list[int]) -> int:
+    if len(choices) <= 1:
+        return 1
+    work = 1
+    for value in choices:
+        if work > MAX_REGEX_SEARCH_WORK_PER_PATTERN // value:
+            return MAX_REGEX_SEARCH_WORK_PER_PATTERN + 1
+        work *= value
+    return work
+
+
+def _leading_unbounded_repeat_branches(sequence: Any) -> int:
+    for operation, argument in sequence:
+        if operation is getattr(_regex_parser, "AT", None) or operation in _REGEX_LOOKAROUND_OPS:
+            continue
+        if operation in _REGEX_REPEAT_OPS:
+            return 1 if argument[1] == _regex_parser.MAXREPEAT else 0
+        if operation is getattr(_regex_parser, "SUBPATTERN", None):
+            return _leading_unbounded_repeat_branches(argument[-1])
+        if operation is getattr(_regex_parser, "BRANCH", None):
+            return sum(_leading_unbounded_repeat_branches(branch) for branch in argument[1])
+        if operation is getattr(_regex_parser, "ATOMIC_GROUP", None):
+            return _leading_unbounded_repeat_branches(argument)
+        return 0
+    return 0
+
+
+def _regex_search_work(pattern: str, parsed: Any) -> int:
+    if pattern.startswith("^") or pattern.startswith(r"\A"):
+        return 1
+    total = 0
+    for choices in _repeat_choice_paths(parsed):
+        total += _repeat_path_work(choices)
+        if total > MAX_REGEX_SEARCH_WORK_PER_PATTERN:
+            return MAX_REGEX_SEARCH_WORK_PER_PATTERN + 1
+    leading_unbounded_work = min(
+        MAX_REGEX_SEARCH_WORK_PER_PATTERN + 1,
+        _leading_unbounded_repeat_branches(parsed) * LEADING_UNBOUNDED_REPEAT_WORK,
+    )
+    return max(1, total, leading_unbounded_work)
+
+
+def _parsed_regex_risk(
+    sequence: Any,
+    *,
+    allow_leading_positive_lookahead: bool,
+    in_repeat: bool = False,
+    root: bool = True,
+) -> str | None:
+    if _repeat_node_count(sequence) > MAX_REPEAT_NODES_PER_BRANCH:
+        return f"branch contains more than {MAX_REPEAT_NODES_PER_BRANCH} repetition nodes"
+    if _unbounded_repeat_count(sequence) > 1:
+        return "branch contains more than one unbounded repetition"
+    if _variable_repeat_paths(sequence) > MAX_VARIABLE_REPEAT_PATHS_PER_BRANCH:
+        return f"branch variable-repeat paths exceed {MAX_VARIABLE_REPEAT_PATHS_PER_BRANCH}"
+
+    prefix_allows_lookahead = root and allow_leading_positive_lookahead
+    for operation, argument in sequence:
+        if operation is getattr(_regex_parser, "AT", None) and prefix_allows_lookahead:
+            continue
+        if operation in _REGEX_LOOKAROUND_OPS:
+            direction, nested = argument
+            if not prefix_allows_lookahead or operation is not getattr(_regex_parser, "ASSERT", None) or direction < 0:
+                return "lookaround is unsupported"
+            nested_risk = _parsed_regex_risk(
+                nested,
+                allow_leading_positive_lookahead=False,
+                in_repeat=False,
+                root=False,
+            )
+            if nested_risk is not None:
+                return nested_risk
+            continue
+
+        prefix_allows_lookahead = False
+        if operation in _REGEX_BACKREFERENCE_OPS:
+            return "backreferences and conditionals are unsupported"
+        if operation in _REGEX_REPEAT_OPS:
+            minimum, maximum, nested = argument
+            if minimum > MAX_BOUNDED_REPEAT or (maximum != _regex_parser.MAXREPEAT and maximum > MAX_BOUNDED_REPEAT):
+                return f"bounded repetition exceeds {MAX_BOUNDED_REPEAT}"
+            if in_repeat:
+                return "nested repetition is unsupported"
+            if _sequence_contains_operation(
+                nested,
+                frozenset({getattr(_regex_parser, "BRANCH", None)}),
+            ):
+                return "repeated alternation is unsupported"
+            nested_risk = _parsed_regex_risk(
+                nested,
+                allow_leading_positive_lookahead=False,
+                in_repeat=True,
+                root=False,
+            )
+            if nested_risk is not None:
+                return nested_risk
+        elif operation is getattr(_regex_parser, "SUBPATTERN", None):
+            nested_risk = _parsed_regex_risk(
+                argument[-1],
+                allow_leading_positive_lookahead=False,
+                in_repeat=in_repeat,
+                root=False,
+            )
+            if nested_risk is not None:
+                return nested_risk
+        elif operation is getattr(_regex_parser, "BRANCH", None):
+            for branch in argument[1]:
+                nested_risk = _parsed_regex_risk(
+                    branch,
+                    allow_leading_positive_lookahead=False,
+                    in_repeat=in_repeat,
+                    root=False,
+                )
+                if nested_risk is not None:
+                    return nested_risk
+        elif operation is getattr(_regex_parser, "ATOMIC_GROUP", None):
+            nested_risk = _parsed_regex_risk(
+                argument,
+                allow_leading_positive_lookahead=False,
+                in_repeat=in_repeat,
+                root=False,
+            )
+            if nested_risk is not None:
+                return nested_risk
+    return None
+
+
+def route_pattern_risk(pattern: str, *, allow_leading_positive_lookahead: bool = False) -> str | None:
+    if len(pattern) > MAX_ROUTE_PATTERN_LENGTH:
+        return f"pattern exceeds {MAX_ROUTE_PATTERN_LENGTH} characters"
     if any(ord(character) < 32 or ord(character) == 127 for character in pattern):
         return "pattern contains a control character"
     if ACTIVATION_NESTED_QUANTIFIER_PATTERN.search(pattern):
         return "nested repetition is unsupported"
     if ACTIVATION_QUANTIFIED_ALTERNATION_PATTERN.search(pattern):
         return "repeated alternation is unsupported"
-    if ACTIVATION_BACKREFERENCE_PATTERN.search(pattern):
+    if ACTIVATION_BACKREFERENCE_PATTERN.search(pattern) or "(?P=" in pattern or "(?P>" in pattern:
         return "backreferences are unsupported"
-    if any(token in pattern for token in ACTIVATION_LOOKAROUND_TOKENS):
-        return "lookaround is unsupported"
-    quantifier_probe = pattern.replace("(?:", "(")
-    quantifier_probe = ACTIVATION_CHARACTER_CLASS_PATTERN.sub("", quantifier_probe)
-    quantifier_probe = ACTIVATION_ESCAPED_TOKEN_PATTERN.sub("", quantifier_probe)
-    if ACTIVATION_UNSUPPORTED_QUANTIFIER_PATTERN.search(quantifier_probe):
-        return "pattern contains an unsupported quantifier"
+    if "(?" + "(" in pattern:
+        return "conditionals are unsupported"
+    for repeat in BOUNDED_REPEAT_PATTERN.finditer(pattern):
+        minimum = int(repeat.group("minimum"))
+        maximum_text = repeat.group("maximum")
+        maximum = int(maximum_text) if maximum_text else None
+        if minimum > MAX_BOUNDED_REPEAT or (maximum is not None and maximum > MAX_BOUNDED_REPEAT):
+            return f"bounded repetition exceeds {MAX_BOUNDED_REPEAT}"
+    parsed = _regex_parser.parse(pattern, re.IGNORECASE)
+    parsed_risk = _parsed_regex_risk(
+        parsed,
+        allow_leading_positive_lookahead=allow_leading_positive_lookahead,
+    )
+    if parsed_risk is not None:
+        return parsed_risk
+    if _regex_search_work(pattern, parsed) > MAX_REGEX_SEARCH_WORK_PER_PATTERN:
+        return f"unanchored regex search work exceeds {MAX_REGEX_SEARCH_WORK_PER_PATTERN}"
+    return None
+
+
+def normalize_v1_leading_positive_lookahead(pattern: str) -> tuple[str, bool]:
+    if pattern.startswith("(?="):
+        return "^" + pattern, True
+    return pattern, False
+
+
+def activation_pattern_risk(
+    pattern: str,
+    compiled: re.Pattern[str] | None = None,
+    *,
+    allow_leading_positive_lookahead: bool = False,
+) -> str | None:
+    try:
+        base_risk = route_pattern_risk(
+            pattern,
+            allow_leading_positive_lookahead=allow_leading_positive_lookahead,
+        )
+    except REGEX_ERRORS:
+        return None
+    if base_risk is not None:
+        return base_risk
+    if not allow_leading_positive_lookahead:
+        if ACTIVATION_NESTED_QUANTIFIER_PATTERN.search(pattern):
+            return "nested repetition is unsupported"
+        if ACTIVATION_QUANTIFIED_ALTERNATION_PATTERN.search(pattern):
+            return "repeated alternation is unsupported"
+        if ACTIVATION_BACKREFERENCE_PATTERN.search(pattern):
+            return "backreferences are unsupported"
+        if any(token in pattern for token in ACTIVATION_LOOKAROUND_TOKENS):
+            return "lookaround is unsupported"
+        quantifier_probe = pattern.replace("(?:", "(")
+        quantifier_probe = ACTIVATION_CHARACTER_CLASS_PATTERN.sub("", quantifier_probe)
+        quantifier_probe = ACTIVATION_ESCAPED_TOKEN_PATTERN.sub("", quantifier_probe)
+        if ACTIVATION_UNSUPPORTED_QUANTIFIER_PATTERN.search(quantifier_probe):
+            return "pattern contains an unsupported quantifier"
     if compiled is not None:
         try:
             matches_empty = compiled.search("") is not None
@@ -205,11 +588,19 @@ def validate_activation_patterns(
     field: str,
     finding_prefix: str,
     findings: list[PolicyFinding],
+    schema_version: int,
 ) -> None:
     trusted_bundle = patterns == SHIPPED_ACTIVATION_PATTERN_BUNDLES.get(field)
     for pattern in patterns:
-        if not trusted_bundle:
-            risk = activation_pattern_risk(pattern)
+        normalized, anchored = (
+            normalize_v1_leading_positive_lookahead(pattern) if schema_version == 1 else (pattern, False)
+        )
+        trusted_pattern = trusted_bundle
+        if not trusted_pattern:
+            risk = activation_pattern_risk(
+                normalized,
+                allow_leading_positive_lookahead=anchored,
+            )
             if risk is not None:
                 findings.append(
                     PolicyFinding(
@@ -220,7 +611,7 @@ def validate_activation_patterns(
                 )
                 continue
         try:
-            compiled = re.compile(pattern)
+            compiled = re.compile(normalized)
         except ACTIVATION_REGEX_ERRORS as exc:
             findings.append(
                 PolicyFinding(
@@ -230,7 +621,15 @@ def validate_activation_patterns(
                 )
             )
             continue
-        risk = None if trusted_bundle else activation_pattern_risk(pattern, compiled)
+        risk = (
+            None
+            if trusted_pattern
+            else activation_pattern_risk(
+                normalized,
+                compiled,
+                allow_leading_positive_lookahead=anchored,
+            )
+        )
         if risk is not None:
             findings.append(
                 PolicyFinding(
@@ -239,9 +638,25 @@ def validate_activation_patterns(
                     f"{field} has unsafe regex {pattern!r}: {risk}",
                 )
             )
+        if anchored:
+            findings.append(
+                PolicyFinding(
+                    "WARN",
+                    f"{finding_prefix}_regex_anchored",
+                    f"{field} legacy leading lookahead was anchored: {pattern!r}",
+                )
+            )
 
 
 def validate_common_config(config: dict[str, Any], schema_version: int, findings: list[PolicyFinding]) -> None:
+    pattern_budget = [0]
+
+    def bounded_patterns(patterns: tuple[str, ...]) -> tuple[str, ...]:
+        remaining = max(0, MAX_PATTERNS_PER_POLICY - pattern_budget[0])
+        bounded = patterns[:remaining]
+        pattern_budget[0] += len(bounded)
+        return bounded
+
     display = config.get("display", {})
     if display and not isinstance(display, dict):
         findings.append(PolicyFinding("ERROR", "display_invalid", "display must be an object when present"))
@@ -289,10 +704,11 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                 )
             )
         validate_activation_patterns(
-            meta_patterns,
+            bounded_patterns(meta_patterns),
             "activation.metaPatterns",
             "activation_meta_pattern",
             findings,
+            schema_version,
         )
         action_value = activation.get("actionPatterns")
         action_patterns = strings(action_value)
@@ -305,10 +721,11 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                 )
             )
         validate_activation_patterns(
-            action_patterns,
+            bounded_patterns(action_patterns),
             "activation.actionPatterns",
             "activation_action_pattern",
             findings,
+            schema_version,
         )
         no_action_value = activation.get("noActionPatterns")
         no_action_patterns = strings(no_action_value)
@@ -321,10 +738,11 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                 )
             )
         validate_activation_patterns(
-            no_action_patterns,
+            bounded_patterns(no_action_patterns),
             "activation.noActionPatterns",
             "activation_no_action_pattern",
             findings,
+            schema_version,
         )
 
     capability_retrieval = config.get("capabilityRetrieval")
@@ -337,7 +755,9 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
             )
         )
     elif isinstance(capability_retrieval, dict):
-        unknown_fields = sorted(set(capability_retrieval) - {"mode", "maxCandidates"})
+        unknown_fields = sorted(
+            str(field) for field in set(capability_retrieval) - {"mode", "maxCandidates", "algorithm"}
+        )
         if unknown_fields:
             findings.append(
                 PolicyFinding(
@@ -348,7 +768,7 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                 )
             )
         retrieval_mode = capability_retrieval.get("mode", "off")
-        if retrieval_mode not in {"off", "shadow"}:
+        if not isinstance(retrieval_mode, str) or retrieval_mode not in {"off", "shadow"}:
             findings.append(
                 PolicyFinding(
                     "WARN",
@@ -364,6 +784,23 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                     "capability_retrieval_max_candidates_invalid",
                     "capabilityRetrieval.maxCandidates must be an integer between 1 and 3; "
                     "legacy routing will continue",
+                )
+            )
+        retrieval_algorithm = capability_retrieval.get("algorithm", "lexical-bm25-char3-anchored/v2")
+        if retrieval_algorithm == "lexical-bm25-char3/v1":
+            findings.append(
+                PolicyFinding(
+                    "WARN",
+                    "capability_retrieval_algorithm_replay_only",
+                    "capabilityRetrieval.algorithm v1 is reserved for frozen replay; legacy routing will continue",
+                )
+            )
+        elif not isinstance(retrieval_algorithm, str) or retrieval_algorithm not in CAPABILITY_RETRIEVAL_ALGORITHMS:
+            findings.append(
+                PolicyFinding(
+                    "WARN",
+                    "capability_retrieval_algorithm_invalid",
+                    "capabilityRetrieval.algorithm is unsupported; legacy routing will continue",
                 )
             )
 
@@ -410,15 +847,48 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                     "answerOnlyPatterns must contain strings when present",
                 )
             )
-        for pattern in answer_patterns:
+        for pattern in bounded_patterns(answer_patterns):
+            normalized, anchored = normalize_v1_leading_positive_lookahead(pattern)
             try:
-                re.compile(pattern)
-            except re.error as exc:
+                risk = route_pattern_risk(
+                    normalized,
+                    allow_leading_positive_lookahead=anchored,
+                )
+            except REGEX_ERRORS as exc:
+                risk = None
                 findings.append(
                     PolicyFinding(
                         "ERROR",
                         "answer_only_pattern_regex_invalid",
                         f"route answerOnlyPatterns has invalid answerOnlyPatterns regex {pattern!r}: {exc}",
+                    )
+                )
+                continue
+            if risk is not None:
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        "answer_only_pattern_regex_unsafe",
+                        f"answerOnlyPatterns has unsafe regex {pattern!r}: {risk}",
+                    )
+                )
+                continue
+            try:
+                re.compile(normalized)
+            except REGEX_ERRORS as exc:
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        "answer_only_pattern_regex_invalid",
+                        f"route answerOnlyPatterns has invalid answerOnlyPatterns regex {pattern!r}: {exc}",
+                    )
+                )
+            if anchored:
+                findings.append(
+                    PolicyFinding(
+                        "WARN",
+                        "answer_only_pattern_regex_anchored",
+                        f"answerOnlyPatterns legacy leading lookahead was anchored: {pattern!r}",
                     )
                 )
     elif schema_version == 2:
@@ -469,14 +939,18 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
 
 
 def validate_route_scalars(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFinding]) -> None:
-    for field in ("priority", "weight"):
+    bounds = {
+        "priority": (ROUTE_PRIORITY_MIN, ROUTE_PRIORITY_MAX),
+        "weight": (ROUTE_WEIGHT_MIN, ROUTE_WEIGHT_MAX),
+    }
+    for field, (minimum, maximum) in bounds.items():
         value = raw_route.get(field)
-        if value is not None and not is_number(value):
+        if value is not None and (not is_number(value) or not minimum <= float(value) <= maximum):
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     f"route_{field}_invalid",
-                    f"route {route_id} {field} must be a number when set",
+                    f"route {route_id} {field} must be a number from {minimum:g} to {maximum:g} and must be finite",
                     route_id,
                     field,
                 )
@@ -500,17 +974,67 @@ def stable_pattern_id(route_id: str, regex: str) -> str:
     return f"{route_segment}.{digest}"
 
 
-def lifecycle(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFinding]) -> tuple[str, str | None]:
+def lifecycle(
+    raw_route: dict[str, Any],
+    route_id: str,
+    findings: list[PolicyFinding],
+    schema_version: int,
+) -> tuple[str, str | None]:
+    if "lifecycle" not in raw_route:
+        if schema_version == 1:
+            return "active", None
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_lifecycle_missing",
+                f"schema v2 route {route_id} must define lifecycle.state explicitly",
+                route_id,
+                "lifecycle",
+            )
+        )
+        return "disabled", None
     value = raw_route.get("lifecycle")
-    if value is None:
-        return "active", None
     if not isinstance(value, dict):
         findings.append(
             PolicyFinding("ERROR", "route_lifecycle_invalid", f"route {route_id} lifecycle must be an object", route_id)
         )
         return "disabled", None
-    state = value.get("state", "active")
-    if state not in ROUTE_LIFECYCLE_STATES:
+    allowed_fields = {
+        "state",
+        "proposalRevision",
+        "previousState",
+        "retiredByProposal",
+        "retirementReason",
+        "promotionEvidence",
+    }
+    unknown_fields = sorted(str(field) for field in set(value) - allowed_fields)
+    if unknown_fields:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_lifecycle_fields_invalid",
+                f"route {route_id} lifecycle contains unsupported fields: {', '.join(unknown_fields)}",
+                route_id,
+                "lifecycle",
+            )
+        )
+        invalid_fields = True
+    else:
+        invalid_fields = False
+    if "state" not in value:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_lifecycle_state_missing",
+                f"route {route_id} lifecycle.state is required when lifecycle is present",
+                route_id,
+                "lifecycle.state",
+            )
+        )
+        state: Any = "disabled"
+    else:
+        state = value.get("state")
+    if not isinstance(state, str) or state not in ROUTE_LIFECYCLE_STATES:
         findings.append(
             PolicyFinding(
                 "ERROR",
@@ -519,6 +1043,8 @@ def lifecycle(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFin
                 route_id,
             )
         )
+        state = "disabled"
+    elif invalid_fields:
         state = "disabled"
     revision = value.get("proposalRevision")
     if revision is not None and (not isinstance(revision, str) or not revision):
@@ -531,8 +1057,11 @@ def lifecycle(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFin
             )
         )
         revision = None
+        state = "disabled"
     previous_state = value.get("previousState")
-    if previous_state is not None and previous_state not in {"active", "shadow"}:
+    if previous_state is not None and (
+        not isinstance(previous_state, str) or previous_state not in {"active", "shadow"}
+    ):
         findings.append(
             PolicyFinding(
                 "ERROR",
@@ -542,6 +1071,7 @@ def lifecycle(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFin
                 "lifecycle.previousState",
             )
         )
+        state = "disabled"
     retired_by = value.get("retiredByProposal")
     if retired_by is not None and (not isinstance(retired_by, str) or not retired_by):
         findings.append(
@@ -553,6 +1083,8 @@ def lifecycle(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFin
                 "lifecycle.retiredByProposal",
             )
         )
+        retired_by = None
+        state = "disabled"
     retirement_reason = value.get("retirementReason")
     if retirement_reason is not None and (not isinstance(retirement_reason, str) or not retirement_reason):
         findings.append(
@@ -564,6 +1096,41 @@ def lifecycle(raw_route: dict[str, Any], route_id: str, findings: list[PolicyFin
                 "lifecycle.retirementReason",
             )
         )
+        retirement_reason = None
+        state = "disabled"
+    promotion_evidence = value.get("promotionEvidence")
+    if promotion_evidence is not None:
+        valid_evidence = isinstance(promotion_evidence, dict) and set(promotion_evidence) == {
+            "samples",
+            "helpfulRate",
+            "harmful",
+        }
+        if valid_evidence:
+            samples = promotion_evidence.get("samples")
+            helpful_rate = promotion_evidence.get("helpfulRate")
+            harmful = promotion_evidence.get("harmful")
+            valid_evidence = (
+                not isinstance(samples, bool)
+                and isinstance(samples, int)
+                and samples >= 0
+                and is_number(helpful_rate)
+                and 0 <= float(helpful_rate) <= 1
+                and not isinstance(harmful, bool)
+                and isinstance(harmful, int)
+                and harmful >= 0
+            )
+        if not valid_evidence:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_promotion_evidence_invalid",
+                    f"route {route_id} lifecycle.promotionEvidence must contain valid samples, "
+                    "helpfulRate, and harmful",
+                    route_id,
+                    "lifecycle.promotionEvidence",
+                )
+            )
+            state = "disabled"
     if state == "disabled" and retired_by is not None and retirement_reason is None:
         findings.append(
             PolicyFinding(
@@ -614,6 +1181,7 @@ def pattern_ir(
     route_id: str,
     findings: list[PolicyFinding],
     field: str,
+    schema_version: int,
     *,
     allow_string: bool = True,
     require_id: bool = False,
@@ -687,12 +1255,13 @@ def pattern_ir(
                     field,
                 )
             )
-        if isinstance(weight_value, bool) or not isinstance(weight_value, (int, float)) or weight_value <= 0:
+        if not is_number(weight_value) or not 0 < float(weight_value) <= PATTERN_WEIGHT_MAX:
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     "route_pattern_weight_invalid",
-                    f"route {route_id} pattern weight must be a positive number",
+                    f"route {route_id} pattern weight must be a positive number at most {PATTERN_WEIGHT_MAX:g} "
+                    "and must be finite",
                     route_id,
                     field,
                 )
@@ -724,9 +1293,53 @@ def pattern_ir(
             )
         )
         return None
+    original_shipped_exception = route_pattern_is_shipped_exception(route_id, field, regex)
+    normalized_regex, anchored = (
+        normalize_v1_leading_positive_lookahead(regex)
+        if schema_version == 1 and not original_shipped_exception
+        else (regex, False)
+    )
+    shipped_exception = original_shipped_exception or route_pattern_is_shipped_exception(
+        route_id,
+        field,
+        normalized_regex,
+    )
+    if not shipped_exception:
+        try:
+            risk = route_pattern_risk(
+                normalized_regex,
+                allow_leading_positive_lookahead=anchored,
+            )
+        except REGEX_ERRORS as exc:
+            message = (
+                f"route {route_id} has invalid regex {regex!r}: {exc}"
+                if field.startswith("match.")
+                else (f"route {route_id} has invalid regex {regex!r} for {field} (invalid {field} regex): {exc}")
+            )
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_pattern_regex_invalid",
+                    message,
+                    route_id,
+                    field,
+                )
+            )
+            return None
+        if risk is not None:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_pattern_regex_unsafe",
+                    f"route {route_id} has unsafe regex {regex!r} for {field}: {risk}",
+                    route_id,
+                    field,
+                )
+            )
+            return None
     try:
-        re.compile(regex)
-    except re.error as exc:
+        re.compile(normalized_regex, re.IGNORECASE)
+    except REGEX_ERRORS as exc:
         message = (
             f"route {route_id} has invalid regex {regex!r}: {exc}"
             if field.startswith("match.")
@@ -742,7 +1355,17 @@ def pattern_ir(
             )
         )
         return None
-    return PatternIR(pattern_id, regex, label, weight, facet)
+    if anchored:
+        findings.append(
+            PolicyFinding(
+                "WARN",
+                "route_pattern_regex_anchored",
+                f"route {route_id} legacy leading lookahead was anchored for {field}: {regex!r}",
+                route_id,
+                field,
+            )
+        )
+    return PatternIR(pattern_id, normalized_regex, label, weight, facet)
 
 
 def pattern_list(
@@ -750,13 +1373,19 @@ def pattern_list(
     route_id: str,
     findings: list[PolicyFinding],
     field: str,
+    schema_version: int,
     *,
     allow_string: bool = True,
     require_id: bool = False,
+    budget: list[int] | None = None,
 ) -> tuple[PatternIR, ...]:
     if value is None:
         return ()
     values = value if isinstance(value, list) else [value]
+    if budget is not None:
+        remaining = max(0, MAX_PATTERNS_PER_POLICY - budget[0])
+        values = values[:remaining]
+        budget[0] += len(values)
     return tuple(
         pattern
         for item in values
@@ -766,12 +1395,183 @@ def pattern_list(
                 route_id,
                 findings,
                 field,
+                schema_version,
                 allow_string=allow_string,
                 require_id=require_id,
             )
         )
         is not None
     )
+
+
+def raw_pattern_values(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    return list(value) if isinstance(value, list) else [value]
+
+
+def bounded_route_patterns(
+    include_value: Any,
+    exclude_value: Any,
+    route_id: str,
+    findings: list[PolicyFinding],
+) -> tuple[list[Any], list[Any]]:
+    includes = raw_pattern_values(include_value)
+    excludes = raw_pattern_values(exclude_value)
+    if len(includes) + len(excludes) > MAX_PATTERNS_PER_ROUTE:
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "route_pattern_limit_exceeded",
+                f"route {route_id} must contain at most {MAX_PATTERNS_PER_ROUTE} include and exclude patterns total",
+                route_id,
+            )
+        )
+    bounded_includes = includes[:MAX_PATTERNS_PER_ROUTE]
+    remaining = MAX_PATTERNS_PER_ROUTE - len(bounded_includes)
+    return bounded_includes, excludes[:remaining]
+
+
+def raw_policy_pattern_count(config: dict[str, Any], schema_version: int) -> int:
+    routes = config.get("routes")
+    total = 0
+    total += len(raw_pattern_values(config.get("answerOnlyPatterns")))
+    activation = config.get("activation")
+    if isinstance(activation, dict):
+        for field in ("metaPatterns", "actionPatterns", "noActionPatterns"):
+            total += len(raw_pattern_values(activation.get(field)))
+    for route in routes if isinstance(routes, list) else []:
+        if not isinstance(route, dict):
+            continue
+        if schema_version == 2:
+            match = route.get("match")
+            if not isinstance(match, dict):
+                continue
+            total += len(raw_pattern_values(match.get("any")))
+            total += len(raw_pattern_values(match.get("none")))
+        else:
+            total += len(raw_pattern_values(route.get("patterns")))
+            total += len(raw_pattern_values(route.get("excludePatterns")))
+    return total
+
+
+def raw_regex(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        regex = value.get("regex")
+        return regex if isinstance(regex, str) else None
+    return None
+
+
+def add_policy_regex_work(
+    untrusted_total: int,
+    total: int,
+    pattern: str,
+    *,
+    trusted: bool,
+) -> tuple[int, int]:
+    if len(pattern) > MAX_ROUTE_PATTERN_LENGTH:
+        return untrusted_total, total
+    try:
+        parsed = _regex_parser.parse(pattern, re.IGNORECASE)
+    except REGEX_ERRORS:
+        return untrusted_total, total
+    work = _regex_search_work(pattern, parsed)
+    if work > MAX_REGEX_SEARCH_WORK_PER_PATTERN and not trusted:
+        return untrusted_total, total
+    total = min(MAX_REGEX_SEARCH_WORK_PER_POLICY + 1, total + work)
+    if not trusted:
+        untrusted_total = min(
+            MAX_UNTRUSTED_REGEX_SEARCH_WORK_PER_POLICY + 1,
+            untrusted_total + work,
+        )
+    return untrusted_total, total
+
+
+def raw_policy_regex_work(config: dict[str, Any], schema_version: int) -> tuple[int, int]:
+    untrusted_total = 0
+    total = 0
+
+    answer_only = raw_pattern_values(config.get("answerOnlyPatterns"))
+    for value in answer_only[: MAX_PATTERNS_PER_POLICY + 1]:
+        pattern = raw_regex(value)
+        if pattern is None:
+            continue
+        normalized, _ = normalize_v1_leading_positive_lookahead(pattern) if schema_version == 1 else (pattern, False)
+        untrusted_total, total = add_policy_regex_work(
+            untrusted_total,
+            total,
+            normalized,
+            trusted=False,
+        )
+
+    activation = config.get("activation")
+    if isinstance(activation, dict):
+        for field in ("metaPatterns", "actionPatterns", "noActionPatterns"):
+            values = raw_pattern_values(activation.get(field))
+            patterns = strings(activation.get(field))
+            trusted_bundle = patterns == SHIPPED_ACTIVATION_PATTERN_BUNDLES.get(f"activation.{field}")
+            for value in values[: MAX_PATTERNS_PER_POLICY + 1]:
+                pattern = raw_regex(value)
+                if pattern is None:
+                    continue
+                normalized, _ = (
+                    normalize_v1_leading_positive_lookahead(pattern) if schema_version == 1 else (pattern, False)
+                )
+                untrusted_total, total = add_policy_regex_work(
+                    untrusted_total,
+                    total,
+                    normalized,
+                    trusted=trusted_bundle,
+                )
+
+    routes = config.get("routes")
+    for raw_route in routes if isinstance(routes, list) else []:
+        if not isinstance(raw_route, dict):
+            continue
+        if schema_version == 2:
+            route_id = raw_route.get("id")
+            match = raw_route.get("match")
+            fields = (
+                (
+                    ("match.any", match.get("any")),
+                    ("match.none", match.get("none")),
+                )
+                if isinstance(match, dict)
+                else ()
+            )
+        else:
+            route_id = raw_route.get("name")
+            fields = (
+                ("patterns", raw_route.get("patterns")),
+                ("excludePatterns", raw_route.get("excludePatterns")),
+            )
+        route_id = route_id if isinstance(route_id, str) else ""
+        for field, raw_values in fields:
+            for value in raw_pattern_values(raw_values)[: MAX_PATTERNS_PER_ROUTE + 1]:
+                pattern = raw_regex(value)
+                if pattern is None:
+                    continue
+                original_exception = route_pattern_is_shipped_exception(route_id, field, pattern)
+                normalized, _ = (
+                    normalize_v1_leading_positive_lookahead(pattern)
+                    if schema_version == 1 and not original_exception
+                    else (pattern, False)
+                )
+                trusted = original_exception or route_pattern_is_shipped_exception(route_id, field, normalized)
+                untrusted_total, total = add_policy_regex_work(
+                    untrusted_total,
+                    total,
+                    normalized,
+                    trusted=trusted,
+                )
+                if (
+                    untrusted_total > MAX_UNTRUSTED_REGEX_SEARCH_WORK_PER_POLICY
+                    or total > MAX_REGEX_SEARCH_WORK_PER_POLICY
+                ):
+                    return untrusted_total, total
+    return untrusted_total, total
 
 
 def route_activation_rule(
@@ -859,7 +1659,11 @@ def route_activation_rule(
     return ActivationRuleIR(required, scope, mode)
 
 
-def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[RouteIR, ...]:
+def parse_v1(
+    config: dict[str, Any],
+    findings: list[PolicyFinding],
+    pattern_budget: list[int] | None = None,
+) -> tuple[RouteIR, ...]:
     routes_value = config.get("routes")
     if not isinstance(routes_value, list) or not routes_value:
         findings.append(PolicyFinding("ERROR", "routes_invalid", "routes must be a non-empty list"))
@@ -885,7 +1689,20 @@ def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 PolicyFinding("ERROR", "route_primary_missing", f"route {route_id} missing string primary", route_id)
             )
             continue
-        patterns = pattern_list(raw_route.get("patterns"), route_id, findings, "patterns")
+        pattern_values, exclude_values = bounded_route_patterns(
+            raw_route.get("patterns"),
+            raw_route.get("excludePatterns"),
+            route_id,
+            findings,
+        )
+        patterns = pattern_list(
+            pattern_values,
+            route_id,
+            findings,
+            "patterns",
+            1,
+            budget=pattern_budget,
+        )
         if not patterns:
             findings.append(
                 PolicyFinding(
@@ -919,7 +1736,7 @@ def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 )
             )
             verification_name = ""
-        state, proposal_revision = lifecycle(raw_route, route_id, findings)
+        state, proposal_revision = lifecycle(raw_route, route_id, findings, 1)
         intent = raw_route.get("intent", route_id)
         intent_id = intent if isinstance(intent, str) and intent else route_id
         reason_value = raw_route.get("reason", "")
@@ -949,7 +1766,14 @@ def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 supporting,
                 verification,
                 patterns,
-                pattern_list(raw_route.get("excludePatterns"), route_id, findings, "excludePatterns"),
+                pattern_list(
+                    exclude_values,
+                    route_id,
+                    findings,
+                    "excludePatterns",
+                    1,
+                    budget=pattern_budget,
+                ),
                 number(raw_route.get("priority")),
                 number(raw_route.get("weight")),
                 raw_route.get("fallback") is True,
@@ -967,7 +1791,11 @@ def parse_v1(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
     return tuple(routes)
 
 
-def parse_v2(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[RouteIR, ...]:
+def parse_v2(
+    config: dict[str, Any],
+    findings: list[PolicyFinding],
+    pattern_budget: list[int] | None = None,
+) -> tuple[RouteIR, ...]:
     bindings_value = config.get("skillBindings")
     if not isinstance(bindings_value, dict):
         findings.append(PolicyFinding("ERROR", "skill_bindings_invalid", "schema v2 skillBindings must be an object"))
@@ -1117,6 +1945,7 @@ def parse_v2(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 )
             )
             none_patterns = []
+        any_patterns, none_patterns = bounded_route_patterns(any_patterns, none_patterns, route_id, findings)
         seen_pattern_ids: set[str] = set()
         for raw_pattern in (*any_patterns, *none_patterns):
             if not isinstance(raw_pattern, dict):
@@ -1140,8 +1969,10 @@ def parse_v2(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
             route_id,
             findings,
             "match.any",
+            2,
             allow_string=False,
             require_id=True,
+            budget=pattern_budget,
         )
         if not patterns and not fallback:
             findings.append(
@@ -1153,7 +1984,7 @@ def parse_v2(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 )
             )
             continue
-        state, proposal_revision = lifecycle(raw_route, route_id, findings)
+        state, proposal_revision = lifecycle(raw_route, route_id, findings, 2)
         reason_value = raw_route.get("reason", "")
         if not isinstance(reason_value, str):
             findings.append(
@@ -1174,7 +2005,15 @@ def parse_v2(config: dict[str, Any], findings: list[PolicyFinding]) -> tuple[Rou
                 role_refs.get("supporting", ()),
                 role_refs.get("verification", ()),
                 patterns,
-                pattern_list(none_patterns, route_id, findings, "match.none", require_id=True),
+                pattern_list(
+                    none_patterns,
+                    route_id,
+                    findings,
+                    "match.none",
+                    2,
+                    require_id=True,
+                    budget=pattern_budget,
+                ),
                 number(raw_route.get("priority")),
                 number(raw_route.get("weight")),
                 fallback,
@@ -1211,8 +2050,45 @@ def parse_policy_config(config: dict[str, Any]) -> PolicyParseResult:
         routes: tuple[RouteIR, ...] = ()
     else:
         schema_version = schema_value
+        untrusted_regex_work, policy_regex_work = raw_policy_regex_work(config, schema_version)
+        regex_work_exceeded = (
+            untrusted_regex_work > MAX_UNTRUSTED_REGEX_SEARCH_WORK_PER_POLICY
+            or policy_regex_work > MAX_REGEX_SEARCH_WORK_PER_POLICY
+        )
+        if regex_work_exceeded:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "policy_regex_work_limit_exceeded",
+                    "policy regex search work exceeds its untrusted or total compatibility budget",
+                )
+            )
         validate_common_config(config, schema_version, findings)
-        routes = parse_v2(config, findings) if schema_version == 2 else parse_v1(config, findings)
+        pattern_count = raw_policy_pattern_count(config, schema_version)
+        if pattern_count > MAX_PATTERNS_PER_POLICY:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "policy_pattern_limit_exceeded",
+                    f"policy must contain at most {MAX_PATTERNS_PER_POLICY} regex patterns; found {pattern_count}",
+                )
+            )
+        configured_non_route_patterns = len(raw_pattern_values(config.get("answerOnlyPatterns")))
+        activation = config.get("activation")
+        if isinstance(activation, dict):
+            configured_non_route_patterns += sum(
+                len(raw_pattern_values(activation.get(field)))
+                for field in ("metaPatterns", "actionPatterns", "noActionPatterns")
+            )
+        pattern_budget = [min(configured_non_route_patterns, MAX_PATTERNS_PER_POLICY)]
+        if regex_work_exceeded:
+            routes = ()
+        else:
+            routes = (
+                parse_v2(config, findings, pattern_budget)
+                if schema_version == 2
+                else parse_v1(config, findings, pattern_budget)
+            )
     default_verification_value = config.get("defaultVerification")
     if default_verification_value is not None and (
         not isinstance(default_verification_value, str) or not default_verification_value

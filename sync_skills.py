@@ -10,8 +10,36 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lazy_skill_router_common import codex_home, load_json_object, write_json_atomic
+from lazy_skill_router_capability_index import (
+    DEFAULT_CAPABILITY_INDEX_NAME,
+    build_capability_index,
+    load_capability_index,
+)
+from lazy_skill_router_common import (
+    ConfinedPathIdentity,
+    ConfinedStagedWrite,
+    codex_home,
+    confined_atomic_write_bytes,
+    confined_discard_staged,
+    confined_ensure_managed_root,
+    confined_ensure_parent,
+    confined_path_identity,
+    confined_read_bytes,
+    confined_replace_staged,
+    confined_rmdir,
+    confined_stage_bytes,
+    confined_unlink,
+    ensure_safe_write_target,
+    load_json_object,
+)
 from lazy_skill_router_host_catalog import effective_skill_names, load_host_catalog, reconcile_inventory
+from lazy_skill_router_install_manifest import (
+    load_install_manifest,
+    physical_artifact_aliases,
+    refresh_generated_artifact_digests,
+    safe_relative_path,
+    sha256_bytes,
+)
 from lazy_skill_router_inventory import (
     InventoryDiff,
     InventorySnapshot,
@@ -105,6 +133,237 @@ class SkillSyncReport:
     installed_not_allowlisted: tuple[str, ...]
     policy_findings: tuple[PolicyFinding, ...]
     resolved_references: tuple[PolicyReferenceResolution, ...]
+
+
+@dataclass(frozen=True)
+class JsonBundleItem:
+    name: str
+    path: Path
+    data: dict[str, Any]
+
+
+class SyncBundleRollbackError(OSError):
+    def __init__(self, original: Exception, restoration_errors: tuple[Exception, ...]) -> None:
+        self.original = original
+        self.restoration_errors = restoration_errors
+        details = "; ".join(str(error) for error in restoration_errors)
+        super().__init__(f"sync failed and rollback was incomplete: {original}; restore errors: {details}")
+
+
+def encoded_json(data: dict[str, Any]) -> bytes:
+    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
+
+
+def _stage_bytes(
+    path: Path,
+    content: bytes,
+    mode: int,
+    managed_root: Path,
+    expected: ConfinedPathIdentity,
+) -> ConfinedStagedWrite:
+    return confined_stage_bytes(path, content, managed_root, expected, mode=mode)
+
+
+def replace_staged_file(staged: ConfinedStagedWrite, destination: Path) -> ConfinedPathIdentity:
+    """Replace one staged sync artifact; kept separate for failure injection tests."""
+
+    if staged.path != destination.absolute():
+        raise ValueError("staged sync destination mismatch")
+    return confined_replace_staged(staged)
+
+
+def _restore_bundle_snapshot(
+    path: Path,
+    content: bytes | None,
+    mode: int,
+    managed_root: Path,
+    current: ConfinedPathIdentity,
+) -> None:
+    if content is None:
+        if current.state != "missing":
+            confined_unlink(path, managed_root, current)
+        return
+    confined_atomic_write_bytes(path, content, managed_root, current, mode=mode)
+
+
+def apply_json_bundle(items: tuple[JsonBundleItem, ...], managed_root: Path) -> None:
+    """Atomically apply a small same-filesystem JSON bundle.
+
+    All targets are staged before the first replacement.  Expected exceptions
+    restore every target's prior bytes; the caller orders the ownership
+    manifest last so an abrupt process exit leaves detectable digest drift.
+    """
+
+    if not items:
+        return
+    paths = tuple(item.path.absolute() for item in items)
+    if len(set(paths)) != len(paths):
+        raise ValueError("sync bundle contains duplicate target paths")
+    for path in paths:
+        try:
+            ensure_safe_write_target(path, managed_root)
+        except ValueError as exc:
+            raise ValueError(f"unsafe sync target {path}: {exc}") from exc
+
+    created_parents: list[Path] = []
+    created_managed_roots: tuple[Path, ...] = ()
+    snapshots: dict[Path, tuple[bytes | None, int, ConfinedPathIdentity]] = {}
+    staged_files: list[tuple[ConfinedStagedWrite, Path]] = []
+    committed_identities: dict[Path, ConfinedPathIdentity] = {}
+    try:
+        created_managed_roots = confined_ensure_managed_root(managed_root)
+        for path in paths:
+            for parent in confined_ensure_parent(path, managed_root):
+                if parent not in created_parents:
+                    created_parents.append(parent)
+        for path in paths:
+            identity = confined_path_identity(path, managed_root)
+            if identity.state == "available":
+                if identity.kind != "file" or identity.mode is None:
+                    raise ValueError(f"sync target is not a regular file: {path}")
+                snapshots[path] = (
+                    confined_read_bytes(path, managed_root, identity),
+                    identity.mode,
+                    identity,
+                )
+            else:
+                snapshots[path] = (None, 0o600, identity)
+        for item, path in zip(items, paths):
+            _, mode, identity = snapshots[path]
+            staged_files.append(
+                (
+                    _stage_bytes(
+                        path,
+                        encoded_json(item.data),
+                        mode,
+                        managed_root,
+                        identity,
+                    ),
+                    path,
+                )
+            )
+
+        try:
+            for staged, destination in staged_files:
+                try:
+                    replaced = replace_staged_file(staged, destination)
+                except Exception:
+                    current = confined_path_identity(destination, managed_root)
+                    if current == staged.temp_identity:
+                        committed_identities[destination] = current
+                    raise
+                current = (
+                    replaced
+                    if isinstance(replaced, ConfinedPathIdentity)
+                    else confined_path_identity(destination, managed_root)
+                )
+                if current != staged.temp_identity:
+                    raise ValueError(f"sync replacement identity verification failed: {destination}")
+                committed_identities[destination] = current
+        except Exception as original:
+            restoration_errors: list[Exception] = []
+            for path in reversed(paths):
+                content, mode, snapshot_identity = snapshots[path]
+                try:
+                    current = confined_path_identity(path, managed_root)
+                    expected_current = committed_identities.get(path, snapshot_identity)
+                    if current != expected_current:
+                        raise ValueError(
+                            f"sync rollback target identity changed; preserving concurrent replacement: {path}"
+                        )
+                    _restore_bundle_snapshot(path, content, mode, managed_root, current)
+                except Exception as restore_error:
+                    restoration_errors.append(restore_error)
+            if restoration_errors:
+                raise SyncBundleRollbackError(original, tuple(restoration_errors)) from original
+            raise
+    except Exception as original:
+        cleanup_errors: list[Exception] = []
+        for parent in reversed(created_parents):
+            try:
+                current = confined_path_identity(parent, managed_root)
+                confined_rmdir(parent, managed_root, current)
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        for created_root in reversed(created_managed_roots):
+            try:
+                root_parent = created_root.parent
+                current = confined_path_identity(created_root, root_parent)
+                confined_rmdir(created_root, root_parent, current)
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cleanup_errors:
+            if isinstance(original, SyncBundleRollbackError):
+                raise SyncBundleRollbackError(
+                    original.original,
+                    (*original.restoration_errors, *cleanup_errors),
+                ) from original
+            raise SyncBundleRollbackError(original, tuple(cleanup_errors)) from original
+        raise
+    finally:
+        for staged, _ in staged_files:
+            confined_discard_staged(staged)
+
+
+def existing_json_for_revision(path: Path, revision: str) -> dict[str, Any] | None:
+    try:
+        data = load_json_object(path, "generated artifact")
+    except (OSError, ValueError):
+        return None
+    return data if data.get("revision") == revision else None
+
+
+def artifact_status(path: Path, data: dict[str, Any]) -> str:
+    if path.is_symlink() or not path.is_file():
+        return "updated"
+    try:
+        return "unchanged" if path.read_bytes() == encoded_json(data) else "updated"
+    except OSError:
+        return "updated"
+
+
+def paths_alias(left: Path, right: Path) -> bool:
+    if str(left.absolute()).casefold() == str(right.absolute()).casefold():
+        return True
+    try:
+        return left.exists() and right.exists() and left.samefile(right)
+    except OSError:
+        return False
+
+
+def custom_sync_collision(
+    manifest_path: Path,
+    index_path: Path,
+    codex_root: Path,
+    default_manifest_path: Path,
+    install_manifest_path: Path,
+) -> str | None:
+    custom_paths = (manifest_path.absolute(), index_path.absolute())
+    if paths_alias(*custom_paths):
+        return "custom inventory and capability index alias each other"
+
+    owned: list[tuple[Path, str]] = [
+        (default_manifest_path.absolute(), "file"),
+        (default_manifest_path.with_name(DEFAULT_CAPABILITY_INDEX_NAME).absolute(), "file"),
+        (install_manifest_path.absolute(), "file"),
+    ]
+    snapshot = load_install_manifest(install_manifest_path)
+    if snapshot.state == "available":
+        for artifact in snapshot.artifacts:
+            relative = artifact.get("path")
+            kind = artifact.get("kind")
+            if isinstance(relative, str) and isinstance(kind, str):
+                owned.append(((codex_root / relative).absolute(), kind))
+
+    for custom in custom_paths:
+        custom_key = str(custom).casefold()
+        for owned_path, kind in owned:
+            owned_key = str(owned_path).casefold()
+            if paths_alias(custom, owned_path):
+                return f"{custom} aliases install-owned artifact {owned_path}"
+            if kind == "directory" and custom_key.startswith(owned_key.rstrip(os.sep).casefold() + os.sep):
+                return f"{custom} is inside install-owned directory {owned_path}"
+    return None
 
 
 def default_routes_path(home: Path, script_path: Path) -> Path:
@@ -560,7 +819,9 @@ def format_sync_plan(
     )
     append_scan_warning(lines, scan_issues)
     lines.append("")
-    lines.append(f"Result: {'manifest updated; routes preserved' if applied else 'read-only; no files changed'}")
+    lines.append(
+        f"Result: {'inventory/index bundle updated; routes preserved' if applied else 'read-only; no files changed'}"
+    )
     return "\n".join(lines)
 
 
@@ -646,24 +907,137 @@ def main() -> int:
     )
 
     if args.plan or args.apply:
+        default_manifest_path = codex_root / "lazy-skill-router" / "skills.manifest.json"
         manifest_path = (
             Path(args.manifest).expanduser()
             if args.manifest
             else Path(args.manifest_output).expanduser()
             if args.manifest_output
-            else codex_root / "lazy-skill-router" / "skills.manifest.json"
+            else default_manifest_path
         )
+        index_path = manifest_path.with_name(DEFAULT_CAPABILITY_INDEX_NAME)
+        install_manifest_path = codex_root / "lazy-skill-router" / "install.manifest.json"
+        installed_target = manifest_path.absolute() == default_manifest_path.absolute()
+        if not installed_target:
+            collision = custom_sync_collision(
+                manifest_path,
+                index_path,
+                codex_root,
+                default_manifest_path,
+                install_manifest_path,
+            )
+            if collision is not None:
+                print(f"ERROR: custom sync target collides with installed state: {collision}", file=sys.stderr)
+                return 1
         previous = load_inventory_manifest(manifest_path)
         if previous.state == "invalid":
             reason = ", ".join(previous.reason_codes) or "invalid"
             print(f"ERROR: cannot sync from invalid inventory manifest: {reason}", file=sys.stderr)
             return 1
         diff = diff_inventory(previous, current_manifest)
-        if args.apply:
-            if manifest_path.is_symlink():
-                print(f"ERROR: refusing to overwrite symlink manifest: {manifest_path}", file=sys.stderr)
+        strict_failure = bool(report.route_references_missing or has_blocking_policy_findings(report))
+        if args.apply and args.strict and strict_failure:
+            print("ERROR: strict sync checks failed; no files changed", file=sys.stderr)
+            return 1
+
+        inventory_data = current_manifest
+        if previous.state == "available" and previous.revision == current_manifest.get("revision"):
+            reusable = existing_json_for_revision(manifest_path, str(current_manifest["revision"]))
+            if reusable is not None:
+                inventory_data = reusable
+
+        index_snapshot = load_capability_index(index_path)
+        fresh_index = build_capability_index(current_snapshot)
+        index_data = fresh_index
+        if index_snapshot.state == "available" and index_snapshot.revision == fresh_index.get("revision"):
+            reusable_index = existing_json_for_revision(index_path, str(fresh_index["revision"]))
+            if reusable_index is not None:
+                index_data = reusable_index
+
+        artifact_statuses: dict[str, dict[str, str]] = {
+            "inventory": {
+                "path": str(manifest_path),
+                "status": artifact_status(manifest_path, inventory_data),
+            },
+            "capabilityIndex": {
+                "path": str(index_path),
+                "status": artifact_status(index_path, index_data),
+            },
+            "installManifest": {
+                "path": str(install_manifest_path),
+                "status": "not-applicable",
+            },
+        }
+        install_manifest_data: dict[str, Any] | None = None
+        if installed_target:
+            install_snapshot = load_install_manifest(install_manifest_path)
+            manifest_aliases = physical_artifact_aliases(install_snapshot, codex_root)
+            if manifest_aliases:
+                detail = ", ".join(f"{left} = {right}" for left, right in manifest_aliases)
+                print(
+                    f"ERROR: install ownership manifest contains physical aliases: {detail}",
+                    file=sys.stderr,
+                )
                 return 1
-            write_json_atomic(manifest_path, current_manifest)
+            if args.apply and install_snapshot.state != "available":
+                reason = ", ".join(install_snapshot.reason_codes) or install_snapshot.state
+                print(
+                    f"ERROR: default sync apply requires a valid install ownership manifest; reinstall first: {reason}",
+                    file=sys.stderr,
+                )
+                return 1
+            if install_snapshot.state == "available":
+                try:
+                    replacement_digests = {
+                        safe_relative_path(codex_root, manifest_path): sha256_bytes(encoded_json(inventory_data)),
+                        safe_relative_path(codex_root, index_path): sha256_bytes(encoded_json(index_data)),
+                    }
+                    install_manifest_data = refresh_generated_artifact_digests(
+                        install_snapshot,
+                        replacement_digests,
+                    )
+                except ValueError as exc:
+                    print(f"ERROR: install ownership manifest cannot authorize sync: {exc}", file=sys.stderr)
+                    return 1
+                previous_digests = {
+                    str(artifact.get("path")): str(artifact.get("digest")) for artifact in install_snapshot.artifacts
+                }
+                manifest_changed = any(
+                    previous_digests.get(path) != digest for path, digest in replacement_digests.items()
+                )
+                if any(artifact_statuses[name]["status"] == "updated" for name in ("inventory", "capabilityIndex")):
+                    manifest_changed = True
+                artifact_statuses["installManifest"]["status"] = "updated" if manifest_changed else "unchanged"
+            elif args.plan:
+                artifact_statuses["installManifest"]["status"] = "updated"
+
+        if args.apply:
+            bundle_managed_root = codex_root if installed_target else manifest_path.absolute().parent
+            preflight_paths = [manifest_path, index_path]
+            if installed_target:
+                preflight_paths.append(install_manifest_path)
+            try:
+                for target in preflight_paths:
+                    ensure_safe_write_target(target, bundle_managed_root)
+            except ValueError as exc:
+                print(f"ERROR: sync bundle was not applied: unsafe sync target {target}: {exc}", file=sys.stderr)
+                return 1
+            bundle_items: list[JsonBundleItem] = []
+            if artifact_statuses["inventory"]["status"] == "updated":
+                bundle_items.append(JsonBundleItem("inventory", manifest_path, inventory_data))
+            if artifact_statuses["capabilityIndex"]["status"] == "updated":
+                bundle_items.append(JsonBundleItem("capabilityIndex", index_path, index_data))
+            if (
+                installed_target
+                and artifact_statuses["installManifest"]["status"] == "updated"
+                and install_manifest_data is not None
+            ):
+                bundle_items.append(JsonBundleItem("installManifest", install_manifest_path, install_manifest_data))
+            try:
+                apply_json_bundle(tuple(bundle_items), bundle_managed_root)
+            except (OSError, ValueError) as exc:
+                print(f"ERROR: sync bundle was not applied: {exc}", file=sys.stderr)
+                return 1
         if args.json:
             print(
                 json.dumps(
@@ -678,6 +1052,7 @@ def main() -> int:
                             "complete": host_catalog.complete,
                         },
                         "scanIssues": [scan_issue_json(issue) for issue in scan_result.issues],
+                        "artifacts": artifact_statuses,
                         "routesPreserved": True,
                     },
                     ensure_ascii=False,
@@ -694,7 +1069,7 @@ def main() -> int:
                     scan_issues=scan_result.issues,
                 )
             )
-        if args.strict and (report.route_references_missing or has_blocking_policy_findings(report)):
+        if args.strict and strict_failure:
             return 1
         return 0
 
@@ -705,7 +1080,19 @@ def main() -> int:
 
     if args.manifest_output:
         manifest_path = Path(args.manifest_output).expanduser()
-        write_json_atomic(manifest_path, current_manifest)
+        manifest_managed_root = manifest_path.absolute().parent
+        try:
+            ensure_safe_write_target(manifest_path, manifest_managed_root)
+            apply_json_bundle(
+                (JsonBundleItem("inventory", manifest_path, current_manifest),),
+                manifest_managed_root,
+            )
+        except ValueError as exc:
+            print(f"ERROR: unsafe manifest output target {manifest_path}: {exc}", file=sys.stderr)
+            return 1
+        except OSError as exc:
+            print(f"ERROR: manifest output was not written: {exc}", file=sys.stderr)
+            return 1
         message = f"wrote skill inventory manifest {human_text(manifest_path)}"
         print(message, file=sys.stderr if args.json else sys.stdout)
 

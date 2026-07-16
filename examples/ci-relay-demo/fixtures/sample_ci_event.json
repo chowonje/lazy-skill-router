@@ -1,0 +1,9 @@
+{
+  "repository": "acme/widget-service",
+  "run_id": "run-1042",
+  "status": "failed",
+  "artifact": {
+    "name": "logs/build.txt",
+    "content": "test_checkout: failed\n"
+  }
+}
