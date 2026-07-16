@@ -8,13 +8,25 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lazy_skill_router_cli.cli import source_version
+import install
+from lazy_skill_router_cli.cli import configure_install_sources, source_version
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI_MODULE = "lazy_skill_router_cli.cli"
 
 
 class CliTest(unittest.TestCase):
+    def test_configure_install_sources_updates_the_trusted_resource_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resource_root = Path(temp_dir) / "share" / "lazy-skill-router"
+            try:
+                configure_install_sources(resource_root)
+                self.assertEqual(install.PROJECT_ROOT, resource_root)
+                self.assertEqual(install.HOOK_SOURCE, resource_root / "lazy_skill_router.py")
+                self.assertEqual(install.SKILL_SOURCE, resource_root / "skills" / "personal-skill-router")
+            finally:
+                configure_install_sources(ROOT)
+
     def test_cli_help_exposes_only_public_commands(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-m", CLI_MODULE, "--help"],

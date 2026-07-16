@@ -89,6 +89,7 @@ def resource_root() -> Path:
 
 
 def configure_install_sources(root: Path) -> None:
+    install.PROJECT_ROOT = root
     install.HOOK_SOURCE = root / "lazy_skill_router.py"
     install.CORE_SOURCE = root / "lazy_skill_router_core.py"
     install.COMMON_SOURCE = root / "lazy_skill_router_common.py"
