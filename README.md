@@ -47,8 +47,11 @@ Build Week. The submission-period work is the separate v0.5 stabilization tranch
 
 | Period | Evidence | Scope |
 | --- | --- | --- |
-| Before Build Week | [`6123ffe`](https://github.com/chowonje/lazy-skill-router/commit/6123ffe3acdc7ae7b35082ab8938d77fc8070872), Codex session `019f522b-8db5-7211-84d4-889d8c9d9de8` | Architecture 3 added a guarded capability-retrieval shadow lane while deterministic routing and ActivationIR retained authority. |
-| During Build Week | [PR #9](https://github.com/chowonje/lazy-skill-router/pull/9), [`561732d`](https://github.com/chowonje/lazy-skill-router/commit/561732d17c6ad479ba07b2b9cab73dcb05333f90), [`a624734`](https://github.com/chowonje/lazy-skill-router/commit/a62473470b120703f929a4026948550db1384627), and [`0fc72a1`](https://github.com/chowonje/lazy-skill-router/commit/0fc72a1c2345d10c3d554e48f1f5194bdfd44f13), Codex session `019f6362-9c9b-76e2-b3d1-cffb12ebfc9d` | Added bounded prompt handling, conservative PolicyIR and regex validation, managed-root write confinement, transactional install/sync recovery, measurement-pure diagnostics, capability-index v2 compatibility, regression tests, and the reproducible judge path. |
+| Before Build Week | [`6123ffe`](https://github.com/chowonje/lazy-skill-router/commit/6123ffe3acdc7ae7b35082ab8938d77fc8070872) | Architecture 3 added a guarded capability-retrieval shadow lane while deterministic routing and ActivationIR retained authority. |
+| During Build Week | [PR #9](https://github.com/chowonje/lazy-skill-router/pull/9), [`561732d`](https://github.com/chowonje/lazy-skill-router/commit/561732d17c6ad479ba07b2b9cab73dcb05333f90), [`a624734`](https://github.com/chowonje/lazy-skill-router/commit/a62473470b120703f929a4026948550db1384627), and [`0fc72a1`](https://github.com/chowonje/lazy-skill-router/commit/0fc72a1c2345d10c3d554e48f1f5194bdfd44f13) | Added bounded prompt handling, conservative PolicyIR and regex validation, managed-root write confinement, transactional install/sync recovery, measurement-pure diagnostics, capability-index v2 compatibility, regression tests, and the reproducible judge path. |
+
+The required `/feedback` Codex session ID is supplied through the Devpost submission form and is intentionally omitted
+from public documentation.
 
 The exact inclusions and exclusions are recorded in
 [`docs/build-week/CHANGE_SCOPE.md`](docs/build-week/CHANGE_SCOPE.md).

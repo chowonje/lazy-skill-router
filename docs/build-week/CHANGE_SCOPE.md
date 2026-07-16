@@ -45,11 +45,10 @@
 | `561732d17c6ad479ba07b2b9cab73dcb05333f90` | 2026-07-15 17:57 KST | Submission-period runtime and managed-write stabilization. |
 | `a62473470b120703f929a4026948550db1384627` | 2026-07-15 17:57 KST | Submission-period scope and claim-boundary documentation. |
 | `0fc72a1c2345d10c3d554e48f1f5194bdfd44f13` | 2026-07-16 08:09 KST | Submission-period judge path, sample fixture, CI coverage, collaboration narrative, and Devpost draft. |
-| Codex session `019f522b-8db5-7211-84d4-889d8c9d9de8` | before submission period | Prior Architecture 3 design and implementation history. |
-| Codex session `019f6362-9c9b-76e2-b3d1-cffb12ebfc9d` | during submission period | GPT-5.6 implementation, verification, and judge-preparation history for the stabilization tranche. |
+| Required `/feedback` Codex session evidence | submission period | The exact identifier is supplied through the Devpost submission form and intentionally omitted from public documentation. |
 
-The Devpost submission should use the submission-period Codex session as the primary evidence for the judged
-extension and retain the earlier session only as historical provenance.
+The Devpost submission should use the submission-period Codex session as the primary private evidence for the judged
+extension. The public narrative relies on dated commits and PR evidence.
 
 ## Claim boundary
 
