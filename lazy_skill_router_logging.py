@@ -5,12 +5,14 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import stat
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Protocol
 
-from lazy_skill_router_common import codex_home, debug
+from lazy_skill_router_common import _open_confined_parent, codex_home, confined_ensure_managed_root, debug
 
 try:
     import fcntl
@@ -87,14 +89,67 @@ def record_time(record: dict[str, Any]) -> dt.datetime | None:
     return parsed.astimezone(dt.timezone.utc)
 
 
-def read_measurement_events(path: Path) -> list[dict[str, Any]]:
+def _regular_file_fingerprint(metadata: os.stat_result, label: str) -> tuple[int, int, int, int, int, int, int]:
+    if not stat.S_ISREG(metadata.st_mode):
+        raise OSError(f"{label} must be a regular file")
+    if metadata.st_nlink != 1:
+        raise OSError(f"{label} must not be hard-linked")
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _open_log_parent(path: Path, *, create: bool) -> tuple[int, str]:
+    absolute = path.absolute()
+    if create:
+        confined_ensure_managed_root(absolute.parent)
+    parent_fd, name, _ = _open_confined_parent(
+        absolute,
+        absolute.parent,
+        create_parents=False,
+    )
+    metadata = os.fstat(parent_fd)
+    if not stat.S_ISDIR(metadata.st_mode):
+        os.close(parent_fd)
+        raise OSError("measurement log parent must be a directory")
+    return parent_fd, name
+
+
+def _file_fingerprint_at(parent_fd: int, name: str, label: str) -> tuple[int, int, int, int, int, int, int] | None:
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
-        return []
-    except OSError as exc:
-        debug(f"failed to read measurement log: {exc}")
-        return []
+        return None
+    return _regular_file_fingerprint(metadata, label)
+
+
+def _read_measurement_events_at(
+    parent_fd: int,
+    name: str,
+) -> tuple[list[dict[str, Any]], tuple[int, int, int, int, int, int, int] | None]:
+    descriptor = -1
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        descriptor = os.open(name, flags, dir_fd=parent_fd)
+        initial = _regular_file_fingerprint(os.fstat(descriptor), "measurement log")
+        with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+            descriptor = -1
+            lines = handle.read().splitlines()
+            final = _regular_file_fingerprint(os.fstat(handle.fileno()), "measurement log")
+    except FileNotFoundError:
+        return [], None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+    if final != initial or _file_fingerprint_at(parent_fd, name, "measurement log") != initial:
+        raise OSError("measurement log changed while reading")
 
     events = []
     for line in lines:
@@ -104,7 +159,21 @@ def read_measurement_events(path: Path) -> list[dict[str, Any]]:
             continue
         if isinstance(event, dict):
             events.append(event)
-    return events
+    return events, initial
+
+
+def read_measurement_events(path: Path) -> list[dict[str, Any]]:
+    parent_fd = -1
+    try:
+        parent_fd, name = _open_log_parent(path, create=False)
+        events, _ = _read_measurement_events_at(parent_fd, name)
+        return events
+    except (OSError, ValueError) as exc:
+        debug(f"failed to read measurement log: {exc}")
+        return []
+    finally:
+        if parent_fd >= 0:
+            os.close(parent_fd)
 
 
 def is_measurement_event(event: dict[str, Any]) -> bool:
@@ -120,25 +189,154 @@ def existing_records(path: Path, cutoff: dt.datetime) -> list[dict[str, Any]]:
     return records
 
 
+def _existing_records_at(
+    parent_fd: int, name: str, cutoff: dt.datetime
+) -> tuple[
+    list[dict[str, Any]],
+    tuple[int, int, int, int, int, int, int] | None,
+]:
+    events, identity = _read_measurement_events_at(parent_fd, name)
+    records = []
+    for record in events:
+        timestamp = record_time(record)
+        if timestamp is not None and timestamp >= cutoff:
+            records.append(record)
+    return records, identity
+
+
+def _create_temp_file(parent_fd: int, name: str) -> tuple[int, str]:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    for _ in range(32):
+        temp_name = f".{name}.{secrets.token_hex(12)}.tmp"
+        try:
+            return os.open(temp_name, flags, 0o600, dir_fd=parent_fd), temp_name
+        except FileExistsError:
+            continue
+    raise OSError("could not allocate an exclusive measurement temp file")
+
+
+def _cleanup_owned_temp(parent_fd: int, temp_name: str, identity: tuple[int, int]) -> None:
+    try:
+        current = os.stat(temp_name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if (current.st_dev, current.st_ino) == identity:
+        os.unlink(temp_name, dir_fd=parent_fd)
+
+
+def _write_records_at(
+    parent_fd: int,
+    name: str,
+    records: list[dict[str, Any]],
+    expected: tuple[int, int, int, int, int, int, int] | None,
+) -> None:
+    descriptor, temp_name = _create_temp_file(parent_fd, name)
+    created = os.fstat(descriptor)
+    created_identity = (created.st_dev, created.st_ino)
+    try:
+        with os.fdopen(os.dup(descriptor), "w", encoding="utf-8") as handle:
+            for record in records:
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        staged = _regular_file_fingerprint(os.fstat(descriptor), "measurement temp file")
+        if _file_fingerprint_at(parent_fd, temp_name, "measurement temp file") != staged:
+            raise OSError("measurement temp file changed before replacement")
+        if _file_fingerprint_at(parent_fd, name, "measurement log") != expected:
+            raise OSError("measurement log changed before replacement")
+        os.replace(
+            temp_name,
+            name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        os.fsync(parent_fd)
+    finally:
+        try:
+            _cleanup_owned_temp(parent_fd, temp_name, created_identity)
+        finally:
+            os.close(descriptor)
+
+
 def write_records(path: Path, records: list[dict[str, Any]]) -> None:
-    temp_path = path.with_name(path.name + ".tmp")
-    with temp_path.open("w", encoding="utf-8") as handle:
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-    os.replace(temp_path, path)
+    parent_fd, name = _open_log_parent(path, create=False)
+    try:
+        expected = _file_fingerprint_at(parent_fd, name, "measurement log")
+        _write_records_at(parent_fd, name, records, expected)
+    finally:
+        os.close(parent_fd)
+
+
+def ensure_private_log_directory(path: Path) -> None:
+    parent_fd, _ = _open_log_parent(path, create=True)
+    os.close(parent_fd)
+
+
+def _open_log_lock(parent_fd: int, lock_name: str) -> int:
+    base_flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        descriptor = os.open(
+            lock_name,
+            base_flags | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=parent_fd,
+        )
+        created = True
+    except FileExistsError:
+        descriptor = os.open(lock_name, base_flags, dir_fd=parent_fd)
+        created = False
+    try:
+        initial = _regular_file_fingerprint(os.fstat(descriptor), "measurement lock")
+        if created:
+            os.fchmod(descriptor, 0o600)
+            initial = _regular_file_fingerprint(os.fstat(descriptor), "measurement lock")
+        current = _file_fingerprint_at(parent_fd, lock_name, "measurement lock")
+        if current is None or current[:2] != initial[:2]:
+            raise OSError("measurement lock changed while opening")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 @contextmanager
-def log_lock(path: Path) -> Iterator[None]:
-    lock_path = path.with_name(path.name + ".lock")
-    with lock_path.open("a+", encoding="utf-8") as handle:
-        if fcntl is not None:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
+def log_lock(
+    path: Path,
+    *,
+    _parent_fd: int | None = None,
+    _journal_name: str | None = None,
+) -> Iterator[None]:
+    owned_parent_fd = -1
+    if _parent_fd is None:
+        owned_parent_fd, journal_name = _open_log_parent(path, create=False)
+        parent_fd = owned_parent_fd
+    else:
+        parent_fd = _parent_fd
+        journal_name = _journal_name or path.absolute().name
+    lock_name = journal_name + ".lock"
+    descriptor = -1
+    try:
+        descriptor = _open_log_lock(parent_fd, lock_name)
+        handle = os.fdopen(descriptor, "a+", encoding="utf-8")
+        descriptor = -1
+    except BaseException:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if owned_parent_fd >= 0:
+            os.close(owned_parent_fd)
+        raise
+    try:
+        with handle:
             if fcntl is not None:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if fcntl is not None:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        if owned_parent_fd >= 0:
+            os.close(owned_parent_fd)
 
 
 def logging_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -171,7 +369,7 @@ def append_measurement_event(
     if not force and config_value.get("enabled") is not True:
         return False
 
-    path = measurement_log_path(config, explicit_path)
+    path = measurement_log_path(config, explicit_path).absolute()
     max_entries = configured_positive_int(
         config_value.get("maxEntries"),
         DEFAULT_MAX_ENTRIES,
@@ -188,13 +386,16 @@ def append_measurement_event(
         "time": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with log_lock(path):
-            cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=retention_days)
-            records = existing_records(path, cutoff)
-            records.append(record)
-            write_records(path, records[-max_entries:])
-    except OSError as exc:
+        parent_fd, name = _open_log_parent(path, create=True)
+        try:
+            with log_lock(path, _parent_fd=parent_fd, _journal_name=name):
+                cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=retention_days)
+                records, expected = _existing_records_at(parent_fd, name, cutoff)
+                records.append(record)
+                _write_records_at(parent_fd, name, records[-max_entries:], expected)
+        finally:
+            os.close(parent_fd)
+    except (OSError, ValueError) as exc:
         debug(f"failed to write measurement log: {exc}")
         return False
     return True

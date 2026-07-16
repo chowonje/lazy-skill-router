@@ -73,14 +73,14 @@
     "writing-polish"
   ],
   "answerOnlyPatterns": [
-    "그냥\\s*설명",
+    "그냥\\s{0,16}설명",
     "설명만",
-    "설명(?:해\\s*줘|해주세요|해줘)",
+    "설명(?:해\\s{0,16}줘|해주세요|해줘)",
     "\\bexplain\\b",
     "don't change",
     "do not change",
     "no edit",
-    "수정하지\\s*마"
+    "수정하지\\s{0,16}마"
   ],
   "routes": [
     {
@@ -93,9 +93,9 @@
         {"regex": "\\bci\\b", "label": "CI keyword"},
         {"regex": "github actions?", "label": "GitHub Actions"},
         {"regex": "\\baction(s)?\\b.*(?:fail|실패)", "label": "GitHub Actions failure"},
-        {"regex": "체크.*실패", "label": "Korean check failure"},
-        {"regex": "ci.*실패", "label": "Korean CI failure"},
-        {"regex": "빌드.*실패", "label": "Korean build failure"}
+        {"regex": "체크.{0,64}실패", "label": "Korean check failure"},
+        {"regex": "ci.{0,64}실패", "label": "Korean CI failure"},
+        {"regex": "빌드.{0,64}실패", "label": "Korean build failure"}
       ]
     },
     {
@@ -104,7 +104,7 @@
       "supporting": ["google-drive:google-drive", "writing-polish"],
       "verification": "",
       "reason": "Google Docs language was detected.",
-      "patterns": ["google docs", "구글\\s*문서"]
+      "patterns": ["google docs", "구글\\s{0,16}문서"]
     },
     {
       "name": "google-sheets",
@@ -112,7 +112,7 @@
       "supporting": ["google-drive:google-drive"],
       "verification": "",
       "reason": "Google Sheets language was detected.",
-      "patterns": ["google sheets", "구글\\s*시트", "\\bsheets\\b", "스프레드시트"]
+      "patterns": ["google sheets", "구글\\s{0,16}시트", "\\bsheets\\b", "스프레드시트"]
     },
     {
       "name": "google-slides",
@@ -120,7 +120,7 @@
       "supporting": ["google-drive:google-drive", "writing-polish"],
       "verification": "",
       "reason": "Google Slides language was detected.",
-      "patterns": ["google slides", "구글\\s*슬라이드", "\\bslides\\b"]
+      "patterns": ["google slides", "구글\\s{0,16}슬라이드", "\\bslides\\b"]
     },
     {
       "name": "google-drive",
@@ -128,7 +128,7 @@
       "supporting": [],
       "verification": "",
       "reason": "Google Drive file language was detected.",
-      "patterns": ["google drive", "구글\\s*드라이브", "\\bdrive\\b"]
+      "patterns": ["google drive", "구글\\s{0,16}드라이브", "\\bdrive\\b"]
     },
     {
       "name": "pdf",
@@ -144,7 +144,7 @@
       "supporting": ["personal-skill-router"],
       "verification": "verification-gate",
       "reason": "Codex configuration, hooks, MCP settings, or current agent setup review language was detected.",
-      "patterns": ["hooks?\\.json", "\\bAGENTS\\.md\\b", "agent\\s*config", "codex.*config", "mcp.*(설정|확인|점검|서버)", "(hook|훅).*설정", "현재\\s*작업.*평가", "작업.*문제.*같", "설정.*점검"]
+      "patterns": ["hooks?\\.json", "\\bAGENTS\\.md\\b", "agent\\s{0,16}config", "codex.{0,64}config", "mcp.{0,64}(설정|확인|점검|서버)", "(hook|훅).{0,64}설정", "현재\\s*작업.*평가", "작업.*문제.*같", "설정.{0,64}점검"]
     },
     {
       "name": "skill-routing",
@@ -152,7 +152,7 @@
       "supporting": ["superpowers", "ponytail-lite"],
       "verification": "",
       "reason": "Skill selection, classification, deduplication, or usage-guide language was detected.",
-      "patterns": ["skill router", "skill routing", "which skill", "스킬.*(추천|분류|찾|사용|가이드|중복|정리)", "어떤\\s*스킬"],
+      "patterns": ["skill router", "skill routing", "which skill", "스킬.{0,64}(추천|분류|찾|사용|가이드|중복|정리)", "어떤\\s{0,16}스킬"],
       "activation": {"mode": "propose-only", "scope": "turn"}
     },
     {
@@ -162,7 +162,7 @@
       "verification": "verification-gate",
       "priority": 2,
       "reason": "Skill, plugin, or MCP creation and installation language was detected.",
-      "patterns": ["create.*skill", "update.*skill", "install.*skill", "create.*plugin", "스킬.*(만들|생성|수정|설치)", "플러그인.*(만들|생성|수정|설치)", "mcp.*(만들|생성|추가|설치)", "엠씨피.*(만들|생성|추가|설치)"]
+      "patterns": ["create.{0,64}skill", "update.{0,64}skill", "install.{0,64}skill", "create.{0,64}plugin", "스킬.{0,64}(만들|생성|수정|설치)", "플러그인.{0,64}(만들|생성|수정|설치)", "mcp.{0,64}(만들|생성|추가|설치)", "엠씨피.{0,64}(만들|생성|추가|설치)"]
     },
     {
       "name": "github",
@@ -170,7 +170,7 @@
       "supporting": ["github:gh-address-comments", "github:yeet"],
       "verification": "verification-gate",
       "reason": "GitHub, PR, issue, or repository workflow language was detected.",
-      "patterns": ["\\bgithub\\b", "\\bpr\\b", "pull request", "\\bissue\\b", "리뷰\\s*댓글", "깃허브"]
+      "patterns": ["\\bgithub\\b", "\\bpr\\b", "pull request", "\\bissue\\b", "리뷰\\s{0,16}댓글", "깃허브"]
     },
     {
       "name": "browser",
@@ -178,7 +178,7 @@
       "supporting": ["browser:control-in-app-browser", "chrome:control-chrome"],
       "verification": "verification-gate",
       "reason": "Browser interaction, local page, click, form, or screenshot verification language was detected.",
-      "patterns": ["browser", "chrome", "playwright", "클릭", "폼", "스크린샷", "새로고침", "브라우저", "페이지.*열"]
+      "patterns": ["browser", "chrome", "playwright", "클릭", "폼", "스크린샷", "새로고침", "브라우저", "페이지.{0,64}열"]
     },
     {
       "name": "docs",
@@ -186,7 +186,7 @@
       "supporting": ["docs-sync", "release-notes"],
       "verification": "verification-gate",
       "reason": "Documentation, README, changelog, release note, or prose editing language was detected.",
-      "patterns": ["readme", "docs?", "documentation", "changelog", "release notes?", "문서", "릴리스", "체인지로그", "글(쓰기|\\s*다듬|\\s*수정|\\s*정리)", "문장"],
+      "patterns": ["readme", "docs?", "documentation", "changelog", "release notes?", "문서", "릴리스", "체인지로그", "글(쓰기|\\s{0,16}다듬|\\s{0,16}수정|\\s{0,16}정리)", "문장"],
       "excludePatterns": ["^(?=.*(?:(?:(?<![A-Za-z0-9_])(?:fix|implement|patch|edit|add|change|update|create|apply)(?![A-Za-z0-9_])|(?:고치|수정|구현|추가|변경|적용))\\s*(?:(?:the|a|an|this|that|new|small|helper|python|새|새로운)\\s+){0,3}(?:(?<![A-Za-z0-9_])(?:code|bug|function|class|patch)(?![A-Za-z0-9_])|(?:코드|버그|함수|클래스|패치))(?:을|를|은|는|이|가)?|(?:(?<![A-Za-z0-9_])(?:code|bug|function|class|patch)(?![A-Za-z0-9_])|(?:코드|버그|함수|클래스|패치))(?:을|를|은|는|이|가)?\\s*(?:(?<![A-Za-z0-9_])(?:fix|implement|patch|edit|add|change|update|create|apply)(?![A-Za-z0-9_])|(?:고치|수정|구현|추가|변경|적용))))(?=.*(readme|docs?|documentation|changelog|release notes?|문서|릴리스|체인지로그))"]
     },
     {
@@ -221,7 +221,7 @@
       "verification": "",
       "priority": 2,
       "reason": "OpenAI API, Codex, or ChatGPT product documentation language was detected.",
-      "patterns": ["openai", "chatgpt", "codex api", "responses api", "assistants api", "오픈ai", "코덱스.*api"]
+      "patterns": ["openai", "chatgpt", "codex api", "responses api", "assistants api", "오픈ai", "코덱스.{0,64}api"]
     },
     {
       "name": "planning",

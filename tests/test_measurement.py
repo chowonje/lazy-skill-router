@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
-from lazy_skill_router_logging import MEASUREMENT_EVENT_SCHEMA, ROUTING_OBSERVATION_SCHEMA
+import lazy_skill_router_logging as logging_module
+from lazy_skill_router_logging import MEASUREMENT_EVENT_SCHEMA, ROUTING_OBSERVATION_SCHEMA, append_measurement_event
 from measurement import build_measurement_report
 from validate_routes import validate_config
 
@@ -27,6 +32,129 @@ def measurement_event(event_type: str, **values: object) -> dict[str, object]:
 
 
 class MeasurementTest(unittest.TestCase):
+    def test_measurement_parent_swap_stays_bound_to_verified_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal = root / "logs" / "journal.jsonl"
+            moved_logs = root / "verified-logs"
+            outside = root / "outside"
+            outside.mkdir()
+            real_log_lock = logging_module.log_lock
+
+            @contextmanager
+            def swap_parent_before_lock(path: Path, *args, **kwargs):
+                path.parent.rename(moved_logs)
+                os.symlink(outside, path.parent)
+                with real_log_lock(path, *args, **kwargs):
+                    yield
+
+            with mock.patch.object(logging_module, "log_lock", swap_parent_before_lock):
+                written = append_measurement_event(
+                    {"eventType": "decision", "decisionStatus": "matched"},
+                    {"logging": {"enabled": True}},
+                    explicit_path=journal,
+                )
+
+            self.assertTrue(written)
+            self.assertEqual(list(outside.iterdir()), [])
+            self.assertEqual(read_events(moved_logs / journal.name)[0]["decisionStatus"], "matched")
+
+    def test_measurement_rejects_preexisting_lock_hardlink_without_chmod(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal = root / "logs" / "journal.jsonl"
+            journal.parent.mkdir()
+            sentinel = root / "outside.txt"
+            sentinel.write_text("sentinel\n", encoding="utf-8")
+            sentinel.chmod(0o644)
+            os.link(sentinel, journal.with_name(journal.name + ".lock"))
+
+            written = append_measurement_event(
+                {"eventType": "decision", "decisionStatus": "matched"},
+                {"logging": {"enabled": True}},
+                explicit_path=journal,
+            )
+
+            self.assertFalse(written)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "sentinel\n")
+            self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o644)
+            self.assertFalse(journal.exists())
+
+    def test_measurement_write_does_not_follow_predictable_temp_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal = root / "logs" / "journal.jsonl"
+            journal.parent.mkdir()
+            sentinel = root / "outside.txt"
+            sentinel.write_text("sentinel\n", encoding="utf-8")
+            os.symlink(sentinel, journal.with_name(journal.name + ".tmp"))
+
+            written = append_measurement_event(
+                {"eventType": "decision", "decisionStatus": "matched"},
+                {"logging": {"enabled": True}},
+                explicit_path=journal,
+            )
+
+            self.assertTrue(written)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "sentinel\n")
+            self.assertEqual(read_events(journal)[0]["decisionStatus"], "matched")
+
+    def test_new_measurement_directory_and_files_are_private(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            journal = root / "private-logs" / "journal.jsonl"
+            previous_umask = os.umask(0o022)
+            try:
+                written = append_measurement_event(
+                    {"eventType": "decision", "decisionStatus": "matched"},
+                    {"logging": {"enabled": True}},
+                    explicit_path=journal,
+                )
+            finally:
+                os.umask(previous_umask)
+
+            self.assertTrue(written)
+            self.assertEqual(stat.S_IMODE(journal.parent.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(journal.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(journal.with_name(journal.name + ".lock").stat().st_mode), 0o600)
+
+    def test_measurement_rejects_symlink_journal_and_lock(self) -> None:
+        for symlink_name in ("journal", "lock"):
+            with self.subTest(symlink_name=symlink_name), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                journal = root / "logs" / "journal.jsonl"
+                journal.parent.mkdir()
+                sentinel = root / "outside.txt"
+                sentinel.write_text("sentinel\n", encoding="utf-8")
+                symlink_path = journal if symlink_name == "journal" else journal.with_name(journal.name + ".lock")
+                os.symlink(sentinel, symlink_path)
+
+                written = append_measurement_event(
+                    {"eventType": "decision", "decisionStatus": "matched"},
+                    {"logging": {"enabled": True}},
+                    explicit_path=journal,
+                )
+
+                self.assertFalse(written)
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "sentinel\n")
+
+    def test_measurement_rejects_symlinked_parent_component(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            outside = root / "outside"
+            outside.mkdir()
+            os.symlink(outside, root / "linked")
+            journal = root / "linked" / "logs" / "journal.jsonl"
+
+            written = append_measurement_event(
+                {"eventType": "decision", "decisionStatus": "matched"},
+                {"logging": {"enabled": True}},
+                explicit_path=journal,
+            )
+
+            self.assertFalse(written)
+            self.assertEqual(list(outside.rglob("*")), [])
+
     def test_report_aggregates_only_current_routing_observations(self) -> None:
         def observation(status: str, action: str, *, schema: str = ROUTING_OBSERVATION_SCHEMA) -> dict[str, object]:
             reason = {

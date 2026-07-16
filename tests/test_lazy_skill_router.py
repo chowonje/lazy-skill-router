@@ -333,14 +333,14 @@ class LazySkillRouterTest(unittest.TestCase):
                 {
                     "name": "skill-routing",
                     "primary": "personal-skill-router",
-                    "patterns": ["스킬.*정리"],
+                    "patterns": ["스킬.{0,64}정리"],
                 },
                 {
                     "name": "skill-plugin",
                     "primary": "skill-creator",
                     "verification": "verification-gate",
                     "priority": 10,
-                    "patterns": ["스킬.*설치"],
+                    "patterns": ["스킬.{0,64}설치"],
                 },
             ],
         }

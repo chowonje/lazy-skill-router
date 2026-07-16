@@ -167,7 +167,11 @@ def skill_identity(record: SkillRecordLike, codex_root: Path, agents_root: Path)
 
 def manifest_skill(record: SkillRecordLike, codex_root: Path, agents_root: Path) -> dict[str, Any]:
     identity = skill_identity(record, codex_root, agents_root)
-    digest, digest_reason = content_digest(record.path)
+    if getattr(record, "snapshot_validated", False):
+        digest = getattr(record, "content_digest", None)
+        digest_reason = getattr(record, "content_digest_reason", None)
+    else:
+        digest, digest_reason = content_digest(record.path)
     description = getattr(record, "description", "")
     if not isinstance(description, str):
         description = ""

@@ -2,6 +2,9 @@
 
 ## 0.5.0.dev0 (Unreleased)
 
+Status: development snapshot only. Stable `v0.5.0` tagging and publication remain blocked by the portable
+release-regression gate and outstanding release verification.
+
 ### Capability Retrieval Shadow
 
 - Adds revision-bound `capability-index/v2` product builds with explicit feature-extractor provenance. Loaders retain
@@ -17,6 +20,16 @@
 - Makes missing, invalid, symlinked, or stale indexes fail open at routing time and fail installed-state doctor checks.
 - Adds 12 English contrast fixtures and a separate Recall@3/Top-1 evaluator while preserving the 127-case legacy
   corpus; Korean-only catalog recall remains an explicitly documented first-tranche gap.
+- Adds an sdist-only portable release-regression evaluator with a current scorer-bound manifest, two self-attested
+  internal scorer/corpus-isolated fixture files, four fictional catalogs, 64 unique cases, and seven 10/20/40-skill
+  scenarios. The evaluator is intentionally absent from the wheel module boundary and grants no activation, promotion,
+  or release authority.
+- Keeps the current regression at a structurally valid exit `1`: Positive Recall@3 is `111/144` (`77.08%`) below the
+  `80%` floor, and Korean Recall@3 is `15/45` (`33.33%`) below the `65%` floor. Exit `2` is reserved for structural,
+  integrity, revision, or I/O failures and cannot satisfy the regression check.
+- Preserves the original 2026-07-13 manifest, prompt-redacted report, and gate note as dated historical artifacts rather
+  than changing their frozen scorer revision. These internal artifacts are not independently adjudicated holdout,
+  external-user, outcome, or promotion evidence.
 - Adds a frozen 240-case paired legacy-vs-retrieval evaluator and prompt-redacted result artifact. The first synthetic
   run shows directional Top-1 gains but blocks behavior promotion on Korean, no-skill semantics, and missing host
   ownership.
@@ -102,8 +115,9 @@
   writes a separate candidate file, and stage and promotion back up the active route config before mutation.
 - Removes journal writes from dry-run, structured diagnostics, recommendations, ActivationIR, HookIR, and capability
   preview. Only the actual hook records measurement events.
-- Packages the public evaluation tools, frozen JSON/JSONL fixtures, evaluation documentation, and tests through an
-  explicit sdist allowlist so the extracted source distribution can run its full suite without bundling result reports.
+- Packages the public evaluation tools, frozen JSON/JSONL fixtures, evaluation documentation, tests, and dated
+  prompt-redacted portable report through an explicit sdist allowlist so the extracted source distribution can run its
+  full suite without expanding the wheel module boundary.
 - Skill scanning rejects leaf symlinks, symlinked parents, and metadata outside the selected root before reading it;
   additive `scanIssues` expose only relative locators and reason codes.
 - Hook context uses validated pattern IDs and a fixed router-owned reason, so descriptions and proposal v1 reason/label
@@ -123,6 +137,9 @@
   of marker substrings; unsafe manifest parents and foreign lookalike hooks are preserved.
 - Release checksum verification rejects empty, incomplete, duplicate, escaping, and symlinked manifests and requires
   exact artifact-root coverage before hashing.
+- Makes the GitHub release bundle flat: `*.whl`, `*.tar.gz`, `PORTABLE_BETA_REPORT.json`, and `SHA256SUMS` share one
+  directory, checksum entries contain basenames only, and downloaded artifacts are round-trip verified. PyPI stages
+  only the verified wheel and sdist bytes.
 - Skill metadata parsing is limited to 64 KiB/200 lines, document hashing is streamed with a 1 MiB ceiling, and terminal
   controls are escaped in human sync output. The shipped composite docs exclusion uses a start-anchored scan, while
   activation meta detection uses a linear token scan that preserves the legacy order and single-line boundaries.

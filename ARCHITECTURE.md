@@ -279,11 +279,15 @@ promotion. The installed Codex hook remains a standalone copy and does not depen
 ### `.github/workflows/release.yml`
 
 Tag-triggered release automation. It verifies tests and route fixtures, checks that the pushed `v*.*.*` tag matches
-`pyproject.toml`, then builds and checks one distribution bundle. PyPI Trusted Publishing and the GitHub Release job
-download that same bundle and `SHA256SUMS` under separate least-privilege permissions, so Trusted Publishing does not
-share GitHub contents-write permission. This workflow must remain separate from hook runtime behavior and must not
-require PyPI tokens in repository secrets. Checksum verification rejects empty, partial, duplicate, absolute,
-parent-traversing, or symlinked manifests and requires exact artifact-root coverage before hashing.
+`pyproject.toml`, and requires the current portable release-regression gate to return `0` before publication. It builds
+the wheel and sdist once, then assembles one flat GitHub bundle containing `*.whl`, `*.tar.gz`,
+`PORTABLE_BETA_REPORT.json`, and `SHA256SUMS`. Checksum entries are basenames only and the downloaded bundle is verified
+in the same shape. PyPI Trusted Publishing receives only the verified wheel/sdist bytes through a separate staging
+directory; the report and checksum manifest remain GitHub Release evidence. PyPI and GitHub Release jobs use separate
+least-privilege permissions, so Trusted Publishing does not share GitHub contents-write permission. This workflow must
+remain separate from hook runtime behavior and must not require PyPI tokens in repository secrets.
+The repository stays at `0.5.0.dev0`, and stable `v0.5.0` publication remains blocked while the current gate returns
+exit `1` or any release verification remains incomplete.
 
 ### `eval_routes.py`
 
@@ -294,6 +298,26 @@ Golden prompt regression evaluator. It reads `eval/prompts.jsonl`, routes each p
 Contrast evaluator for the optional Top-K lane. It checks explicit Top-1, Recall@3, exclusion, and result-bound
 expectations against a selected inventory/index pair. Passing these fixtures establishes retrieval behavior only; it
 does not prove host-model acceptance, skill activation, or end-to-end task quality.
+
+### `eval_portable_beta.py`
+
+Source-distribution-only release-regression evaluator for the explicit, non-activating preview. It is deliberately not
+listed as an importable wheel module. The current `eval/portable_beta_manifest.json` binds the current scorer revision
+to two self-attested internal scorer/corpus-isolated fixture files, four fictional catalogs, 64 unique cases, seven
+10/20/40-skill scenarios, and predeclared thresholds. It emits a prompt-redacted report and has no activation,
+promotion, or release authority.
+
+Exit `0` means eligible only for opt-in beta review, exit `1` means a structurally valid quality block, and exit `2`
+means a structural, integrity, revision, or I/O failure. CI fixes the current regression expectation at exactly exit
+`1`; release automation requires exit `0` and must reject exit `1` or `2`. The current exit-`1` blockers are Positive
+Recall@3 `111/144` (`77.08%`) below `80%` and Korean Recall@3 `15/45` (`33.33%`) below `65%`.
+
+The current suite is not an independently adjudicated holdout, external-user study, outcome study, or promotion
+artifact. A later exit `0` cannot authorize default behavior. The dated
+`eval/portable_beta_manifest_2026-07-13.json`, `docs/evaluation/portable-beta-gate-2026-07-13.md`, and
+`docs/evaluation/portable-beta-report-2026-07-13.json` preserve the original 2026-07-13 evidence. The historical
+manifest remains bound to its historical scorer; a current-code replay may correctly exit `2` on revision mismatch
+instead of rewriting the dated artifact.
 
 ### `eval_router_ab.py`
 
@@ -357,8 +381,11 @@ Route quality is checked at three levels:
 - `validate_routes.py` checks route JSON shape and regex validity.
 - `eval_routes.py` checks golden prompt fixtures across normal routing, answer-only prompts, activation precision,
   composite prompts, security requests, install/config requests, and external-state requests.
-- `eval_capability_retrieval.py` checks independent Top-K contrast fixtures without changing the legacy corpus or hook
+- `eval_capability_retrieval.py` checks separate Top-K contrast fixtures without changing the legacy corpus or hook
   output.
+- `eval_portable_beta.py` checks the self-attested internal release-regression suite. Its current valid result is exit
+  `1`; it is a release blocker, not independent holdout or promotion evidence. Exit `2` is a structural failure and may
+  not be treated as the expected quality result.
 - `eval_router_ab.py` runs a frozen paired comparison and emits a prompt-redacted report; the checked-in 240-case
   synthetic corpus is an initial directional screen, not production-distribution evidence.
 - Non-control manifest variants use a base-revision-bound overlay. The bilingual pilot overlay changes frozen

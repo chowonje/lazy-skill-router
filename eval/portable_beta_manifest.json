@@ -1,0 +1,126 @@
+{
+  "schema": "lazy-skill-router.portable-beta-manifest/v2",
+  "suiteId": "portable-release-regression-2026-07-16",
+  "createdAt": "2026-07-16",
+  "algorithm": "lexical-bm25-char3-anchored/v2",
+  "retrievalImplementationRevision": "sha256:2d581c6f206c192761c15346ad99f10291955f272748ce1d41b940d4102870e0",
+  "evaluationImplementationRevision": "sha256:9fa5201b90a951117e69b75520f0f41df49a6903b1a54ef673355d55ac86bc2e",
+  "indexSchema": "lazy-skill-router.capability-index/v2",
+  "featureExtractor": "lexical-word-char3/v1",
+  "evidenceRole": "self-attested-internal-release-regression",
+  "maxCandidates": 3,
+  "fixtureFiles": [
+    {
+      "path": "portable_author_a.json",
+      "sha256": "sha256:e1d70e8a9783f9a4210e9fd72b391860a7e261bb76504af903766d91615c668f",
+      "authorId": "isolated-a"
+    },
+    {
+      "path": "portable_author_b.json",
+      "sha256": "sha256:8228d0b417ee11020c2ac23e9179daad307809a4fbed897c20351e4cba53636c",
+      "authorId": "isolated-b"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "isolated-general-productivity-10",
+      "catalogs": [
+        "fictional-general-productivity"
+      ],
+      "caseCatalogs": [
+        "fictional-general-productivity"
+      ]
+    },
+    {
+      "id": "isolated-software-development-10",
+      "catalogs": [
+        "fictional-overlap-software-development"
+      ],
+      "caseCatalogs": [
+        "fictional-overlap-software-development"
+      ]
+    },
+    {
+      "id": "isolated-research-creative-10",
+      "catalogs": [
+        "bilingual-research-creative-tools"
+      ],
+      "caseCatalogs": [
+        "bilingual-research-creative-tools"
+      ]
+    },
+    {
+      "id": "isolated-operations-reliability-10",
+      "catalogs": [
+        "sparse-operations-reliability-tools"
+      ],
+      "caseCatalogs": [
+        "sparse-operations-reliability-tools"
+      ]
+    },
+    {
+      "id": "author-a-composite-20",
+      "catalogs": [
+        "fictional-general-productivity",
+        "fictional-overlap-software-development"
+      ],
+      "caseCatalogs": [
+        "fictional-general-productivity",
+        "fictional-overlap-software-development"
+      ]
+    },
+    {
+      "id": "author-b-composite-20",
+      "catalogs": [
+        "bilingual-research-creative-tools",
+        "sparse-operations-reliability-tools"
+      ],
+      "caseCatalogs": [
+        "bilingual-research-creative-tools",
+        "sparse-operations-reliability-tools"
+      ]
+    },
+    {
+      "id": "all-catalogs-composite-40",
+      "catalogs": [
+        "fictional-general-productivity",
+        "fictional-overlap-software-development",
+        "bilingual-research-creative-tools",
+        "sparse-operations-reliability-tools"
+      ],
+      "caseCatalogs": [
+        "fictional-general-productivity",
+        "fictional-overlap-software-development",
+        "bilingual-research-creative-tools",
+        "sparse-operations-reliability-tools"
+      ]
+    }
+  ],
+  "gate": {
+    "minAuthors": 2,
+    "minCatalogs": 4,
+    "minCases": 64,
+    "minPositiveCases": 48,
+    "minNoSkillCases": 16,
+    "minPositiveRecallAt3": 0.8,
+    "minPositiveTop1": 0.6,
+    "minNoSkillNoMatch": 0.5,
+    "minCatalogRecallAt3": 0.65,
+    "minCatalogNoSkillNoMatch": 0.25,
+    "minScenarioRecallAt3": 0.65,
+    "minScenarioNoSkillNoMatch": 0.25,
+    "minLanguageRecallAt3": 0.65,
+    "maxDegradedCases": 0,
+    "maxIneligibleCandidates": 0,
+    "maxP95LatencyMs": 20.0
+  },
+  "semantics": {
+    "scope": "explicit-cli-preview-only",
+    "oneShot": false,
+    "scorerFrozenBeforeEvaluation": true,
+    "externalUserValidationSubstitute": false,
+    "hookActivationAuthorized": false,
+    "automaticRelease": false,
+    "rawPromptsEmitted": false
+  }
+}

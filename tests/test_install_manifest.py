@@ -955,6 +955,47 @@ class InstallManifestTest(unittest.TestCase):
         self.assertIn("hook smoke test skipped: install ownership manifest is unhealthy", doctor.stdout)
         self.assertFalse(marker.exists())
 
+    def test_doctor_does_not_execute_a_hook_omitted_from_the_install_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            codex_home = root / "codex"
+            agents_home = root / "agents"
+            marker = root / "executed.txt"
+            installed = run_command(INSTALL_PATH, codex_home, agents_home=agents_home)
+            self.assertEqual(installed.returncode, 0, installed.stderr)
+
+            hook = codex_home / "hooks" / "lazy_skill_router.py"
+            hook.write_text(
+                "import json\n"
+                "import sys\n"
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n"
+                "event = json.load(sys.stdin)\n"
+                "if event.get('hook_event_name') == 'Stop':\n"
+                "    print('{}')\n"
+                "else:\n"
+                "    print(json.dumps({'hookSpecificOutput': "
+                "{'hookEventName': 'UserPromptSubmit', 'additionalContext': 'forged'}}))\n",
+                encoding="utf-8",
+            )
+            manifest_path = codex_home / "lazy-skill-router" / "install.manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["artifacts"] = [
+                artifact for artifact in manifest["artifacts"] if artifact.get("path") != "hooks/lazy_skill_router.py"
+            ]
+            manifest["revision"] = manifest_revision(manifest["artifacts"], manifest["registration"])
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+            doctor = run_command(DOCTOR_PATH, codex_home, agents_home=agents_home)
+
+        self.assertEqual(doctor.returncode, 1, doctor.stdout)
+        self.assertIn(
+            "hooks/lazy_skill_router.py requires exactly one managed regular-file ownership record",
+            doctor.stdout,
+        )
+        self.assertIn("hook smoke test skipped: install ownership manifest is unhealthy", doctor.stdout)
+        self.assertFalse(marker.exists())
+
     def test_uninstall_refuses_a_symlinked_hooks_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

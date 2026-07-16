@@ -10,6 +10,10 @@ The current shipped behavior is documented in [`CURRENT_PUBLIC_CONTRACT.md`](CUR
 The released compatibility baseline is `0.4.0`; unreleased source changes and rollback notes are tracked in
 [`CHANGELOG.md`](CHANGELOG.md).
 
+The repository remains at `0.5.0.dev0`. A stable `v0.5.0` tag, PyPI publication, and GitHub Release are blocked while
+the current portable release-regression gate returns its expected quality failure. Until that gate passes and the
+remaining release checks succeed, use a trusted source checkout to inspect the v0.5 development line.
+
 ## Judge quick start
 
 Judges can exercise the router and the sample project directly from source. This path requires Git and Python 3.9 or
@@ -19,26 +23,18 @@ repository has been cloned.
 ```bash
 git clone https://github.com/chowonje/lazy-skill-router.git
 cd lazy-skill-router
-
-python3 lazy_skill_router.py \
-  --config docs/build-week/routes.judge-demo.json \
-  --route-result-v2 \
-  "Map this repository as a project mind map. Show the data flow. Do not modify files."
-
-python3 lazy_skill_router.py \
-  --config docs/build-week/routes.judge-demo.json \
-  --route-result-v2 \
-  "Add one retry on TimeoutError. Make the smallest correct change and add no dependency."
-
-examples/ci-relay-demo/scripts/verify.sh
+python3 scripts/judge_playground.py
 ```
 
-The first decision should recommend `project-mindmap` with an answer-only `propose` disposition. The second should
-select `ponytail` with an eligible `activate` disposition. The fixture verification runs six tests, compiles the sample,
-and processes [`sample_ci_event.json`](examples/ci-relay-demo/fixtures/sample_ci_event.json) in a disposable directory.
-See [`JUDGE_DEMO.md`](docs/build-week/JUDGE_DEMO.md) for all three prompts and the optional isolated recording setup.
-The fixture contains one intentional path-traversal flaw for the optional security scene; it is local-only and must
-never be deployed.
+The one-screen result shows `project-mindmap` as an answer-only `propose`, `ponytail` as an eligible `activate`, and an
+unsupported task as `abstain`. It then runs the six fixture tests, compiles the sample, and processes
+[`sample_ci_event.json`](examples/ci-relay-demo/fixtures/sample_ci_event.json) inside a self-deleting temporary directory.
+The command does not store or echo raw prompts. Add `--json` for the redacted, deterministic contract. To inspect a
+custom decision without placing the prompt in shell history or the process list, run
+`python3 scripts/judge_playground.py --prompt-stdin` and paste the prompt into stdin. See
+[`JUDGE_DEMO.md`](docs/build-week/JUDGE_DEMO.md) for the authority
+boundary and optional isolated recording setup. The fixture contains one intentional path-traversal flaw for the
+optional security scene; it is local-only and must never be deployed.
 
 ## Build Week disclosure
 
@@ -309,16 +305,20 @@ Install only from PyPI or a trusted checkout of this repository. Avoid curl-pipe
 `lazy-skill-router install` may write:
 
 - `~/.codex/hooks/lazy_skill_router.py`
+- `~/.codex/hooks/lazy_skill_router_activation.py`
+- `~/.codex/hooks/lazy_skill_router_capability_index.py`
 - `~/.codex/hooks/lazy_skill_router_core.py`
 - `~/.codex/hooks/lazy_skill_router_common.py`
 - `~/.codex/hooks/lazy_skill_router_contracts.py`
 - `~/.codex/hooks/lazy_skill_router_inventory.py`
 - `~/.codex/hooks/lazy_skill_router_logging.py`
 - `~/.codex/hooks/lazy_skill_router_policy_ir.py`
+- `~/.codex/hooks/lazy_skill_router_retrieval.py`
 - `~/.codex/hooks/lazy_skill_router_scoring.py`
 - `~/.codex/skills/personal-skill-router/`
 - `~/.codex/lazy-skill-router/routes.json`
 - `~/.codex/lazy-skill-router/skills.manifest.json`
+- `~/.codex/lazy-skill-router/capability-index.json`
 - `~/.codex/lazy-skill-router/install.manifest.json`
 - `~/.codex/hooks.json`
 
@@ -509,10 +509,14 @@ recommendation block:
 ```json
 {
   "patterns": [
-    { "regex": "ci.*실패", "label": "Korean CI failure" }
+    { "regex": "ci.{0,64}실패", "label": "Korean CI failure" }
   ]
 }
 ```
+
+Routable policy identifiers and explicit labels/reasons are limited to 160 characters. Unanchored variable repeats
+that must cross a later suffix are limited to 64 characters; use bounded forms such as `.{0,64}` and `\s{0,16}`.
+Invalid or overlong policy input is not truncated: the policy fails open and produces no recommendation.
 
 ## Show Router Usage In Replies
 
@@ -703,6 +707,57 @@ label quality. The gate's only outcomes are `blocked` and `eligible-for-human-re
 `autoPromote` is always `false`. Passing the gate never edits active policy. Stable
 `reportRevision`/`gateRevision` values identify the replayed quality decision without volatile latency/environment
 samples; `runRevision` retains each full benchmark run.
+
+### Portable release-regression gate
+
+The source distribution includes `eval_portable_beta.py`, the current scorer-bound
+[`portable_beta_manifest.json`](eval/portable_beta_manifest.json), and its two fixture files. The evaluator is
+source-distribution tooling; it is intentionally absent from the wheel's importable module list.
+
+```bash
+mkdir -p .release
+python3 eval_portable_beta.py \
+  eval/portable_beta_manifest.json \
+  --output .release/PORTABLE_BETA_REPORT.json
+```
+
+The current manifest completes successfully as an evaluation but returns **exit 1** because quality remains blocked:
+Positive Recall@3 is `111/144` (`77.08%`) against an `80%` floor, and Korean Recall@3 is `15/45` (`33.33%`) against a
+`65%` floor. Exit codes have distinct meanings:
+
+- `0`: eligible only for opt-in beta review; no activation, promotion, or release authority is granted;
+- `1`: structurally valid evaluation with a quality blocker; this is the exact current regression expectation;
+- `2`: structural, integrity, revision, or I/O failure; CI and release checks must fail rather than accept it as a
+  quality result.
+
+The fixture authorship and scorer/corpus isolation are self-attested internal controls. They are not an independently
+adjudicated holdout, external-user evidence, task-outcome evidence, or promotion evidence. The gate therefore cannot
+authorize default behavior even if it later returns `0`.
+
+The dated [`portable_beta_manifest_2026-07-13.json`](eval/portable_beta_manifest_2026-07-13.json),
+[`portable-beta-gate-2026-07-13.md`](docs/evaluation/portable-beta-gate-2026-07-13.md), and
+[`portable-beta-report-2026-07-13.json`](docs/evaluation/portable-beta-report-2026-07-13.json) preserve the original
+2026-07-13 evidence. They are not rewritten when the scorer changes. Replaying that historical manifest against the
+current scorer is expected to return exit `2` for a revision mismatch; that is a historical replay incompatibility, not
+the current quality result.
+
+Because the current gate returns `1` and no independent promotion evidence exists, `0.5.0.dev0` remains a development
+snapshot and the stable `v0.5.0` release remains blocked.
+
+For a separate usability check, the source distribution includes a promptless external-user holdout kit. It records
+only recommendation appropriateness, time to the first correct work start, and whether the participant understood that
+a recommendation grants no authority. Final validation requires complete cases from three to five unique participants;
+no participant data is included in the repository.
+
+```bash
+python3 eval_external_user_holdout.py validate /path/to/promptless-holdout.jsonl
+python3 eval_external_user_holdout.py report /path/to/promptless-holdout.jsonl
+```
+
+The expectation is durably recorded before the router result is shown. Raw prompts, names, paths, free text, and skill
+names are excluded from the strict JSONL contract. Both successful and failed cases remain visible, and every report
+keeps promotion blocked with no retuning authority. See
+[`external-user-blind-holdout.md`](docs/evaluation/external-user-blind-holdout.md) for the collection protocol.
 
 Frozen replay inputs can be preserved outside Git with the source-checkout tool. It writes a private content-addressed
 store under `~/.codex/private/lazy-skill-router/router-ab`, uses `0700` directories and `0600` files, validates the
@@ -907,6 +962,11 @@ Verification rejects empty, partial, duplicate, absolute, parent-traversing, and
 exactly cover the selected artifact root. Checksums do not replace reviewing the source before installation, but they
 help users confirm that release files match the published manifest.
 
+The GitHub release workflow uses one flat directory containing `*.whl`, `*.tar.gz`, `PORTABLE_BETA_REPORT.json`, and
+`SHA256SUMS`. Every checksum entry is a basename with no directory component, and the downloaded bundle is verified in
+that same shape. PyPI receives only the wheel and source distribution, staged separately from the verified flat bundle;
+the portable report and checksum manifest are GitHub Release evidence, not Python distributions.
+
 If you publish signed releases, sign the checksum manifest rather than individual files:
 
 ```bash
@@ -924,11 +984,15 @@ PyPI publishing uses GitHub Actions Trusted Publishing. Configure the PyPI proje
 - Workflow: `release.yml`
 - Environment: `pypi`
 
-The release workflow verifies the tests and route fixtures, confirms that the Git tag matches `pyproject.toml`, builds
-the source distribution and wheel once, and checks the resulting bundle with `twine` and `SHA256SUMS`. The exact same
-bundle is then published to PyPI and attached to the matching GitHub Release. PyPI publishing and GitHub Release upload
-run in separate jobs so Trusted Publishing does not share GitHub contents-write permission. The workflow does not store
-a PyPI token in GitHub secrets.
+The release workflow verifies the tests and route fixtures, confirms that the Git tag matches `pyproject.toml`, requires
+the current portable gate to return `0`, builds the source distribution and wheel once, and checks the flat GitHub
+bundle with `twine` and `SHA256SUMS`. The PyPI job copies only those verified wheel/sdist bytes into its own staging
+directory; the GitHub Release also carries the prompt-redacted portable report and checksum manifest. PyPI publishing
+and GitHub Release upload run in separate jobs so Trusted Publishing does not share GitHub contents-write permission.
+The workflow does not store a PyPI token in GitHub secrets.
+
+Do not run the release steps while the project remains `0.5.0.dev0` or while the portable gate returns `1`. For a future
+approved release:
 
 Release steps:
 
@@ -954,12 +1018,15 @@ Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests
-python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_capability_index.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_retrieval.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py eval_capability_retrieval.py eval_router_ab.py materialize_router_ab_manifest.py preserve_router_ab_bundle.py
+python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_capability_index.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_retrieval.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py eval_capability_retrieval.py eval_external_user_holdout.py eval_portable_beta.py eval_router_ab.py materialize_router_ab_manifest.py preserve_router_ab_bundle.py
 python3 -m json.tool routes.default.json >/dev/null
 python3 -m json.tool routes.template.json >/dev/null
 python3 validate_routes.py routes.default.json
 python3 eval_routes.py eval/prompts.jsonl
 python3 eval_capability_retrieval.py --inventory ~/.codex/lazy-skill-router/skills.manifest.json --index ~/.codex/lazy-skill-router/capability-index.json
+# Expected today: exit 1 (quality blocked). Exit 2 is a structural failure.
+mkdir -p .release
+python3 eval_portable_beta.py eval/portable_beta_manifest.json --output .release/PORTABLE_BETA_REPORT.json
 # The frozen A/B replay succeeds only when config, inventory, index, and experiment-code revisions match.
 python3 eval_router_ab.py eval/router_ab_manifest.json --config ~/.codex/lazy-skill-router/routes.json --inventory ~/.codex/lazy-skill-router/skills.manifest.json --index ~/.codex/lazy-skill-router/capability-index.json
 lazy-skill-router shadow-evidence --config ~/.codex/lazy-skill-router/routes.json --json

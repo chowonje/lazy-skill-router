@@ -5,32 +5,29 @@ change the product runtime, install a hook, touch `~/.codex`, enable Top-K activ
 
 ## Judge quick check: no install or rebuild
 
-Requirements: Git and Python 3.9 or newer on macOS or Linux. From the repository root, run the router against the
-explicit demo policy:
+Requirements: Git and Python 3.9 or newer on macOS or Linux. From the repository root, run one command:
 
 ```bash
-python3 lazy_skill_router.py \
-  --config docs/build-week/routes.judge-demo.json \
-  --route-result-v2 \
-  "Map this repository as a project mind map. Show the data flow. Do not modify files."
-
-python3 lazy_skill_router.py \
-  --config docs/build-week/routes.judge-demo.json \
-  --route-result-v2 \
-  "Add one retry on TimeoutError. Make the smallest correct change and add no dependency."
-
-examples/ci-relay-demo/scripts/verify.sh
+python3 scripts/judge_playground.py
 ```
 
 Expected decisions:
 
 - mind map: `project-mindmap`, `propose`, reason `answer_only`;
 - minimal retry: `ponytail`, `activate`, reason `eligible`.
+- unsupported task: no recommendation, `abstain`, reason `no_candidate`.
 
-The router check does not require the skills to be installed because it evaluates an explicit, repository-owned demo
-policy. Executing the selected skill inside Codex still requires that skill to be available in the judge's Codex app.
-The fixture verification uses only the Python standard library and the synthetic sample event in
-[`examples/ci-relay-demo/fixtures/sample_ci_event.json`](../../examples/ci-relay-demo/fixtures/sample_ci_event.json).
+The same command verifies exactly six fixture tests, compiles the fixture, and processes the synthetic sample event in
+a self-deleting temporary directory. It does not install the router, access the network, write to `~/.codex`, or change
+repository files. The router check does not require the skills to be installed because it evaluates an explicit,
+repository-owned demo policy. Executing a selected skill inside Codex still requires that skill to be available and
+requires fresh agent authorization.
+
+Add `--json` to emit `lazy-skill-router.judge-playground/v1`. The JSON reuses the existing `route-result/v2` decision
+and `skill-recommendation/v1` authority semantics, while omitting raw prompt text, absolute paths, regular expressions,
+and timing data. Add `--skip-fixture-verification` for a routing-only check. For one custom prompt, run
+`python3 scripts/judge_playground.py --prompt-stdin` and paste the prompt into stdin so it is not placed in shell
+history or the process list. A skipped check is reported as `skipped`, never as `passed`.
 
 ## Optional: prepare an isolated recording session
 
@@ -76,27 +73,18 @@ canonical fixture in `examples/ci-relay-demo`.
 The security scene is optional and intentionally vulnerable. It is local-only; never serve or deploy it. A recording
 may use only the mind-map and Ponytail scenes when the security skill is unavailable.
 
-## Show the third router decision
+## Show another router decision
 
-The demo policy is explicit and separate from `routes.default.json`:
-
-```bash
-python3 lazy_skill_router.py \
-  --config docs/build-week/routes.judge-demo.json \
-  --route-result-v2 \
-  "Map this repository as a project mind map. Show the main components and data flow."
-```
-
-Replace the final prompt with the security prompt to show the corresponding primary skill. This CLI-only demo does not
-register or modify a Codex hook.
+Run `python3 scripts/judge_playground.py --prompt-stdin`, paste one prompt, and send EOF to replace the three built-in
+decisions. The playground still uses the explicit demo policy, does not register or modify a Codex hook, and does not
+echo the custom prompt.
 
 ## Verification
 
 ```bash
-examples/ci-relay-demo/scripts/verify.sh
-PYTHONPATH=scripts python3 scripts/test_prepare_judge_demo.py
-python3 validate_routes.py docs/build-week/routes.judge-demo.json
+python3 scripts/judge_playground.py
 ```
 
-The example is intentionally outside the wheel and source-distribution allowlists. Judges can run it directly from
-the repository, while product packaging remains unchanged.
+`PASS` proves only the fixture's baseline behavior. It is not a security approval. The example is intentionally outside
+the wheel and source-distribution allowlists. Judges can run it directly from the repository, while product packaging
+remains unchanged.

@@ -50,33 +50,51 @@
 - `eval/prompts.jsonl`: prompt fixtures for route quality checks.
 - `eval_capability_retrieval.py`: capability Top-K contrast evaluator.
 - `eval/capability_retrieval.jsonl`: retrieval-only contrast fixtures.
+- `eval_portable_beta.py`: sdist-only, prompt-redacted portable release-regression evaluator; it is not a wheel module.
+- `eval/portable_beta_manifest.json`: current scorer-bound self-attested internal release-regression manifest.
+- `eval/portable_beta_manifest_2026-07-13.json`: immutable dated manifest for the historical 2026-07-13 report; do not
+  update its scorer revision to make it replay on current code.
 - `eval_router_ab.py`: frozen paired legacy-vs-retrieval evaluator with prompt-redacted reports and evaluator-only
   `PromotionGateV1`; optional local evidence artifacts are path-confined and byte-verified without being emitted.
 - `materialize_router_ab_manifest.py`: revision-bound overlay materializer for non-control A/B manifest variants.
 - `preserve_router_ab_bundle.py`: source-checkout-only private content-addressed replay-input preservation tool.
 - `eval/router_ab_manifest.json`: 240-case versioned paired experiment manifest.
+- `eval_external_user_holdout.py`: promptless three-to-five-participant usability holdout collector, validator, and
+  aggregate reporter; it never grants promotion authority.
 - `eval/router_ab_manifest_bilingual_pilot.overlay.json`: exact pilot inventory/index/provenance delta over the canonical
   control corpus.
 - `eval/capability_metadata_ko_pilot.json`: corpus-informed bilingual calibration metadata; never promote it directly.
 - `tests/`: unittest coverage for the router and project utilities.
 - `examples/ci-relay-demo/`: local-only, intentionally vulnerable judge fixture; excluded from package artifacts.
+- `scripts/judge_playground.py`: source-only, prompt-redacted judge path that reuses the versioned routing contracts
+  and verifies the fixture in a disposable workspace without host install.
 - `scripts/prepare_judge_demo.py`: creates independent numbered Desktop copies of the fixture without host install.
 
 ## Development Commands
 - Run unit tests: `python3 -m unittest discover -s tests`
-- Verify the judge fixture: `examples/ci-relay-demo/scripts/verify.sh`
+- Run the source-only judge playground: `python3 scripts/judge_playground.py`
+- Test the judge playground: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=scripts python3 scripts/test_judge_playground.py`
+- Verify the judge fixture directly: `examples/ci-relay-demo/scripts/verify.sh`
 - Test the Desktop materializer: `PYTHONPATH=scripts python3 scripts/test_prepare_judge_demo.py`
-- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_capability_index.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_retrieval.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py eval_capability_retrieval.py eval_router_ab.py materialize_router_ab_manifest.py preserve_router_ab_bundle.py`
+- Validate a reviewed promptless external-user artifact: `python3 eval_external_user_holdout.py validate /path/to/holdout.jsonl`
+- Compile scripts: `python3 -m py_compile lazy_skill_router.py lazy_skill_router_activation.py lazy_skill_router_capability_index.py lazy_skill_router_contracts.py lazy_skill_router_core.py lazy_skill_router_common.py lazy_skill_router_host_catalog.py lazy_skill_router_install_manifest.py lazy_skill_router_inventory.py lazy_skill_router_logging.py lazy_skill_router_policy.py lazy_skill_router_policy_ir.py lazy_skill_router_retrieval.py lazy_skill_router_scoring.py measurement.py lazy_skill_router_cli/cli.py generate_routes.py install.py doctor.py uninstall.py validate_routes.py release_checksums.py sync_skills.py eval_routes.py eval_capability_retrieval.py eval_external_user_holdout.py eval_portable_beta.py eval_router_ab.py materialize_router_ab_manifest.py preserve_router_ab_bundle.py`
 - Validate bundled routes: `python3 validate_routes.py routes.default.json`
 - Check installed-skill drift: `python3 sync_skills.py --routes routes.default.json --strict`
 - Run route regression eval: `python3 eval_routes.py eval/prompts.jsonl`
 - Run capability contrast eval after building an index: `python3 eval_capability_retrieval.py --inventory ~/.codex/lazy-skill-router/skills.manifest.json --index ~/.codex/lazy-skill-router/capability-index.json`
+- Run the current portable release regression: `mkdir -p .release && python3 eval_portable_beta.py eval/portable_beta_manifest.json --output .release/PORTABLE_BETA_REPORT.json` (current expected exit: exactly `1`; exit `2` is a structural failure)
 - Replay the corrected control experiment only when the local revisions match its manifest: `python3 eval_router_ab.py eval/router_ab_manifest.json --config ~/.codex/lazy-skill-router/routes.json --inventory ~/.codex/lazy-skill-router/skills.manifest.json --index ~/.codex/lazy-skill-router/capability-index.json`
 - Build automated shadow evidence without promotion authority: `lazy-skill-router shadow-evidence --config ~/.codex/lazy-skill-router/routes.json --json`
 - Validate JSON syntax: `python3 -m json.tool routes.default.json >/dev/null`
 - Smoke installer and doctor: `tmp="$(mktemp -d)" && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && python3 install.py --codex-home "$tmp/codex" --agents-home "$tmp/agents" && python3 doctor.py --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
 - Smoke packaged CLI: `python3 -m build && python3 -m twine check dist/* && pipx_home="$(mktemp -d)" && pipx_bin="$(mktemp -d)" && PIPX_HOME="$pipx_home" PIPX_BIN_DIR="$pipx_bin" python3 -m pipx install dist/*.whl && "$pipx_bin/lazy-skill-router" route "GitHub PR에서 CI 실패 고쳐줘" && tmp="$(mktemp -d)" && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" --dry-run && "$pipx_bin/lazy-skill-router" install --codex-home "$tmp/codex" --agents-home "$tmp/agents" && "$pipx_bin/lazy-skill-router" doctor --codex-home "$tmp/codex" --agents-home "$tmp/agents"`
-- Release workflow: `.github/workflows/release.yml` verifies and builds a `v*.*.*` tag once, passes that exact artifact bundle to PyPI Trusted Publishing, and then creates or updates the matching GitHub Release from the same files and `SHA256SUMS` in a separate contents-write job. The PyPI project must trust owner `chowonje`, repository `lazy-skill-router`, workflow `release.yml`, and environment `pypi`.
+- Portable evidence is self-attested and internal. It is neither independent holdout evidence nor promotion authority.
+  CI accepts exactly exit `1` as the current quality-regression expectation; exit `0` requires an intentional evidence
+  update, and exit `2` always fails. A tagged release requires exit `0`, so stable `v0.5.0` remains blocked.
+- Release workflow: `.github/workflows/release.yml` builds one flat GitHub bundle containing `*.whl`, `*.tar.gz`,
+  `PORTABLE_BETA_REPORT.json`, and `SHA256SUMS`; checksum entries are basenames only. PyPI stages only the verified
+  wheel/sdist bytes in a separate directory. The PyPI project must trust owner `chowonje`, repository
+  `lazy-skill-router`, workflow `release.yml`, and environment `pypi`.
 
 ## Route Changes
 - Keep route changes data-only unless engine behavior must change.

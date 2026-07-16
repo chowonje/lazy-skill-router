@@ -32,6 +32,10 @@ MAX_REGEX_SEARCH_WORK_PER_PATTERN = 2_048
 MAX_UNTRUSTED_REGEX_SEARCH_WORK_PER_POLICY = 768
 MAX_REGEX_SEARCH_WORK_PER_POLICY = 24_576
 LEADING_UNBOUNDED_REPEAT_WORK = 256
+MAX_UNANCHORED_VARIABLE_REPEAT_SPAN = 64
+MAX_POLICY_IDENTIFIER_CHARS = 160
+MAX_POLICY_TEXT_CHARS = 160
+POLICY_IDENTIFIER_PATTERN = re.compile(r"^[^\x00-\x1f\x7f<>]+$")
 ROUTE_PRIORITY_MIN = -20.0
 ROUTE_PRIORITY_MAX = 20.0
 ROUTE_WEIGHT_MIN = -1.0
@@ -255,6 +259,20 @@ def is_number(value: Any) -> bool:
         return False
 
 
+def policy_identifier(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and value == value.strip()
+        and len(value) <= MAX_POLICY_IDENTIFIER_CHARS
+        and POLICY_IDENTIFIER_PATTERN.fullmatch(value) is not None
+    )
+
+
+def policy_text(value: Any, *, allow_empty: bool) -> bool:
+    return isinstance(value, str) and (allow_empty or bool(value)) and len(value) <= MAX_POLICY_TEXT_CHARS
+
+
 def route_pattern_is_shipped_exception(route_id: str, field: str, pattern: str) -> bool:
     return (route_id, field, pattern) in SHIPPED_ROUTE_PATTERN_EXCEPTIONS
 
@@ -407,6 +425,42 @@ def _leading_unbounded_repeat_branches(sequence: Any) -> int:
     return 0
 
 
+def _variable_repeat_before_suffix_exceeds_limit(
+    sequence: Any,
+    *,
+    suffix_pending: bool = False,
+) -> bool:
+    suffix_seen = suffix_pending
+    for operation, argument in reversed(sequence):
+        if operation in _REGEX_REPEAT_OPS:
+            minimum, maximum, nested = argument
+            if (
+                suffix_seen
+                and minimum != maximum
+                and (maximum == _regex_parser.MAXREPEAT or maximum > MAX_UNANCHORED_VARIABLE_REPEAT_SPAN)
+            ):
+                return True
+            if _variable_repeat_before_suffix_exceeds_limit(nested, suffix_pending=suffix_seen):
+                return True
+        elif operation is getattr(_regex_parser, "SUBPATTERN", None):
+            if _variable_repeat_before_suffix_exceeds_limit(argument[-1], suffix_pending=suffix_seen):
+                return True
+        elif operation is getattr(_regex_parser, "BRANCH", None):
+            if any(
+                _variable_repeat_before_suffix_exceeds_limit(branch, suffix_pending=suffix_seen)
+                for branch in argument[1]
+            ):
+                return True
+        elif operation in _REGEX_LOOKAROUND_OPS:
+            if _variable_repeat_before_suffix_exceeds_limit(argument[1]):
+                return True
+        elif operation is getattr(_regex_parser, "ATOMIC_GROUP", None):
+            if _variable_repeat_before_suffix_exceeds_limit(argument, suffix_pending=suffix_seen):
+                return True
+        suffix_seen = True
+    return False
+
+
 def _regex_search_work(pattern: str, parsed: Any) -> int:
     if pattern.startswith("^") or pattern.startswith(r"\A"):
         return 1
@@ -533,6 +587,8 @@ def route_pattern_risk(pattern: str, *, allow_leading_positive_lookahead: bool =
     )
     if parsed_risk is not None:
         return parsed_risk
+    if not pattern.startswith(("^", r"\A")) and _variable_repeat_before_suffix_exceeds_limit(parsed):
+        return f"unanchored variable repeat span exceeds {MAX_UNANCHORED_VARIABLE_REPEAT_SPAN} characters"
     if _regex_search_work(pattern, parsed) > MAX_REGEX_SEARCH_WORK_PER_PATTERN:
         return f"unanchored regex search work exceeds {MAX_REGEX_SEARCH_WORK_PER_PATTERN}"
     return None
@@ -828,6 +884,24 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                 )
 
     if schema_version == 1:
+        configured_policy_version = config.get("policyVersion")
+        if configured_policy_version is not None and not policy_identifier(configured_policy_version):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "policy_version_invalid",
+                    "schema v1 policyVersion must be a bounded identifier when set",
+                )
+            )
+        legacy_version = config.get("version")
+        if isinstance(legacy_version, str) and not policy_identifier(f"route-v1:{legacy_version}"):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "policy_version_invalid",
+                    "schema v1 version is too long for the bounded route-result identifier",
+                )
+            )
         min_confidence = config.get("minConfidence", 0.55)
         if not is_number(min_confidence) or not 0 <= float(min_confidence) <= 1:
             findings.append(
@@ -928,12 +1002,13 @@ def validate_common_config(config: dict[str, Any], schema_version: int, findings
                         )
                     )
         policy_version = config.get("policyVersion")
-        if not isinstance(policy_version, str) or not policy_version:
+        if not policy_identifier(policy_version):
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     "policy_version_invalid",
-                    "schema v2 policyVersion must be a non-empty string",
+                    "schema v2 policyVersion must be a bounded identifier of at most "
+                    f"{MAX_POLICY_IDENTIFIER_CHARS} characters",
                 )
             )
 
@@ -969,7 +1044,9 @@ def validate_route_scalars(raw_route: dict[str, Any], route_id: str, findings: l
 
 
 def stable_pattern_id(route_id: str, regex: str) -> str:
-    route_segment = re.sub(r"[^A-Za-z0-9._-]+", "-", route_id).strip("-") or "route"
+    digest_chars = 12
+    max_route_segment = MAX_POLICY_IDENTIFIER_CHARS - digest_chars - 1
+    route_segment = (re.sub(r"[^A-Za-z0-9._-]+", "-", route_id).strip("-") or "route")[:max_route_segment]
     digest = hashlib.sha256(f"{route_id}\0{regex}".encode()).hexdigest()[:12]
     return f"{route_segment}.{digest}"
 
@@ -1047,12 +1124,12 @@ def lifecycle(
     elif invalid_fields:
         state = "disabled"
     revision = value.get("proposalRevision")
-    if revision is not None and (not isinstance(revision, str) or not revision):
+    if revision is not None and not policy_identifier(revision):
         findings.append(
             PolicyFinding(
                 "ERROR",
                 "route_proposal_revision_invalid",
-                f"route {route_id} lifecycle.proposalRevision must be a non-empty string",
+                f"route {route_id} lifecycle.proposalRevision must be a bounded identifier",
                 route_id,
             )
         )
@@ -1145,8 +1222,18 @@ def lifecycle(
 
 
 def binding_ref(value: Any, capability: str, findings: list[PolicyFinding]) -> SkillRef | None:
-    if isinstance(value, str) and value:
-        return SkillRef(value, capability=capability)
+    if isinstance(value, str):
+        if policy_identifier(value):
+            return SkillRef(value, capability=capability)
+        findings.append(
+            PolicyFinding(
+                "ERROR",
+                "skill_binding_name_invalid",
+                f"skill binding {capability} skill must be a bounded identifier",
+                field=f"skillBindings.{capability}",
+            )
+        )
+        return None
     if not isinstance(value, dict):
         return None
     unknown = set(value) - {"skill", "canonicalId"}
@@ -1161,7 +1248,16 @@ def binding_ref(value: Any, capability: str, findings: list[PolicyFinding]) -> S
         )
     configured_name = value.get("skill")
     canonical_id = value.get("canonicalId")
-    if not isinstance(configured_name, str) or not configured_name:
+    if not policy_identifier(configured_name):
+        if configured_name is not None:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "skill_binding_name_invalid",
+                    f"skill binding {capability} skill must be a bounded identifier",
+                    field=f"skillBindings.{capability}",
+                )
+            )
         return None
     if canonical_id is not None and (not isinstance(canonical_id, str) or not canonical_id):
         findings.append(
@@ -1233,28 +1329,30 @@ def pattern_ir(
         pattern_id = (
             configured_id if isinstance(configured_id, str) and configured_id else stable_pattern_id(route_id, regex)
         )
-        if not BASE_PATTERN_ID_PATTERN.fullmatch(pattern_id):
+        if not policy_identifier(pattern_id) or not BASE_PATTERN_ID_PATTERN.fullmatch(pattern_id):
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     "route_pattern_id_invalid",
-                    f"route {route_id} pattern id contains unsupported characters: {pattern_id}",
+                    f"route {route_id} pattern id contains unsupported characters or exceeds the length limit",
                     route_id,
                     field,
                 )
             )
             pattern_id = stable_pattern_id(route_id, regex)
         label = label_value if isinstance(label_value, str) and label_value else regex
-        if label_value is not None and (not isinstance(label_value, str) or not label_value):
+        if label_value is not None and not policy_text(label_value, allow_empty=False):
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     "route_pattern_label_invalid",
-                    f"route {route_id} {field} pattern object label must be a non-empty string",
+                    f"route {route_id} {field} pattern object label must be a non-empty string of at most "
+                    f"{MAX_POLICY_TEXT_CHARS} characters",
                     route_id,
                     field,
                 )
             )
+            label = regex
         if not is_number(weight_value) or not 0 < float(weight_value) <= PATTERN_WEIGHT_MAX:
             findings.append(
                 PolicyFinding(
@@ -1269,7 +1367,7 @@ def pattern_ir(
             weight = 1.0
         else:
             weight = float(weight_value)
-        if not isinstance(facet_value, str) or not FACET_ID_PATTERN.fullmatch(facet_value):
+        if not policy_identifier(facet_value) or not FACET_ID_PATTERN.fullmatch(facet_value):
             findings.append(
                 PolicyFinding(
                     "ERROR",
@@ -1607,7 +1705,9 @@ def route_activation_rule(
         )
     required_value = value.get("requiredFacets", [])
     required = strings(required_value)
-    if not isinstance(required_value, list) or any(not FACET_ID_PATTERN.fullmatch(facet) for facet in required):
+    if not isinstance(required_value, list) or any(
+        not policy_identifier(facet) or not FACET_ID_PATTERN.fullmatch(facet) for facet in required
+    ):
         findings.append(
             PolicyFinding(
                 "ERROR",
@@ -1676,8 +1776,14 @@ def parse_v1(
             continue
         route_id = raw_route.get("name")
         primary_name = raw_route.get("primary")
-        if not isinstance(route_id, str) or not route_id:
-            findings.append(PolicyFinding("ERROR", "route_id_invalid", f"route #{index} missing string name"))
+        if not policy_identifier(route_id):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_id_invalid",
+                    f"route #{index} name must be a bounded identifier",
+                )
+            )
             continue
         validate_route_scalars(raw_route, route_id, findings)
         if route_id in seen:
@@ -1687,6 +1793,17 @@ def parse_v1(
         if not isinstance(primary_name, str) or not primary_name:
             findings.append(
                 PolicyFinding("ERROR", "route_primary_missing", f"route {route_id} missing string primary", route_id)
+            )
+            continue
+        if not policy_identifier(primary_name):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_primary_invalid",
+                    f"route {route_id} primary must be a bounded identifier",
+                    route_id,
+                    "primary",
+                )
             )
             continue
         pattern_values, exclude_values = bounded_route_patterns(
@@ -1725,6 +1842,17 @@ def parse_v1(
                     "supporting",
                 )
             )
+        if any(not policy_identifier(name) for name in supporting_names):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_supporting_invalid",
+                    f"route {route_id} supporting must contain bounded identifiers",
+                    route_id,
+                    "supporting",
+                )
+            )
+            supporting_names = tuple(name for name in supporting_names if policy_identifier(name))
         verification_name = raw_route.get("verification", "")
         if verification_name and not isinstance(verification_name, str):
             findings.append(
@@ -1736,16 +1864,41 @@ def parse_v1(
                 )
             )
             verification_name = ""
+        if isinstance(verification_name, str) and verification_name and not policy_identifier(verification_name):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_verification_invalid",
+                    f"route {route_id} verification must be a bounded identifier",
+                    route_id,
+                    "verification",
+                )
+            )
+            verification_name = ""
         state, proposal_revision = lifecycle(raw_route, route_id, findings, 1)
         intent = raw_route.get("intent", route_id)
-        intent_id = intent if isinstance(intent, str) and intent else route_id
+        if not isinstance(intent, str) or not intent:
+            intent_id = route_id
+        elif policy_identifier(intent):
+            intent_id = intent
+        else:
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_intent_invalid",
+                    f"route {route_id} intent must be a bounded identifier",
+                    route_id,
+                    "intent",
+                )
+            )
+            intent_id = route_id
         reason_value = raw_route.get("reason", "")
-        if not isinstance(reason_value, str):
+        if not policy_text(reason_value, allow_empty=True):
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     "route_reason_invalid",
-                    f"route {route_id} reason must be a string when set",
+                    f"route {route_id} reason must be a string of at most {MAX_POLICY_TEXT_CHARS} characters",
                     route_id,
                     "reason",
                 )
@@ -1802,9 +1955,13 @@ def parse_v2(
         bindings_value = {}
     bindings: dict[str, SkillRef] = {}
     for capability, value in bindings_value.items():
-        if not isinstance(capability, str) or not capability:
+        if not policy_identifier(capability):
             findings.append(
-                PolicyFinding("ERROR", "skill_binding_capability_invalid", "skill binding capability must be a string")
+                PolicyFinding(
+                    "ERROR",
+                    "skill_binding_capability_invalid",
+                    "skill binding capability must be a bounded identifier",
+                )
             )
             continue
         ref = binding_ref(value, capability, findings)
@@ -1825,12 +1982,12 @@ def parse_v2(
         findings.append(PolicyFinding("ERROR", "routes_invalid", "schema v2 routes must be a non-empty list"))
         return ()
     fallback_route_id = config.get("fallbackRouteId")
-    if fallback_route_id is not None and (not isinstance(fallback_route_id, str) or not fallback_route_id):
+    if fallback_route_id is not None and not policy_identifier(fallback_route_id):
         findings.append(
             PolicyFinding(
                 "ERROR",
                 "fallback_route_id_invalid",
-                "schema v2 fallbackRouteId must be a non-empty string or null",
+                "schema v2 fallbackRouteId must be a bounded identifier or null",
             )
         )
     routes: list[RouteIR] = []
@@ -1841,17 +1998,28 @@ def parse_v2(
             continue
         route_id = raw_route.get("id")
         intent = raw_route.get("intent")
-        if not isinstance(route_id, str) or not route_id:
-            findings.append(PolicyFinding("ERROR", "route_id_invalid", f"schema v2 route #{index} missing string id"))
+        if not policy_identifier(route_id):
+            findings.append(
+                PolicyFinding(
+                    "ERROR",
+                    "route_id_invalid",
+                    f"schema v2 route #{index} id must be a bounded identifier",
+                )
+            )
             continue
         validate_route_scalars(raw_route, route_id, findings)
         if route_id in seen:
             findings.append(PolicyFinding("ERROR", "route_id_duplicate", f"duplicate route id: {route_id}", route_id))
             continue
         seen.add(route_id)
-        if not isinstance(intent, str) or not intent:
+        if not policy_identifier(intent):
             findings.append(
-                PolicyFinding("ERROR", "route_intent_invalid", f"route {route_id} missing string intent", route_id)
+                PolicyFinding(
+                    "ERROR",
+                    "route_intent_invalid",
+                    f"route {route_id} intent must be a bounded identifier",
+                    route_id,
+                )
             )
             continue
         requirements_value = raw_route.get("capabilityRequirements")
@@ -1879,6 +2047,17 @@ def parse_v2(
                         f"capabilityRequirements.{role}",
                     )
                 )
+            if any(not policy_identifier(capability) for capability in capabilities):
+                findings.append(
+                    PolicyFinding(
+                        "ERROR",
+                        "route_capabilities_invalid",
+                        f"route {route_id} capabilityRequirements.{role} must contain bounded identifiers",
+                        route_id,
+                        f"capabilityRequirements.{role}",
+                    )
+                )
+                capabilities = tuple(capability for capability in capabilities if policy_identifier(capability))
             role_capabilities[role] = capabilities
         primary_capabilities = role_capabilities["primary"]
         supporting_capabilities = role_capabilities["supporting"]
@@ -1986,12 +2165,12 @@ def parse_v2(
             continue
         state, proposal_revision = lifecycle(raw_route, route_id, findings, 2)
         reason_value = raw_route.get("reason", "")
-        if not isinstance(reason_value, str):
+        if not policy_text(reason_value, allow_empty=True):
             findings.append(
                 PolicyFinding(
                     "ERROR",
                     "route_reason_invalid",
-                    f"route {route_id} reason must be a string when set",
+                    f"route {route_id} reason must be a string of at most {MAX_POLICY_TEXT_CHARS} characters",
                     route_id,
                     "reason",
                 )
@@ -2090,32 +2269,30 @@ def parse_policy_config(config: dict[str, Any]) -> PolicyParseResult:
                 else parse_v1(config, findings, pattern_budget)
             )
     default_verification_value = config.get("defaultVerification")
-    if default_verification_value is not None and (
-        not isinstance(default_verification_value, str) or not default_verification_value
-    ):
+    if default_verification_value is not None and not policy_identifier(default_verification_value):
         findings.append(
             PolicyFinding(
                 "ERROR",
                 "default_verification_invalid",
-                "defaultVerification must be a non-empty string when set",
+                "defaultVerification must be a bounded identifier when set",
             )
         )
     default_verification = (
         SkillRef(default_verification_value, capability=f"skill:{default_verification_value}")
-        if isinstance(default_verification_value, str) and default_verification_value
+        if policy_identifier(default_verification_value)
         else None
     )
     allowed_value = config.get("allowedSkills")
     if allowed_value is not None and (
         not isinstance(allowed_value, list)
         or not allowed_value
-        or not all(isinstance(item, str) and item for item in allowed_value)
+        or not all(policy_identifier(item) for item in allowed_value)
     ):
         findings.append(
             PolicyFinding(
                 "ERROR",
                 "allowed_skills_invalid",
-                "allowedSkills must be a non-empty list of strings when present",
+                "allowedSkills must be a non-empty list of bounded identifiers when present",
             )
         )
         allowed = ()
@@ -2152,10 +2329,10 @@ def parse_policy_config(config: dict[str, Any]) -> PolicyParseResult:
     return PolicyParseResult(
         PolicyIR(
             schema_version,
-            policy_version_value if isinstance(policy_version_value, str) and policy_version_value else None,
+            policy_version_value if policy_identifier(policy_version_value) else None,
             allowed,
             default_verification,
-            fallback_value if isinstance(fallback_value, str) and fallback_value else None,
+            fallback_value if policy_identifier(fallback_value) else None,
             routes,
         ),
         tuple(findings),

@@ -1,0 +1,684 @@
+{
+  "schema": "lazy-skill-router.portable-catalog-authoring/v1",
+  "authoring": {
+    "authorId": "isolated-b",
+    "scorerAccess": false,
+    "existingCorpusAccess": false,
+    "purpose": "one-shot-opt-in-beta-holdout"
+  },
+  "catalogs": [
+    {
+      "id": "bilingual-research-creative-tools",
+      "description": "A fictional bilingual catalog for public research, qualitative inquiry, editorial planning, and creative development.",
+      "skills": [
+        {
+          "name": "source-scout",
+          "description": "Finds and screens public sources for a defined research question, audience, and evidence threshold.",
+          "aliases": [
+            "research scout",
+            "source finder",
+            "자료 탐색"
+          ],
+          "capabilities": [
+            "shape search queries",
+            "discover public sources",
+            "screen source relevance"
+          ],
+          "phases": [
+            "intake",
+            "discovery"
+          ]
+        },
+        {
+          "name": "literature-synthesizer",
+          "description": "Synthesizes supplied studies or abstracts into themes, disagreements, limitations, and open questions.",
+          "aliases": [
+            "evidence synthesizer",
+            "research synthesis",
+            "문헌 종합"
+          ],
+          "capabilities": [
+            "compare study findings",
+            "identify evidence gaps",
+            "summarize areas of consensus"
+          ],
+          "phases": [
+            "analysis",
+            "synthesis"
+          ]
+        },
+        {
+          "name": "claim-verifier",
+          "description": "Checks a factual claim against available evidence and clearly separates support, contradiction, and uncertainty.",
+          "aliases": [
+            "fact checker",
+            "evidence checker",
+            "주장 검증"
+          ],
+          "capabilities": [
+            "decompose factual claims",
+            "compare claims with evidence",
+            "state confidence and uncertainty"
+          ],
+          "phases": [
+            "verification",
+            "review"
+          ]
+        },
+        {
+          "name": "interview-guide-designer",
+          "description": "Designs neutral, sequenced interview questions for qualitative research with optional probes and timing.",
+          "aliases": [
+            "interview planner",
+            "discussion guide builder",
+            "인터뷰 질문 설계"
+          ],
+          "capabilities": [
+            "draft neutral questions",
+            "sequence interview sections",
+            "add follow-up probes"
+          ],
+          "phases": [
+            "research design",
+            "preparation"
+          ]
+        },
+        {
+          "name": "qualitative-coder",
+          "description": "Develops and applies a qualitative coding scheme to supplied interview, diary, or observation material.",
+          "aliases": [
+            "thematic coder",
+            "transcript coder",
+            "질적 코딩"
+          ],
+          "capabilities": [
+            "propose codebooks",
+            "tag qualitative excerpts",
+            "summarize recurring themes"
+          ],
+          "phases": [
+            "coding",
+            "analysis"
+          ]
+        },
+        {
+          "name": "concept-mapper",
+          "description": "Organizes concepts, actors, causes, and dependencies into a readable relationship map.",
+          "aliases": [
+            "idea mapper",
+            "relationship mapper",
+            "개념 지도"
+          ],
+          "capabilities": [
+            "identify key concepts",
+            "label relationships",
+            "structure conceptual hierarchies"
+          ],
+          "phases": [
+            "sensemaking",
+            "planning"
+          ]
+        },
+        {
+          "name": "creative-brief-builder",
+          "description": "Turns a campaign or content request into a concise brief covering audience, message, constraints, tone, and deliverables.",
+          "aliases": [
+            "campaign brief",
+            "content brief",
+            "크리에이티브 브리프"
+          ],
+          "capabilities": [
+            "define target audiences",
+            "clarify creative constraints",
+            "specify messages and deliverables"
+          ],
+          "phases": [
+            "briefing",
+            "creative planning"
+          ]
+        },
+        {
+          "name": "narrative-outline-editor",
+          "description": "Reshapes a draft narrative into a coherent outline with stronger pacing, transitions, and section purpose.",
+          "aliases": [
+            "story structure editor",
+            "outline doctor",
+            "서사 구성 편집"
+          ],
+          "capabilities": [
+            "reorder narrative beats",
+            "repair pacing",
+            "clarify section roles"
+          ],
+          "phases": [
+            "outlining",
+            "editing"
+          ]
+        },
+        {
+          "name": "bilingual-localizer",
+          "description": "Adapts English and Korean copy across languages while preserving intent, register, cultural fit, and format.",
+          "aliases": [
+            "Korean English localizer",
+            "transcreation",
+            "한영 현지화"
+          ],
+          "capabilities": [
+            "localize English to Korean",
+            "localize Korean to English",
+            "preserve tone and terminology"
+          ],
+          "phases": [
+            "adaptation",
+            "language review"
+          ]
+        },
+        {
+          "name": "citation-formatter",
+          "description": "Normalizes supplied reference details into a requested academic citation style without judging source quality.",
+          "aliases": [
+            "reference formatter",
+            "bibliography formatter",
+            "인용 형식 정리"
+          ],
+          "capabilities": [
+            "format reference lists",
+            "normalize citation fields",
+            "flag missing bibliographic details"
+          ],
+          "phases": [
+            "documentation",
+            "finalization"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "id": "brc-positive-01",
+          "prompt": "Find recent peer-reviewed work on how urban tree cover affects summer heat, and return a screened reading list.",
+          "language": "en",
+          "category": "source-discovery",
+          "expectedSkills": [
+            "source-scout"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-02",
+          "prompt": "도시의 나무 그늘이 여름철 열섬을 줄이는지 다룬 최신 동료평가 연구를 찾아서, 관련성이 높은 읽을거리 목록으로 정리해 줘.",
+          "language": "ko",
+          "category": "source-discovery-paraphrase",
+          "expectedSkills": [
+            "source-scout"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-03",
+          "prompt": "Across these six study abstracts, identify the main consensus, points of disagreement, limitations, and unanswered questions.",
+          "language": "en",
+          "category": "literature-synthesis",
+          "expectedSkills": [
+            "literature-synthesizer"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-04",
+          "prompt": "제공한 여섯 편의 초록을 비교해서 공통 결론, 서로 다른 결과, 한계, 아직 답하지 못한 질문을 종합해 줘.",
+          "language": "ko",
+          "category": "literature-synthesis-paraphrase",
+          "expectedSkills": [
+            "literature-synthesizer"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-05",
+          "prompt": "이 문장의 사실 여부를 확인하고, if it is supported, format the supporting references in APA style.",
+          "language": "mixed",
+          "category": "verification-and-citation-overlap",
+          "expectedSkills": [
+            "claim-verifier",
+            "citation-formatter"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-06",
+          "prompt": "신입 교사가 첫 학기에 겪는 어려움을 알아보기 위한 30분 인터뷰 가이드를 만들어 줘. 유도 질문은 피하고 후속 질문도 넣어 줘.",
+          "language": "ko",
+          "category": "qualitative-research-design",
+          "expectedSkills": [
+            "interview-guide-designer"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-07",
+          "prompt": "Build a small codebook for these interview transcripts, tag the excerpts, and summarize the recurring themes.",
+          "language": "en",
+          "category": "qualitative-coding",
+          "expectedSkills": [
+            "qualitative-coder"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-08",
+          "prompt": "Map the 관계 between food access, public transit, household time, and neighborhood retail; label causes, mediators, and outcomes.",
+          "language": "mixed",
+          "category": "conceptual-mapping",
+          "expectedSkills": [
+            "concept-mapper"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-09",
+          "prompt": "Create a creative brief for a public-library membership campaign aimed at first-time adult visitors, including tone, key message, constraints, and deliverables.",
+          "language": "en",
+          "category": "creative-briefing",
+          "expectedSkills": [
+            "creative-brief-builder"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-10",
+          "prompt": "이 에세이 초안은 중간에 같은 이야기가 반복돼. 핵심 장면은 유지하면서 도입, 전환, 결말의 흐름이 분명한 아웃라인으로 다시 짜 줘.",
+          "language": "ko",
+          "category": "narrative-structure",
+          "expectedSkills": [
+            "narrative-outline-editor"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-11",
+          "prompt": "Localize this English museum newsletter into 자연스러운 한국어, keeping the warm but professional tone and the original headings.",
+          "language": "mixed",
+          "category": "bilingual-localization",
+          "expectedSkills": [
+            "bilingual-localizer"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-positive-12",
+          "prompt": "Locate credible public evidence about community gardens and social connection, then synthesize the recurring findings and research gaps.",
+          "language": "en",
+          "category": "discovery-synthesis-overlap",
+          "expectedSkills": [
+            "source-scout",
+            "literature-synthesizer"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "brc-no-match-01",
+          "prompt": "What will the weather be tomorrow afternoon in Busan?",
+          "language": "en",
+          "category": "no-match-weather",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "brc-no-match-02",
+          "prompt": "내 온라인 쇼핑 계정의 비밀번호를 재설정해 줘.",
+          "language": "ko",
+          "category": "no-match-account-action",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "brc-no-match-03",
+          "prompt": "Write a SQL migration that adds a unique index without locking a large production table.",
+          "language": "en",
+          "category": "no-match-software-engineering",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "brc-no-match-04",
+          "prompt": "다음 주 금요일 서울에서 대전으로 가는 기차표를 예약해 줘.",
+          "language": "ko",
+          "category": "no-match-travel-booking",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        }
+      ]
+    },
+    {
+      "id": "sparse-operations-reliability-tools",
+      "description": "A fictional catalog of narrow, distinct tools for service operations, incident response, and reliability planning.",
+      "skills": [
+        {
+          "name": "incident-triage",
+          "description": "Classifies a live service incident by impact, urgency, likely ownership, and the safest immediate checks.",
+          "aliases": [
+            "incident intake",
+            "장애 초기 분류"
+          ],
+          "capabilities": [
+            "assess incident severity",
+            "identify likely service owner",
+            "prioritize immediate checks"
+          ],
+          "phases": [
+            "detection",
+            "initial response"
+          ]
+        },
+        {
+          "name": "runbook-author",
+          "description": "Creates an executable operational procedure with prerequisites, ordered actions, validation, rollback, and escalation.",
+          "aliases": [
+            "procedure writer",
+            "운영 절차 작성"
+          ],
+          "capabilities": [
+            "write ordered procedures",
+            "define rollback steps",
+            "add validation and escalation gates"
+          ],
+          "phases": [
+            "preparation",
+            "operations"
+          ]
+        },
+        {
+          "name": "service-level-review",
+          "description": "Reviews service-level indicators and objectives to explain compliance, error-budget use, and measurement gaps.",
+          "aliases": [
+            "SLO review",
+            "서비스 수준 점검"
+          ],
+          "capabilities": [
+            "evaluate SLO compliance",
+            "analyze error-budget use",
+            "identify indicator gaps"
+          ],
+          "phases": [
+            "measurement",
+            "governance"
+          ]
+        },
+        {
+          "name": "log-pattern-analyzer",
+          "description": "Examines supplied logs to group recurring signatures, correlate timing, and isolate useful diagnostic patterns.",
+          "aliases": [
+            "log signature finder",
+            "로그 패턴 분석"
+          ],
+          "capabilities": [
+            "cluster log signatures",
+            "correlate event timing",
+            "surface anomalous sequences"
+          ],
+          "phases": [
+            "diagnosis",
+            "analysis"
+          ]
+        },
+        {
+          "name": "capacity-forecaster",
+          "description": "Projects resource demand from observed growth and headroom assumptions, with explicit uncertainty and trigger points.",
+          "aliases": [
+            "capacity planner",
+            "용량 예측"
+          ],
+          "capabilities": [
+            "project resource demand",
+            "estimate exhaustion dates",
+            "define scaling triggers"
+          ],
+          "phases": [
+            "forecasting",
+            "planning"
+          ]
+        },
+        {
+          "name": "change-risk-assessor",
+          "description": "Assesses an operational change for blast radius, hidden dependencies, rollback readiness, and release safeguards.",
+          "aliases": [
+            "deployment risk review",
+            "변경 위험 평가"
+          ],
+          "capabilities": [
+            "estimate blast radius",
+            "inspect rollback readiness",
+            "recommend release safeguards"
+          ],
+          "phases": [
+            "change review",
+            "pre-deployment"
+          ]
+        },
+        {
+          "name": "backup-restore-planner",
+          "description": "Designs backup and restore exercises around recovery objectives, integrity checks, access controls, and evidence.",
+          "aliases": [
+            "restore drill planner",
+            "백업 복구 계획"
+          ],
+          "capabilities": [
+            "define restore drills",
+            "map recovery objectives",
+            "specify integrity validation"
+          ],
+          "phases": [
+            "resilience planning",
+            "recovery testing"
+          ]
+        },
+        {
+          "name": "dependency-health-checker",
+          "description": "Reviews the operational health of upstream and downstream dependencies using ownership, freshness, failure, and fallback signals.",
+          "aliases": [
+            "dependency review",
+            "의존성 상태 점검"
+          ],
+          "capabilities": [
+            "inventory service dependencies",
+            "assess fallback coverage",
+            "flag unhealthy dependency signals"
+          ],
+          "phases": [
+            "service review",
+            "risk monitoring"
+          ]
+        },
+        {
+          "name": "postmortem-facilitator",
+          "description": "Structures a blameless incident review around timeline, contributing conditions, detection gaps, and owned follow-ups.",
+          "aliases": [
+            "incident review guide",
+            "장애 회고 진행"
+          ],
+          "capabilities": [
+            "reconstruct incident timelines",
+            "separate causes from conditions",
+            "formulate owned follow-ups"
+          ],
+          "phases": [
+            "incident review",
+            "learning"
+          ]
+        },
+        {
+          "name": "oncall-handoff-builder",
+          "description": "Builds a concise shift handoff containing active risks, recent changes, pending actions, owners, and escalation context.",
+          "aliases": [
+            "shift handoff",
+            "온콜 인수인계"
+          ],
+          "capabilities": [
+            "summarize active operational risks",
+            "track pending actions and owners",
+            "preserve escalation context"
+          ],
+          "phases": [
+            "shift transition",
+            "continuity"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "id": "sor-positive-01",
+          "prompt": "The checkout API error rate doubled right after a release. Classify the severity, likely owner, and safest immediate checks.",
+          "language": "en",
+          "category": "incident-triage",
+          "expectedSkills": [
+            "incident-triage"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-02",
+          "prompt": "배포 직후 결제 API 오류율이 두 배가 됐어. 영향도와 긴급도를 분류하고 담당 팀과 즉시 확인할 항목을 정리해 줘.",
+          "language": "ko",
+          "category": "incident-triage-paraphrase",
+          "expectedSkills": [
+            "incident-triage"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-03",
+          "prompt": "반복되는 cache failover 대응을 위한 runbook을 써 줘. 사전 조건, 단계별 조치, 검증, rollback, escalation을 포함해.",
+          "language": "mixed",
+          "category": "runbook-authoring",
+          "expectedSkills": [
+            "runbook-author"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-04",
+          "prompt": "Review this quarter's latency and availability indicators against their objectives, including error-budget consumption and missing measurements.",
+          "language": "en",
+          "category": "service-level-review",
+          "expectedSkills": [
+            "service-level-review"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-05",
+          "prompt": "제공한 로그에서 반복되는 오류 서명을 묶고, 시간대별 상관관계와 비정상 이벤트 순서를 찾아 줘.",
+          "language": "ko",
+          "category": "log-analysis",
+          "expectedSkills": [
+            "log-pattern-analyzer"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-06",
+          "prompt": "Traffic is growing 7 percent monthly and current storage headroom is 32 percent. Forecast the likely exhaustion window and define scaling triggers.",
+          "language": "en",
+          "category": "capacity-forecasting",
+          "expectedSkills": [
+            "capacity-forecaster"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-07",
+          "prompt": "Assess this database engine upgrade for blast radius, hidden dependencies, rollback readiness, and safe rollout controls before 승인.",
+          "language": "mixed",
+          "category": "change-risk",
+          "expectedSkills": [
+            "change-risk-assessor"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-08",
+          "prompt": "복구 목표를 실제로 검증할 수 있도록 백업 복원 훈련 계획을 만들어 줘. 무결성 확인, 권한, 증적 수집도 포함해.",
+          "language": "ko",
+          "category": "backup-restore",
+          "expectedSkills": [
+            "backup-restore-planner"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-09",
+          "prompt": "Audit the operational health of our payment provider, message queue, and identity service, including owners, failure signals, and fallback coverage.",
+          "language": "en",
+          "category": "dependency-health",
+          "expectedSkills": [
+            "dependency-health-checker"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-10",
+          "prompt": "어제 발생한 검색 장애의 비난 없는 회고를 진행할 수 있게 타임라인, 기여 조건, 탐지 공백, 담당자가 있는 후속 조치 틀을 만들어 줘.",
+          "language": "ko",
+          "category": "postmortem",
+          "expectedSkills": [
+            "postmortem-facilitator"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-11",
+          "prompt": "Build an 온콜 handoff for the next shift with active risks, today's changes, pending actions, owners, and escalation context.",
+          "language": "mixed",
+          "category": "oncall-handoff",
+          "expectedSkills": [
+            "oncall-handoff-builder"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-positive-12",
+          "prompt": "Use these log excerpts to isolate the dominant failure signature, then triage the incident's severity, likely owner, and next safe check.",
+          "language": "en",
+          "category": "log-triage-overlap",
+          "expectedSkills": [
+            "log-pattern-analyzer",
+            "incident-triage"
+          ],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sor-no-match-01",
+          "prompt": "Design a playful logo for a neighborhood bakery.",
+          "language": "en",
+          "category": "no-match-graphic-design",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "sor-no-match-02",
+          "prompt": "이 짧은 시를 영어로 번역하되 운율을 살려 줘.",
+          "language": "ko",
+          "category": "no-match-literary-translation",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "sor-no-match-03",
+          "prompt": "Calculate the monthly payment for a fixed-rate home loan from the amount, rate, and term.",
+          "language": "en",
+          "category": "no-match-finance-calculation",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "sor-no-match-04",
+          "prompt": "오늘 저녁에 갈 만한 조용한 채식 식당을 추천해 줘.",
+          "language": "ko",
+          "category": "no-match-local-recommendation",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        }
+      ]
+    }
+  ]
+}

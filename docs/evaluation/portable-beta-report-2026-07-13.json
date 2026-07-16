@@ -1,0 +1,5626 @@
+{
+  "schema": "lazy-skill-router.portable-beta-report/v1",
+  "suiteId": "portable-opt-in-beta-2026-07-13",
+  "generatedAt": "2026-07-13T08:30:23.466317Z",
+  "manifestRevision": "sha256:5f87e73f04040fb4bf9f918d09f785147b62d4995838c07e18c39d7b9fed5057",
+  "algorithm": "lexical-bm25-char3-anchored/v2",
+  "retrievalImplementationRevision": "sha256:18fb5cd91ca2d3e10ca8b49ca438ad3b2139152ba34f31c17d636b5892804f46",
+  "evaluationImplementationRevision": "sha256:e43b23714146e474816694a22091b00ddc358f5d46b5bd14d07f21239aef44a7",
+  "fixtureRevisions": [
+    {
+      "authorId": "isolated-a",
+      "revision": "sha256:e1d70e8a9783f9a4210e9fd72b391860a7e261bb76504af903766d91615c668f"
+    },
+    {
+      "authorId": "isolated-b",
+      "revision": "sha256:8228d0b417ee11020c2ac23e9179daad307809a4fbed897c20351e4cba53636c"
+    }
+  ],
+  "coverage": {
+    "authors": 2,
+    "catalogs": 4,
+    "scenarios": 7,
+    "cases": 64,
+    "positiveCases": 48,
+    "noSkillCases": 16,
+    "languages": [
+      "en",
+      "ko",
+      "mixed"
+    ],
+    "evaluations": 192
+  },
+  "scenarios": [
+    {
+      "id": "isolated-general-productivity-10",
+      "catalogs": [
+        "fictional-general-productivity"
+      ],
+      "skillCount": 10,
+      "caseCount": 16,
+      "inventoryRevision": "sha256:79c7dee72e7770268ff9cd9ed35a97ee67d24a16134b8f6cc718e880c0c543b9",
+      "indexRevision": "sha256:4ae9a51e5eae1a3917476e333593b9a688e628b7f2165526452a12b96f31988a"
+    },
+    {
+      "id": "isolated-software-development-10",
+      "catalogs": [
+        "fictional-overlap-software-development"
+      ],
+      "skillCount": 10,
+      "caseCount": 16,
+      "inventoryRevision": "sha256:0c7191a1a2af3d04ae9b69af52cf277c5979044d77d2c46aa5d50136a1f0f999",
+      "indexRevision": "sha256:4bd670a986f01bd8b149738dd443e235ff4e3b9b4ea84351564b0c9d4faa04d7"
+    },
+    {
+      "id": "isolated-research-creative-10",
+      "catalogs": [
+        "bilingual-research-creative-tools"
+      ],
+      "skillCount": 10,
+      "caseCount": 16,
+      "inventoryRevision": "sha256:d9b9a4f7f0f97f5db8fce67bd2c974e9cb196b3cd14c9cc7e64ae26d2694d3c3",
+      "indexRevision": "sha256:5c5cd3c996dca75b28b122ec5f6f52edbb5ac5794dee12e3f25327625c285ac1"
+    },
+    {
+      "id": "isolated-operations-reliability-10",
+      "catalogs": [
+        "sparse-operations-reliability-tools"
+      ],
+      "skillCount": 10,
+      "caseCount": 16,
+      "inventoryRevision": "sha256:b5de838644b34f28c82f0c42f6b3e098d8cd87b9d9f8584fce6de18a02adaff7",
+      "indexRevision": "sha256:ac543ac89e53be609693fc2aec288f8871ed7b225b957294a0bf396064397b93"
+    },
+    {
+      "id": "author-a-composite-20",
+      "catalogs": [
+        "fictional-general-productivity",
+        "fictional-overlap-software-development"
+      ],
+      "skillCount": 20,
+      "caseCount": 32,
+      "inventoryRevision": "sha256:a951152fdfc5f267d0d9501d25aa0cdc3f16ace37dc9aadfacd4d38db833a5d8",
+      "indexRevision": "sha256:7d03a7f53d9512cb2a91a9dd4a8b32814a24e74fb1bffc5e0ff47b0464b364fe"
+    },
+    {
+      "id": "author-b-composite-20",
+      "catalogs": [
+        "bilingual-research-creative-tools",
+        "sparse-operations-reliability-tools"
+      ],
+      "skillCount": 20,
+      "caseCount": 32,
+      "inventoryRevision": "sha256:7fb8e68d7dad1b2658ed51de257d5cd8dcf1853e7873fa43b5195347dd8d8b7e",
+      "indexRevision": "sha256:0ffc68b08e26ac9f95eb1216d85ae88a20577d081f44f69fb598844d2ec9f6af"
+    },
+    {
+      "id": "all-catalogs-composite-40",
+      "catalogs": [
+        "fictional-general-productivity",
+        "fictional-overlap-software-development",
+        "bilingual-research-creative-tools",
+        "sparse-operations-reliability-tools"
+      ],
+      "skillCount": 40,
+      "caseCount": 64,
+      "inventoryRevision": "sha256:4bb2dd94e74dae6d5265ea879831d1a0871435b32dedb57ec1307336915139f2",
+      "indexRevision": "sha256:eec9c27a504337e4889a69d7a2307ce63b450255076f0707362b00121935dba3"
+    }
+  ],
+  "metrics": {
+    "evaluations": 192,
+    "positive": 144,
+    "noSkill": 48,
+    "positiveRecallAt3": {
+      "passed": 111,
+      "total": 144,
+      "rate": 0.770833
+    },
+    "positiveTop1": {
+      "passed": 110,
+      "total": 144,
+      "rate": 0.763889
+    },
+    "noSkillNoMatch": {
+      "passed": 36,
+      "total": 48,
+      "rate": 0.75
+    },
+    "degradedCases": 0,
+    "ineligibleCandidates": 0,
+    "latency": {
+      "p50Ms": 1.7258,
+      "p95Ms": 3.6524,
+      "p99Ms": 4.0829
+    }
+  },
+  "slices": {
+    "scenario": {
+      "all-catalogs-composite-40": {
+        "evaluations": 64,
+        "positive": 48,
+        "noSkill": 16,
+        "positiveRecallAt3": {
+          "passed": 37,
+          "total": 48,
+          "rate": 0.770833
+        },
+        "positiveTop1": {
+          "passed": 36,
+          "total": 48,
+          "rate": 0.75
+        },
+        "noSkillNoMatch": {
+          "passed": 10,
+          "total": 16,
+          "rate": 0.625
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "author-a-composite-20": {
+        "evaluations": 32,
+        "positive": 24,
+        "noSkill": 8,
+        "positiveRecallAt3": {
+          "passed": 20,
+          "total": 24,
+          "rate": 0.833333
+        },
+        "positiveTop1": {
+          "passed": 20,
+          "total": 24,
+          "rate": 0.833333
+        },
+        "noSkillNoMatch": {
+          "passed": 6,
+          "total": 8,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "author-b-composite-20": {
+        "evaluations": 32,
+        "positive": 24,
+        "noSkill": 8,
+        "positiveRecallAt3": {
+          "passed": 17,
+          "total": 24,
+          "rate": 0.708333
+        },
+        "positiveTop1": {
+          "passed": 17,
+          "total": 24,
+          "rate": 0.708333
+        },
+        "noSkillNoMatch": {
+          "passed": 6,
+          "total": 8,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "isolated-general-productivity-10": {
+        "evaluations": 16,
+        "positive": 12,
+        "noSkill": 4,
+        "positiveRecallAt3": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "positiveTop1": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 4,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "isolated-operations-reliability-10": {
+        "evaluations": 16,
+        "positive": 12,
+        "noSkill": 4,
+        "positiveRecallAt3": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "positiveTop1": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "noSkillNoMatch": {
+          "passed": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "isolated-research-creative-10": {
+        "evaluations": 16,
+        "positive": 12,
+        "noSkill": 4,
+        "positiveRecallAt3": {
+          "passed": 8,
+          "total": 12,
+          "rate": 0.666667
+        },
+        "positiveTop1": {
+          "passed": 8,
+          "total": 12,
+          "rate": 0.666667
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 4,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "isolated-software-development-10": {
+        "evaluations": 16,
+        "positive": 12,
+        "noSkill": 4,
+        "positiveRecallAt3": {
+          "passed": 11,
+          "total": 12,
+          "rate": 0.916667
+        },
+        "positiveTop1": {
+          "passed": 11,
+          "total": 12,
+          "rate": 0.916667
+        },
+        "noSkillNoMatch": {
+          "passed": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      }
+    },
+    "catalog": {
+      "bilingual-research-creative-tools": {
+        "evaluations": 48,
+        "positive": 36,
+        "noSkill": 12,
+        "positiveRecallAt3": {
+          "passed": 24,
+          "total": 36,
+          "rate": 0.666667
+        },
+        "positiveTop1": {
+          "passed": 24,
+          "total": 36,
+          "rate": 0.666667
+        },
+        "noSkillNoMatch": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "fictional-general-productivity": {
+        "evaluations": 48,
+        "positive": 36,
+        "noSkill": 12,
+        "positiveRecallAt3": {
+          "passed": 27,
+          "total": 36,
+          "rate": 0.75
+        },
+        "positiveTop1": {
+          "passed": 27,
+          "total": 36,
+          "rate": 0.75
+        },
+        "noSkillNoMatch": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "fictional-overlap-software-development": {
+        "evaluations": 48,
+        "positive": 36,
+        "noSkill": 12,
+        "positiveRecallAt3": {
+          "passed": 33,
+          "total": 36,
+          "rate": 0.916667
+        },
+        "positiveTop1": {
+          "passed": 32,
+          "total": 36,
+          "rate": 0.888889
+        },
+        "noSkillNoMatch": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "sparse-operations-reliability-tools": {
+        "evaluations": 48,
+        "positive": 36,
+        "noSkill": 12,
+        "positiveRecallAt3": {
+          "passed": 27,
+          "total": 36,
+          "rate": 0.75
+        },
+        "positiveTop1": {
+          "passed": 27,
+          "total": 36,
+          "rate": 0.75
+        },
+        "noSkillNoMatch": {
+          "passed": 9,
+          "total": 12,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      }
+    },
+    "language": {
+      "en": {
+        "evaluations": 90,
+        "positive": 66,
+        "noSkill": 24,
+        "positiveRecallAt3": {
+          "passed": 63,
+          "total": 66,
+          "rate": 0.954545
+        },
+        "positiveTop1": {
+          "passed": 63,
+          "total": 66,
+          "rate": 0.954545
+        },
+        "noSkillNoMatch": {
+          "passed": 13,
+          "total": 24,
+          "rate": 0.541667
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "ko": {
+        "evaluations": 69,
+        "positive": 45,
+        "noSkill": 24,
+        "positiveRecallAt3": {
+          "passed": 15,
+          "total": 45,
+          "rate": 0.333333
+        },
+        "positiveTop1": {
+          "passed": 14,
+          "total": 45,
+          "rate": 0.311111
+        },
+        "noSkillNoMatch": {
+          "passed": 23,
+          "total": 24,
+          "rate": 0.958333
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "mixed": {
+        "evaluations": 33,
+        "positive": 33,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 33,
+          "total": 33,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 33,
+          "total": 33,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      }
+    },
+    "category": {
+      "backup-restore": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "bilingual-localization": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "capacity-forecasting": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "change-risk": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "conceptual-mapping": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "constraint-paraphrase": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "contract-compatibility": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "creative-briefing": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "dependency-health": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "dependency-transition": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 2,
+          "total": 3,
+          "rate": 0.666667
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "direct-planning": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "discovery-synthesis-overlap": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "document-digest": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "documentation-alignment": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "failure-diagnosis": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "financial-organization": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "focused-execution": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "incident-triage": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "incident-triage-paraphrase": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "korean-paraphrase": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "literature-synthesis": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "literature-synthesis-paraphrase": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "log-analysis": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "log-triage-overlap": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "mixed-language-routine": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "narrative-structure": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-account-action": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-finance-calculation": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-graphic-design": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 1,
+          "total": 3,
+          "rate": 0.333333
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-literary-translation": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-local-recommendation": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 2,
+          "total": 3,
+          "rate": 0.666667
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-software-engineering": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-travel-booking": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "no-match-weather": {
+        "evaluations": 3,
+        "positive": 0,
+        "noSkill": 3,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "oncall-handoff": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "organization-paraphrase": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "overlap-contract-schema": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "overlap-multi-skill": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "overlap-organization-summary": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "overlap-upgrade-performance": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "performance-specialist": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "postmortem": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "qualitative-coding": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "qualitative-research-design": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "refactor-boundaries": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "release-readiness": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "runbook-authoring": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "schema-specialist": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "security-specialist": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "service-level-review": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "source-discovery": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "source-discovery-paraphrase": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "specialist-briefing": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "specialist-checklist": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "test-specialist": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "true-no-skill": {
+        "evaluations": 24,
+        "positive": 0,
+        "noSkill": 24,
+        "positiveRecallAt3": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "positiveTop1": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "noSkillNoMatch": {
+          "passed": 18,
+          "total": 24,
+          "rate": 0.75
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      },
+      "verification-and-citation-overlap": {
+        "evaluations": 3,
+        "positive": 3,
+        "noSkill": 0,
+        "positiveRecallAt3": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "positiveTop1": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "noSkillNoMatch": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "degradedCases": 0,
+        "ineligibleCandidates": 0
+      }
+    }
+  },
+  "cases": [
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-01",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "direct-planning",
+      "expectedSkills": [
+        "daily-agenda-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder",
+        "weekly-meal-outline",
+        "document-keypoint-digest"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-02",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "korean-paraphrase",
+      "expectedSkills": [
+        "inbox-action-sorter"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-03",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "specialist-briefing",
+      "expectedSkills": [
+        "meeting-context-brief"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "meeting-context-brief"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-04",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "organization-paraphrase",
+      "expectedSkills": [
+        "note-collection-organizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "meeting-context-brief"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-05",
+      "catalogId": "fictional-general-productivity",
+      "language": "mixed",
+      "category": "mixed-language-routine",
+      "expectedSkills": [
+        "habit-routine-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "habit-routine-designer",
+        "daily-agenda-builder",
+        "spending-snapshot-maker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-06",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "specialist-checklist",
+      "expectedSkills": [
+        "trip-preparation-checklist"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "trip-preparation-checklist",
+        "focus-session-coach"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-07",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "constraint-paraphrase",
+      "expectedSkills": [
+        "weekly-meal-outline"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-08",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "financial-organization",
+      "expectedSkills": [
+        "spending-snapshot-maker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "spending-snapshot-maker",
+        "note-collection-organizer",
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-09",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "focused-execution",
+      "expectedSkills": [
+        "focus-session-coach"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-10",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "document-digest",
+      "expectedSkills": [
+        "document-keypoint-digest"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "document-keypoint-digest",
+        "note-collection-organizer",
+        "inbox-action-sorter"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-11",
+      "catalogId": "fictional-general-productivity",
+      "language": "mixed",
+      "category": "overlap-multi-skill",
+      "expectedSkills": [
+        "daily-agenda-builder",
+        "focus-session-coach"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach",
+        "daily-agenda-builder",
+        "weekly-meal-outline"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-12",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "overlap-organization-summary",
+      "expectedSkills": [
+        "note-collection-organizer",
+        "document-keypoint-digest"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "note-collection-organizer",
+        "document-keypoint-digest",
+        "habit-routine-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-13",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-14",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-15",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "inbox-action-sorter",
+        "spending-snapshot-maker",
+        "note-collection-organizer"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-general-productivity-10",
+      "id": "gp-16",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-01",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "failure-diagnosis",
+      "expectedSkills": [
+        "failure-trace-investigator"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "failure-trace-investigator",
+        "runtime-bottleneck-profiler",
+        "behavior-test-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-02",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "test-specialist",
+      "expectedSkills": [
+        "behavior-test-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "behavior-test-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-03",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "contract-compatibility",
+      "expectedSkills": [
+        "interface-contract-auditor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interface-contract-auditor",
+        "trust-boundary-reviewer",
+        "schema-change-safety-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-04",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "schema-specialist",
+      "expectedSkills": [
+        "schema-change-safety-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "schema-change-safety-planner",
+        "dependency-transition-planner",
+        "release-evidence-checker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-05",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "performance-specialist",
+      "expectedSkills": [
+        "runtime-bottleneck-profiler"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runtime-bottleneck-profiler",
+        "schema-change-safety-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-06",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "dependency-transition",
+      "expectedSkills": [
+        "dependency-transition-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-07",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "refactor-boundaries",
+      "expectedSkills": [
+        "code-boundary-refactorer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "code-boundary-refactorer",
+        "interface-contract-auditor",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-08",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "release-readiness",
+      "expectedSkills": [
+        "release-evidence-checker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "release-evidence-checker",
+        "schema-change-safety-planner",
+        "change-documentation-aligner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-09",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "security-specialist",
+      "expectedSkills": [
+        "trust-boundary-reviewer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "trust-boundary-reviewer",
+        "interface-contract-auditor",
+        "change-documentation-aligner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-10",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "documentation-alignment",
+      "expectedSkills": [
+        "change-documentation-aligner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "release-evidence-checker",
+        "interface-contract-auditor"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-11",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "overlap-contract-schema",
+      "expectedSkills": [
+        "interface-contract-auditor",
+        "schema-change-safety-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "schema-change-safety-planner",
+        "interface-contract-auditor",
+        "code-boundary-refactorer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-12",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "overlap-upgrade-performance",
+      "expectedSkills": [
+        "dependency-transition-planner",
+        "runtime-bottleneck-profiler"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runtime-bottleneck-profiler",
+        "dependency-transition-planner",
+        "interface-contract-auditor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-13",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-14",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-15",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-software-development-10",
+      "id": "sd-16",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-01",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "source-discovery",
+      "expectedSkills": [
+        "source-scout"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-02",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "source-discovery-paraphrase",
+      "expectedSkills": [
+        "source-scout"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-03",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "literature-synthesis",
+      "expectedSkills": [
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "concept-mapper",
+        "bilingual-localizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-04",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "literature-synthesis-paraphrase",
+      "expectedSkills": [
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-05",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "verification-and-citation-overlap",
+      "expectedSkills": [
+        "claim-verifier",
+        "citation-formatter"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "citation-formatter",
+        "claim-verifier",
+        "qualitative-coder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-06",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "qualitative-research-design",
+      "expectedSkills": [
+        "interview-guide-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-07",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "qualitative-coding",
+      "expectedSkills": [
+        "qualitative-coder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "qualitative-coder",
+        "literature-synthesizer",
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-08",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "conceptual-mapping",
+      "expectedSkills": [
+        "concept-mapper"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "concept-mapper",
+        "source-scout",
+        "narrative-outline-editor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-09",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "creative-briefing",
+      "expectedSkills": [
+        "creative-brief-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "creative-brief-builder",
+        "concept-mapper",
+        "bilingual-localizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-10",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "narrative-structure",
+      "expectedSkills": [
+        "narrative-outline-editor"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-11",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "bilingual-localization",
+      "expectedSkills": [
+        "bilingual-localizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "bilingual-localizer",
+        "citation-formatter",
+        "creative-brief-builder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-positive-12",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "discovery-synthesis-overlap",
+      "expectedSkills": [
+        "source-scout",
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "source-scout",
+        "qualitative-coder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-no-match-01",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "no-match-weather",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-no-match-02",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "no-match-account-action",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-no-match-03",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "no-match-software-engineering",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "citation-formatter"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-research-creative-10",
+      "id": "brc-no-match-04",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "no-match-travel-booking",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-01",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "incident-triage",
+      "expectedSkills": [
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "incident-triage"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-02",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "incident-triage-paraphrase",
+      "expectedSkills": [
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-03",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "runbook-authoring",
+      "expectedSkills": [
+        "runbook-author"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runbook-author",
+        "oncall-handoff-builder",
+        "change-risk-assessor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-04",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "service-level-review",
+      "expectedSkills": [
+        "service-level-review"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "service-level-review",
+        "postmortem-facilitator",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-05",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "log-analysis",
+      "expectedSkills": [
+        "log-pattern-analyzer"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-06",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "capacity-forecasting",
+      "expectedSkills": [
+        "capacity-forecaster"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "capacity-forecaster",
+        "incident-triage",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-07",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "change-risk",
+      "expectedSkills": [
+        "change-risk-assessor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "change-risk-assessor",
+        "dependency-health-checker",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-08",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "backup-restore",
+      "expectedSkills": [
+        "backup-restore-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-09",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "dependency-health",
+      "expectedSkills": [
+        "dependency-health-checker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "dependency-health-checker",
+        "oncall-handoff-builder",
+        "incident-triage"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-10",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "postmortem",
+      "expectedSkills": [
+        "postmortem-facilitator"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-11",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "oncall-handoff",
+      "expectedSkills": [
+        "oncall-handoff-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "oncall-handoff-builder",
+        "runbook-author",
+        "change-risk-assessor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-positive-12",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "log-triage-overlap",
+      "expectedSkills": [
+        "log-pattern-analyzer",
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "incident-triage",
+        "log-pattern-analyzer",
+        "dependency-health-checker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-no-match-01",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "no-match-graphic-design",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-no-match-02",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "no-match-literary-translation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-no-match-03",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "no-match-finance-calculation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "isolated-operations-reliability-10",
+      "id": "sor-no-match-04",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "no-match-local-recommendation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-01",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "direct-planning",
+      "expectedSkills": [
+        "daily-agenda-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder",
+        "document-keypoint-digest",
+        "weekly-meal-outline"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-02",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "korean-paraphrase",
+      "expectedSkills": [
+        "inbox-action-sorter"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-03",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "specialist-briefing",
+      "expectedSkills": [
+        "meeting-context-brief"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "meeting-context-brief"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-04",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "organization-paraphrase",
+      "expectedSkills": [
+        "note-collection-organizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "meeting-context-brief"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-05",
+      "catalogId": "fictional-general-productivity",
+      "language": "mixed",
+      "category": "mixed-language-routine",
+      "expectedSkills": [
+        "habit-routine-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "habit-routine-designer",
+        "daily-agenda-builder",
+        "release-evidence-checker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-06",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "specialist-checklist",
+      "expectedSkills": [
+        "trip-preparation-checklist"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "trip-preparation-checklist",
+        "focus-session-coach",
+        "release-evidence-checker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-07",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "constraint-paraphrase",
+      "expectedSkills": [
+        "weekly-meal-outline"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-08",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "financial-organization",
+      "expectedSkills": [
+        "spending-snapshot-maker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "spending-snapshot-maker",
+        "note-collection-organizer",
+        "inbox-action-sorter"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-09",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "focused-execution",
+      "expectedSkills": [
+        "focus-session-coach"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-10",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "document-digest",
+      "expectedSkills": [
+        "document-keypoint-digest"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "document-keypoint-digest",
+        "note-collection-organizer",
+        "inbox-action-sorter"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-11",
+      "catalogId": "fictional-general-productivity",
+      "language": "mixed",
+      "category": "overlap-multi-skill",
+      "expectedSkills": [
+        "daily-agenda-builder",
+        "focus-session-coach"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach",
+        "daily-agenda-builder",
+        "runtime-bottleneck-profiler"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-12",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "overlap-organization-summary",
+      "expectedSkills": [
+        "note-collection-organizer",
+        "document-keypoint-digest"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "note-collection-organizer",
+        "document-keypoint-digest",
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-13",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-14",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-15",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "inbox-action-sorter",
+        "spending-snapshot-maker",
+        "note-collection-organizer"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "gp-16",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-01",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "failure-diagnosis",
+      "expectedSkills": [
+        "failure-trace-investigator"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "failure-trace-investigator",
+        "habit-routine-designer",
+        "runtime-bottleneck-profiler"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-02",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "test-specialist",
+      "expectedSkills": [
+        "behavior-test-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "behavior-test-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-03",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "contract-compatibility",
+      "expectedSkills": [
+        "interface-contract-auditor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interface-contract-auditor",
+        "schema-change-safety-planner",
+        "trust-boundary-reviewer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-04",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "schema-specialist",
+      "expectedSkills": [
+        "schema-change-safety-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "schema-change-safety-planner",
+        "dependency-transition-planner",
+        "note-collection-organizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-05",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "performance-specialist",
+      "expectedSkills": [
+        "runtime-bottleneck-profiler"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runtime-bottleneck-profiler",
+        "schema-change-safety-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-06",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "dependency-transition",
+      "expectedSkills": [
+        "dependency-transition-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-07",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "refactor-boundaries",
+      "expectedSkills": [
+        "code-boundary-refactorer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "code-boundary-refactorer",
+        "dependency-transition-planner",
+        "interface-contract-auditor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-08",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "release-readiness",
+      "expectedSkills": [
+        "release-evidence-checker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "release-evidence-checker",
+        "trip-preparation-checklist",
+        "schema-change-safety-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-09",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "security-specialist",
+      "expectedSkills": [
+        "trust-boundary-reviewer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "trust-boundary-reviewer",
+        "change-documentation-aligner",
+        "interface-contract-auditor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-10",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "documentation-alignment",
+      "expectedSkills": [
+        "change-documentation-aligner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "release-evidence-checker",
+        "daily-agenda-builder",
+        "document-keypoint-digest"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-11",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "overlap-contract-schema",
+      "expectedSkills": [
+        "interface-contract-auditor",
+        "schema-change-safety-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "schema-change-safety-planner",
+        "interface-contract-auditor",
+        "code-boundary-refactorer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-12",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "overlap-upgrade-performance",
+      "expectedSkills": [
+        "dependency-transition-planner",
+        "runtime-bottleneck-profiler"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runtime-bottleneck-profiler",
+        "dependency-transition-planner",
+        "habit-routine-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-13",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-14",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-15",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "spending-snapshot-maker"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-a-composite-20",
+      "id": "sd-16",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-01",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "source-discovery",
+      "expectedSkills": [
+        "source-scout"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "oncall-handoff-builder"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-02",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "source-discovery-paraphrase",
+      "expectedSkills": [
+        "source-scout"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-03",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "literature-synthesis",
+      "expectedSkills": [
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "bilingual-localizer",
+        "concept-mapper"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-04",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "literature-synthesis-paraphrase",
+      "expectedSkills": [
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-05",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "verification-and-citation-overlap",
+      "expectedSkills": [
+        "claim-verifier",
+        "citation-formatter"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "citation-formatter",
+        "claim-verifier",
+        "postmortem-facilitator"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-06",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "qualitative-research-design",
+      "expectedSkills": [
+        "interview-guide-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-07",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "qualitative-coding",
+      "expectedSkills": [
+        "qualitative-coder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "qualitative-coder",
+        "literature-synthesizer",
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-08",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "conceptual-mapping",
+      "expectedSkills": [
+        "concept-mapper"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "concept-mapper",
+        "source-scout",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-09",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "creative-briefing",
+      "expectedSkills": [
+        "creative-brief-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "creative-brief-builder",
+        "concept-mapper",
+        "bilingual-localizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-10",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "narrative-structure",
+      "expectedSkills": [
+        "narrative-outline-editor"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-11",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "bilingual-localization",
+      "expectedSkills": [
+        "bilingual-localizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "bilingual-localizer",
+        "citation-formatter",
+        "creative-brief-builder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-positive-12",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "discovery-synthesis-overlap",
+      "expectedSkills": [
+        "source-scout",
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "source-scout",
+        "service-level-review"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-no-match-01",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "no-match-weather",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-no-match-02",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "no-match-account-action",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-no-match-03",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "no-match-software-engineering",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "runbook-author",
+        "citation-formatter"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "brc-no-match-04",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "no-match-travel-booking",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-01",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "incident-triage",
+      "expectedSkills": [
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "incident-triage"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-02",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "incident-triage-paraphrase",
+      "expectedSkills": [
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-03",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "runbook-authoring",
+      "expectedSkills": [
+        "runbook-author"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runbook-author",
+        "oncall-handoff-builder",
+        "change-risk-assessor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-04",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "service-level-review",
+      "expectedSkills": [
+        "service-level-review"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "service-level-review",
+        "claim-verifier",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-05",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "log-analysis",
+      "expectedSkills": [
+        "log-pattern-analyzer"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-06",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "capacity-forecasting",
+      "expectedSkills": [
+        "capacity-forecaster"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "capacity-forecaster",
+        "incident-triage",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-07",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "change-risk",
+      "expectedSkills": [
+        "change-risk-assessor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "change-risk-assessor",
+        "dependency-health-checker",
+        "runbook-author"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-08",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "backup-restore",
+      "expectedSkills": [
+        "backup-restore-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-09",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "dependency-health",
+      "expectedSkills": [
+        "dependency-health-checker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "dependency-health-checker",
+        "oncall-handoff-builder",
+        "incident-triage"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-10",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "postmortem",
+      "expectedSkills": [
+        "postmortem-facilitator"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-11",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "oncall-handoff",
+      "expectedSkills": [
+        "oncall-handoff-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "oncall-handoff-builder",
+        "runbook-author",
+        "change-risk-assessor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-positive-12",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "log-triage-overlap",
+      "expectedSkills": [
+        "log-pattern-analyzer",
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "incident-triage",
+        "log-pattern-analyzer",
+        "dependency-health-checker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-no-match-01",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "no-match-graphic-design",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-no-match-02",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "no-match-literary-translation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-no-match-03",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "no-match-finance-calculation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "author-b-composite-20",
+      "id": "sor-no-match-04",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "no-match-local-recommendation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-01",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "direct-planning",
+      "expectedSkills": [
+        "daily-agenda-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder",
+        "weekly-meal-outline",
+        "document-keypoint-digest"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-02",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "korean-paraphrase",
+      "expectedSkills": [
+        "inbox-action-sorter"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-03",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "specialist-briefing",
+      "expectedSkills": [
+        "meeting-context-brief"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "meeting-context-brief",
+        "creative-brief-builder",
+        "oncall-handoff-builder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-04",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "organization-paraphrase",
+      "expectedSkills": [
+        "note-collection-organizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "meeting-context-brief"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-05",
+      "catalogId": "fictional-general-productivity",
+      "language": "mixed",
+      "category": "mixed-language-routine",
+      "expectedSkills": [
+        "habit-routine-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "habit-routine-designer",
+        "daily-agenda-builder",
+        "change-risk-assessor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-06",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "specialist-checklist",
+      "expectedSkills": [
+        "trip-preparation-checklist"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "trip-preparation-checklist",
+        "focus-session-coach",
+        "release-evidence-checker"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-07",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "constraint-paraphrase",
+      "expectedSkills": [
+        "weekly-meal-outline"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-08",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "financial-organization",
+      "expectedSkills": [
+        "spending-snapshot-maker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "spending-snapshot-maker",
+        "note-collection-organizer",
+        "literature-synthesizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-09",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "focused-execution",
+      "expectedSkills": [
+        "focus-session-coach"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-10",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "document-digest",
+      "expectedSkills": [
+        "document-keypoint-digest"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "document-keypoint-digest",
+        "note-collection-organizer",
+        "capacity-forecaster"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-11",
+      "catalogId": "fictional-general-productivity",
+      "language": "mixed",
+      "category": "overlap-multi-skill",
+      "expectedSkills": [
+        "daily-agenda-builder",
+        "focus-session-coach"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach",
+        "daily-agenda-builder",
+        "runtime-bottleneck-profiler"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-12",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "overlap-organization-summary",
+      "expectedSkills": [
+        "note-collection-organizer",
+        "document-keypoint-digest"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "note-collection-organizer",
+        "document-keypoint-digest",
+        "habit-routine-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-13",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-14",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-15",
+      "catalogId": "fictional-general-productivity",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "inbox-action-sorter",
+        "spending-snapshot-maker"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "gp-16",
+      "catalogId": "fictional-general-productivity",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-01",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "failure-diagnosis",
+      "expectedSkills": [
+        "failure-trace-investigator"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "failure-trace-investigator",
+        "habit-routine-designer",
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-02",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "test-specialist",
+      "expectedSkills": [
+        "behavior-test-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "behavior-test-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-03",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "contract-compatibility",
+      "expectedSkills": [
+        "interface-contract-auditor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interface-contract-auditor",
+        "schema-change-safety-planner",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-04",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "schema-specialist",
+      "expectedSkills": [
+        "schema-change-safety-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "schema-change-safety-planner",
+        "runbook-author",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-05",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "performance-specialist",
+      "expectedSkills": [
+        "runtime-bottleneck-profiler"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runtime-bottleneck-profiler",
+        "schema-change-safety-planner",
+        "qualitative-coder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-06",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "dependency-transition",
+      "expectedSkills": [
+        "dependency-transition-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "claim-verifier",
+        "change-risk-assessor",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-07",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "refactor-boundaries",
+      "expectedSkills": [
+        "code-boundary-refactorer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "code-boundary-refactorer",
+        "behavior-test-designer",
+        "incident-triage"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-08",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "release-readiness",
+      "expectedSkills": [
+        "release-evidence-checker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "release-evidence-checker",
+        "trip-preparation-checklist",
+        "schema-change-safety-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-09",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "security-specialist",
+      "expectedSkills": [
+        "trust-boundary-reviewer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "trust-boundary-reviewer",
+        "postmortem-facilitator",
+        "service-level-review"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-10",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "documentation-alignment",
+      "expectedSkills": [
+        "change-documentation-aligner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "release-evidence-checker",
+        "change-risk-assessor",
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-11",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "overlap-contract-schema",
+      "expectedSkills": [
+        "interface-contract-auditor",
+        "schema-change-safety-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "schema-change-safety-planner",
+        "interface-contract-auditor",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-12",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "mixed",
+      "category": "overlap-upgrade-performance",
+      "expectedSkills": [
+        "dependency-transition-planner",
+        "runtime-bottleneck-profiler"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runtime-bottleneck-profiler",
+        "dependency-transition-planner",
+        "habit-routine-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-13",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "runbook-author"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-14",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-15",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "en",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "spending-snapshot-maker",
+        "service-level-review",
+        "dependency-health-checker"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sd-16",
+      "catalogId": "fictional-overlap-software-development",
+      "language": "ko",
+      "category": "true-no-skill",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-01",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "source-discovery",
+      "expectedSkills": [
+        "source-scout"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "focus-session-coach",
+        "oncall-handoff-builder",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-02",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "source-discovery-paraphrase",
+      "expectedSkills": [
+        "source-scout"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-03",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "literature-synthesis",
+      "expectedSkills": [
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "document-keypoint-digest",
+        "bilingual-localizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-04",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "literature-synthesis-paraphrase",
+      "expectedSkills": [
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-05",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "verification-and-citation-overlap",
+      "expectedSkills": [
+        "claim-verifier",
+        "citation-formatter"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "citation-formatter",
+        "note-collection-organizer",
+        "claim-verifier"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-06",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "qualitative-research-design",
+      "expectedSkills": [
+        "interview-guide-designer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-07",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "qualitative-coding",
+      "expectedSkills": [
+        "qualitative-coder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "qualitative-coder",
+        "interview-guide-designer",
+        "literature-synthesizer"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-08",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "conceptual-mapping",
+      "expectedSkills": [
+        "concept-mapper"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "concept-mapper",
+        "source-scout",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-09",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "creative-briefing",
+      "expectedSkills": [
+        "creative-brief-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "creative-brief-builder",
+        "daily-agenda-builder",
+        "inbox-action-sorter"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-10",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "narrative-structure",
+      "expectedSkills": [
+        "narrative-outline-editor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "document-keypoint-digest",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-11",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "mixed",
+      "category": "bilingual-localization",
+      "expectedSkills": [
+        "bilingual-localizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "bilingual-localizer",
+        "creative-brief-builder",
+        "citation-formatter"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-positive-12",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "discovery-synthesis-overlap",
+      "expectedSkills": [
+        "source-scout",
+        "literature-synthesizer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "literature-synthesizer",
+        "source-scout",
+        "qualitative-coder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-no-match-01",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "no-match-weather",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-no-match-02",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "no-match-account-action",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-no-match-03",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "en",
+      "category": "no-match-software-engineering",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "runbook-author",
+        "dependency-transition-planner",
+        "schema-change-safety-planner"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "brc-no-match-04",
+      "catalogId": "bilingual-research-creative-tools",
+      "language": "ko",
+      "category": "no-match-travel-booking",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-01",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "incident-triage",
+      "expectedSkills": [
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "incident-triage",
+        "runtime-bottleneck-profiler",
+        "inbox-action-sorter"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-02",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "incident-triage-paraphrase",
+      "expectedSkills": [
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "interface-contract-auditor"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-03",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "runbook-authoring",
+      "expectedSkills": [
+        "runbook-author"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "runbook-author",
+        "schema-change-safety-planner",
+        "oncall-handoff-builder"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-04",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "service-level-review",
+      "expectedSkills": [
+        "service-level-review"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "service-level-review",
+        "runtime-bottleneck-profiler",
+        "claim-verifier"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-05",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "log-analysis",
+      "expectedSkills": [
+        "log-pattern-analyzer"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "failure-trace-investigator"
+      ],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-06",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "capacity-forecasting",
+      "expectedSkills": [
+        "capacity-forecaster"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "capacity-forecaster",
+        "incident-triage",
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-07",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "change-risk",
+      "expectedSkills": [
+        "change-risk-assessor"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "change-risk-assessor",
+        "schema-change-safety-planner",
+        "dependency-transition-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-08",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "backup-restore",
+      "expectedSkills": [
+        "backup-restore-planner"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "backup-restore-planner"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-09",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "dependency-health",
+      "expectedSkills": [
+        "dependency-health-checker"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "dependency-health-checker",
+        "oncall-handoff-builder",
+        "interface-contract-auditor"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-10",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "postmortem",
+      "expectedSkills": [
+        "postmortem-facilitator"
+      ],
+      "expectedNoMatch": false,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": false,
+      "top1Passed": false,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-11",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "mixed",
+      "category": "oncall-handoff",
+      "expectedSkills": [
+        "oncall-handoff-builder"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "oncall-handoff-builder",
+        "runbook-author",
+        "document-keypoint-digest"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-positive-12",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "log-triage-overlap",
+      "expectedSkills": [
+        "log-pattern-analyzer",
+        "incident-triage"
+      ],
+      "expectedNoMatch": false,
+      "status": "matched",
+      "candidateNames": [
+        "incident-triage",
+        "log-pattern-analyzer",
+        "failure-trace-investigator"
+      ],
+      "recallAt3Passed": true,
+      "top1Passed": true,
+      "noSkillNoMatchPassed": null,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-no-match-01",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "no-match-graphic-design",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "habit-routine-designer",
+        "behavior-test-designer",
+        "interview-guide-designer"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-no-match-02",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "no-match-literary-translation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-no-match-03",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "en",
+      "category": "no-match-finance-calculation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "no-match",
+      "candidateNames": [],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": true,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    },
+    {
+      "scenarioId": "all-catalogs-composite-40",
+      "id": "sor-no-match-04",
+      "catalogId": "sparse-operations-reliability-tools",
+      "language": "ko",
+      "category": "no-match-local-recommendation",
+      "expectedSkills": [],
+      "expectedNoMatch": true,
+      "status": "matched",
+      "candidateNames": [
+        "daily-agenda-builder"
+      ],
+      "recallAt3Passed": null,
+      "top1Passed": null,
+      "noSkillNoMatchPassed": false,
+      "ineligibleCandidates": [],
+      "reasonCodes": []
+    }
+  ],
+  "semantics": {
+    "scope": "explicit-cli-preview-only",
+    "oneShot": true,
+    "scorerFrozenBeforeEvaluation": true,
+    "externalUserValidationSubstitute": false,
+    "hookActivationAuthorized": false,
+    "automaticRelease": false,
+    "rawPromptsEmitted": false,
+    "authority": "none",
+    "candidateRankingOnly": true,
+    "semanticAbstentionMeasured": false,
+    "userOutcomeMeasured": false
+  },
+  "environment": {
+    "python": "3.14.3",
+    "platform": "darwin"
+  },
+  "reportRevision": "sha256:a8706ca2690bc63a42a4524289cc5f24fe4718c25456d440301af8d3a8d086b7",
+  "gate": {
+    "schema": "lazy-skill-router.portable-beta-gate/v1",
+    "status": "blocked",
+    "authority": "none",
+    "automaticRelease": false,
+    "hookActivationAuthorized": false,
+    "externalUserValidationSubstitute": false,
+    "thresholds": {
+      "minAuthors": 2,
+      "minCases": 64,
+      "minPositiveCases": 48,
+      "minCatalogs": 4,
+      "maxDegradedCases": 0,
+      "maxIneligibleCandidates": 0,
+      "minNoSkillCases": 16,
+      "minPositiveTop1": 0.6,
+      "minCatalogRecallAt3": 0.65,
+      "minScenarioRecallAt3": 0.65,
+      "minLanguageRecallAt3": 0.65,
+      "minCatalogNoSkillNoMatch": 0.25,
+      "minScenarioNoSkillNoMatch": 0.25,
+      "minNoSkillNoMatch": 0.5,
+      "minPositiveRecallAt3": 0.8,
+      "maxP95LatencyMs": 20.0
+    },
+    "blockers": [
+      "positive_recall_at_3_below_minimum",
+      "language_recall_at_3_below_minimum"
+    ],
+    "sliceFailures": {
+      "language_recall_at_3_below_minimum": [
+        "ko"
+      ]
+    },
+    "reportRevision": "sha256:a8706ca2690bc63a42a4524289cc5f24fe4718c25456d440301af8d3a8d086b7",
+    "gateRevision": "sha256:3466c65cc10dd4823220f940d686ccacfa7651ca2c00b8da56b41911af52aa5b"
+  },
+  "runRevision": "sha256:1bd8cfb431ff674fd98eb5a337053576101c95305425a7ef8c76ba60cdf0c96d"
+}

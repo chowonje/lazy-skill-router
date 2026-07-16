@@ -1,0 +1,423 @@
+{
+  "schema": "lazy-skill-router.portable-catalog-authoring/v1",
+  "authoring": {
+    "authorId": "isolated-a",
+    "scorerAccess": false,
+    "existingCorpusAccess": false,
+    "purpose": "one-shot-opt-in-beta-holdout"
+  },
+  "catalogs": [
+    {
+      "id": "fictional-general-productivity",
+      "description": "A fictional catalog of everyday planning, organization, and personal productivity skills.",
+      "skills": [
+        {
+          "name": "daily-agenda-builder",
+          "description": "Builds a practical daily agenda from tasks, deadlines, appointments, and available time.",
+          "aliases": ["day planner", "time-block my day", "오늘 일정 짜기"],
+          "capabilities": ["prioritize daily tasks", "create time blocks", "flag schedule conflicts"],
+          "phases": ["plan", "schedule"]
+        },
+        {
+          "name": "inbox-action-sorter",
+          "description": "Sorts a message inbox into clear action, waiting, reference, and archive buckets.",
+          "aliases": ["inbox triage", "message cleanup", "받은편지함 정리"],
+          "capabilities": ["classify messages", "extract follow-ups", "rank reply urgency"],
+          "phases": ["triage", "organize"]
+        },
+        {
+          "name": "meeting-context-brief",
+          "description": "Prepares a concise meeting brief with objectives, context, participants, and discussion questions.",
+          "aliases": ["meeting prep", "call briefing", "회의 사전 브리프"],
+          "capabilities": ["summarize meeting context", "draft an agenda", "surface open questions"],
+          "phases": ["prepare", "brief"]
+        },
+        {
+          "name": "note-collection-organizer",
+          "description": "Restructures scattered notes into labeled topics, decisions, actions, and references.",
+          "aliases": ["organize notes", "clean up notes", "메모 분류"],
+          "capabilities": ["group related notes", "extract decisions", "separate actions from references"],
+          "phases": ["organize", "review"]
+        },
+        {
+          "name": "habit-routine-designer",
+          "description": "Designs a lightweight routine and tracking cadence for a behavior the user wants to repeat.",
+          "aliases": ["habit planner", "routine builder", "습관 계획"],
+          "capabilities": ["define habit cues", "set a tracking cadence", "plan recovery after missed days"],
+          "phases": ["design", "track"]
+        },
+        {
+          "name": "trip-preparation-checklist",
+          "description": "Creates a destination-aware preparation and packing checklist for a planned trip.",
+          "aliases": ["packing list", "travel prep", "여행 준비 목록"],
+          "capabilities": ["build packing lists", "organize pre-departure tasks", "adapt lists to trip type"],
+          "phases": ["prepare", "check"]
+        },
+        {
+          "name": "weekly-meal-outline",
+          "description": "Outlines practical meals for a week from dietary preferences, time limits, and available ingredients.",
+          "aliases": ["meal plan", "weekly menu", "주간 식단"],
+          "capabilities": ["plan weekly meals", "reuse ingredients", "produce a grocery outline"],
+          "phases": ["plan", "shop"]
+        },
+        {
+          "name": "spending-snapshot-maker",
+          "description": "Turns a simple list of income and expenses into a categorized spending snapshot.",
+          "aliases": ["budget overview", "expense snapshot", "지출 요약"],
+          "capabilities": ["categorize expenses", "compare spending to a limit", "highlight large categories"],
+          "phases": ["organize", "review"]
+        },
+        {
+          "name": "focus-session-coach",
+          "description": "Shapes a bounded focus session with one outcome, a work interval, breaks, and distraction controls.",
+          "aliases": ["focus sprint", "deep work block", "집중 세션"],
+          "capabilities": ["define a session outcome", "choose work and break intervals", "reduce distractions"],
+          "phases": ["prepare", "execute"]
+        },
+        {
+          "name": "document-keypoint-digest",
+          "description": "Condenses supplied prose into key points, decisions, caveats, and next actions.",
+          "aliases": ["document summary", "key-point digest", "문서 핵심 요약"],
+          "capabilities": ["summarize supplied text", "extract decisions", "identify stated caveats"],
+          "phases": ["read", "summarize"]
+        }
+      ],
+      "cases": [
+        {
+          "id": "gp-01",
+          "prompt": "I have five errands, a 2 p.m. appointment, and three hours of desk work. Turn them into a realistic plan for today.",
+          "language": "en",
+          "category": "direct-planning",
+          "expectedSkills": ["daily-agenda-builder"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-02",
+          "prompt": "메일이 너무 쌓였어. 오늘 답장할 것, 기다릴 것, 참고만 할 것으로 나눠 줘.",
+          "language": "ko",
+          "category": "korean-paraphrase",
+          "expectedSkills": ["inbox-action-sorter"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-03",
+          "prompt": "Brief me for tomorrow's partner call: what we are trying to decide, what context matters, and what I should ask.",
+          "language": "en",
+          "category": "specialist-briefing",
+          "expectedSkills": ["meeting-context-brief"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-04",
+          "prompt": "흩어진 회의 메모를 주제, 결정 사항, 할 일, 참고 자료로 다시 정리해 줘.",
+          "language": "ko",
+          "category": "organization-paraphrase",
+          "expectedSkills": ["note-collection-organizer"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-05",
+          "prompt": "매일 저녁 10분 reading을 꾸준히 하도록 cue, 체크 방식, missed day 복귀 규칙을 만들어 줘.",
+          "language": "mixed",
+          "category": "mixed-language-routine",
+          "expectedSkills": ["habit-routine-designer"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-06",
+          "prompt": "Make a packing and before-you-leave checklist for a four-day winter city break with one formal dinner.",
+          "language": "en",
+          "category": "specialist-checklist",
+          "expectedSkills": ["trip-preparation-checklist"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-07",
+          "prompt": "평일에는 20분 안에 만들 수 있고 재료를 남기지 않는 5일 저녁 식단을 짜 줘.",
+          "language": "ko",
+          "category": "constraint-paraphrase",
+          "expectedSkills": ["weekly-meal-outline"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-08",
+          "prompt": "Group these purchases into categories and show where most of my monthly allowance went.",
+          "language": "en",
+          "category": "financial-organization",
+          "expectedSkills": ["spending-snapshot-maker"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-09",
+          "prompt": "보고서 초안을 끝내기 위한 50분 집중 세션을 설계해 줘. 알림 차단과 쉬는 시간도 포함해.",
+          "language": "ko",
+          "category": "focused-execution",
+          "expectedSkills": ["focus-session-coach"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-10",
+          "prompt": "Condense the policy memo I pasted into key points, explicit caveats, decisions, and follow-up actions.",
+          "language": "en",
+          "category": "document-digest",
+          "expectedSkills": ["document-keypoint-digest"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-11",
+          "prompt": "내일 오전 할 일을 time-block하고, 가장 중요한 글쓰기 작업에는 방해 없는 focus sprint도 잡아 줘.",
+          "language": "mixed",
+          "category": "overlap-multi-skill",
+          "expectedSkills": ["daily-agenda-builder", "focus-session-coach"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-12",
+          "prompt": "After the workshop, sort my raw notes by topic and give me a short digest of the conclusions and caveats.",
+          "language": "en",
+          "category": "overlap-organization-summary",
+          "expectedSkills": ["note-collection-organizer", "document-keypoint-digest"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "gp-13",
+          "prompt": "Solve the equation x squared minus 7x plus 10 equals zero and show the factorization.",
+          "language": "en",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "gp-14",
+          "prompt": "자전거 앞 브레이크가 끼익거리는데 캘리퍼를 어떻게 정비해야 해?",
+          "language": "ko",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "gp-15",
+          "prompt": "Translate this short Japanese greeting into natural Spanish.",
+          "language": "en",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "gp-16",
+          "prompt": "사진 속 새의 종을 깃털 무늬와 부리 모양으로 식별해 줘.",
+          "language": "ko",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        }
+      ]
+    },
+    {
+      "id": "fictional-overlap-software-development",
+      "description": "A fictional software-development catalog whose neighboring skills intentionally overlap around diagnosis, change planning, review, and release readiness.",
+      "skills": [
+        {
+          "name": "failure-trace-investigator",
+          "description": "Structures evidence gathering and hypothesis testing for reproducible software failures.",
+          "aliases": ["bug investigation", "failure diagnosis", "오류 추적"],
+          "capabilities": ["form failure hypotheses", "design reproduction steps", "narrow likely fault boundaries"],
+          "phases": ["reproduce", "diagnose"]
+        },
+        {
+          "name": "behavior-test-designer",
+          "description": "Designs deterministic tests around expected behavior, edge cases, and regressions.",
+          "aliases": ["test case design", "regression test planning", "테스트 설계"],
+          "capabilities": ["derive behavior cases", "identify test boundaries", "plan regression coverage"],
+          "phases": ["specify", "verify"]
+        },
+        {
+          "name": "interface-contract-auditor",
+          "description": "Reviews changes to service or library interfaces for compatibility and consumer impact.",
+          "aliases": ["API contract review", "compatibility audit", "인터페이스 변경 검토"],
+          "capabilities": ["compare interface shapes", "identify breaking changes", "map affected consumers"],
+          "phases": ["review", "validate"]
+        },
+        {
+          "name": "schema-change-safety-planner",
+          "description": "Plans staged database schema changes with rollback, compatibility, and data-safety considerations.",
+          "aliases": ["database migration plan", "schema rollout", "DB 변경 계획"],
+          "capabilities": ["sequence schema migrations", "plan rollback", "check mixed-version compatibility"],
+          "phases": ["plan", "migrate"]
+        },
+        {
+          "name": "runtime-bottleneck-profiler",
+          "description": "Plans measurement-led investigation of latency, throughput, CPU, memory, or I/O bottlenecks.",
+          "aliases": ["performance profiling", "latency investigation", "성능 병목 분석"],
+          "capabilities": ["select performance measurements", "isolate bottlenecks", "compare before and after results"],
+          "phases": ["measure", "optimize"]
+        },
+        {
+          "name": "dependency-transition-planner",
+          "description": "Plans dependency upgrades by identifying compatibility risks, migration work, and validation steps.",
+          "aliases": ["dependency upgrade", "framework migration", "의존성 전환"],
+          "capabilities": ["inventory upgrade impact", "sequence version transitions", "define upgrade verification"],
+          "phases": ["assess", "upgrade"]
+        },
+        {
+          "name": "code-boundary-refactorer",
+          "description": "Plans focused refactors that improve code ownership and separation without changing public behavior.",
+          "aliases": ["structure refactor", "module split", "코드 구조 개선"],
+          "capabilities": ["identify responsibility boundaries", "stage behavior-preserving changes", "limit refactor scope"],
+          "phases": ["design", "refactor"]
+        },
+        {
+          "name": "release-evidence-checker",
+          "description": "Builds a release-readiness check from test evidence, change scope, rollout needs, and known risks.",
+          "aliases": ["release readiness", "ship checklist", "릴리스 점검"],
+          "capabilities": ["assemble verification evidence", "check rollout prerequisites", "record residual risks"],
+          "phases": ["verify", "release"]
+        },
+        {
+          "name": "trust-boundary-reviewer",
+          "description": "Reviews a software change for input, authorization, data exposure, and trust-boundary risks.",
+          "aliases": ["security surface review", "security design check", "보안 경계 검토"],
+          "capabilities": ["identify trust boundaries", "review authorization paths", "flag sensitive data exposure"],
+          "phases": ["model", "review"]
+        },
+        {
+          "name": "change-documentation-aligner",
+          "description": "Finds user and developer documentation that must be updated to match a software change.",
+          "aliases": ["docs sync", "documentation impact", "문서 동기화"],
+          "capabilities": ["map changes to documentation", "identify stale examples", "draft an update checklist"],
+          "phases": ["review", "document"]
+        }
+      ],
+      "cases": [
+        {
+          "id": "sd-01",
+          "prompt": "An intermittent worker crash only appears after retries. Help me form hypotheses and design the smallest reproduction sequence.",
+          "language": "en",
+          "category": "failure-diagnosis",
+          "expectedSkills": ["failure-trace-investigator"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-02",
+          "prompt": "이 버그가 다시 생기지 않도록 정상 경로, 경계값, 실패 경로를 포함한 회귀 테스트를 설계해 줘.",
+          "language": "ko",
+          "category": "test-specialist",
+          "expectedSkills": ["behavior-test-designer"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-03",
+          "prompt": "Review this proposed response payload rename and tell me which clients would break and what compatibility path we have.",
+          "language": "en",
+          "category": "contract-compatibility",
+          "expectedSkills": ["interface-contract-auditor"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-04",
+          "prompt": "운영 테이블에 NOT NULL 열을 추가해야 해. 구버전 앱과 함께 동작하는 단계적 migration과 rollback을 짜 줘.",
+          "language": "mixed",
+          "category": "schema-specialist",
+          "expectedSkills": ["schema-change-safety-planner"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-05",
+          "prompt": "The search endpoint became twice as slow. Propose measurements that distinguish database, network, CPU, and serialization costs.",
+          "language": "en",
+          "category": "performance-specialist",
+          "expectedSkills": ["runtime-bottleneck-profiler"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-06",
+          "prompt": "프레임워크 메이저 버전을 올릴 때 호환성 위험, 전환 순서, 검증 항목을 정리해 줘.",
+          "language": "ko",
+          "category": "dependency-transition",
+          "expectedSkills": ["dependency-transition-planner"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-07",
+          "prompt": "This service class handles validation, persistence, and notifications. Plan a behavior-preserving split into clearer boundaries.",
+          "language": "en",
+          "category": "refactor-boundaries",
+          "expectedSkills": ["code-boundary-refactorer"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-08",
+          "prompt": "배포 전에 테스트 증거, rollout 조건, 알려진 위험을 한 번에 확인하는 ship checklist가 필요해.",
+          "language": "mixed",
+          "category": "release-readiness",
+          "expectedSkills": ["release-evidence-checker"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-09",
+          "prompt": "Review the new file-sharing endpoint for authorization gaps, untrusted input, and accidental data exposure.",
+          "language": "en",
+          "category": "security-specialist",
+          "expectedSkills": ["trust-boundary-reviewer"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-10",
+          "prompt": "CLI 옵션 이름을 바꿨는데 README, 예제, 도움말에서 어디를 고쳐야 할지 찾아 업데이트 목록을 만들어 줘.",
+          "language": "ko",
+          "category": "documentation-alignment",
+          "expectedSkills": ["change-documentation-aligner"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-11",
+          "prompt": "We are replacing a customer ID field in the public API and its backing column. Review consumer compatibility and stage the database migration safely.",
+          "language": "en",
+          "category": "overlap-contract-schema",
+          "expectedSkills": ["interface-contract-auditor", "schema-change-safety-planner"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-12",
+          "prompt": "라이브러리 upgrade 뒤 메모리 사용량이 급증했어. 전환 위험을 점검하고 before/after profiling 계획도 세워 줘.",
+          "language": "mixed",
+          "category": "overlap-upgrade-performance",
+          "expectedSkills": ["dependency-transition-planner", "runtime-bottleneck-profiler"],
+          "expectedNoMatch": false
+        },
+        {
+          "id": "sd-13",
+          "prompt": "Write three playful taglines for a neighborhood bakery's summer poster.",
+          "language": "en",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "sd-14",
+          "prompt": "주말에 베란다에서 키우기 좋은 허브 세 가지와 물 주는 주기를 알려 줘.",
+          "language": "ko",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "sd-15",
+          "prompt": "Explain how compound interest works using a simple savings example.",
+          "language": "en",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        },
+        {
+          "id": "sd-16",
+          "prompt": "이 코드와 무관하게 봄비를 주제로 짧은 하이쿠를 써 줘.",
+          "language": "ko",
+          "category": "true-no-skill",
+          "expectedSkills": [],
+          "expectedNoMatch": true
+        }
+      ]
+    }
+  ]
+}

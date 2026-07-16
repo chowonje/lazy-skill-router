@@ -44,6 +44,7 @@ from lazy_skill_router_common import (
     confined_remove_path,
     confined_replace_tree,
     confined_rmdir,
+    ensure_safe_write_target,
     load_hooks,
     load_json_object,
     registered_hook_command,
@@ -133,7 +134,7 @@ class InstallMutation:
         self._record_created_parents()
         confined_ensure_managed_root(self.codex_root)
         self.temp_dir, self.temp_identity = confined_create_private_directory(
-            self.codex_root.parent,
+            self.codex_root,
             TRANSACTION_PREFIX,
         )
         backup_root = self.temp_dir
@@ -663,7 +664,32 @@ def transaction_from_journal(
 
 
 def recover_pending_transactions(codex_root: Path, *, dry_run: bool = False) -> int:
-    parent = codex_root.parent
+    try:
+        ensure_safe_write_target(codex_root / ".lazy-skill-router-recovery-probe", codex_root)
+    except ValueError as exc:
+        raise InstallError("pending transaction root is unsafe") from exc
+    legacy_parent = codex_root.parent
+    for legacy_root, enumerated_identity in confined_list_private_directories(legacy_parent, TRANSACTION_PREFIX):
+        current_identity = confined_path_identity(
+            legacy_root,
+            legacy_parent,
+            allow_leaf_symlink=True,
+        )
+        if current_identity != enumerated_identity:
+            raise InstallError("legacy transaction root changed after enumeration")
+        legacy_journal = legacy_root / "journal.json"
+        journal_identity = confined_path_identity(
+            legacy_journal,
+            legacy_root,
+            allow_leaf_symlink=True,
+            missing_parent_is_missing=True,
+        )
+        if journal_identity.kind == "file":
+            raise InstallError(
+                "legacy interrupted install transaction detected outside Codex home; "
+                "recover it with the previously installed lazy-skill-router version before continuing"
+            )
+    parent = codex_root
     recovered = 0
     fingerprint = codex_root_fingerprint(codex_root)
     for transaction_root, enumerated_identity in confined_list_private_directories(parent, TRANSACTION_PREFIX):
